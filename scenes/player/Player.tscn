@@ -1,16 +1,14 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/player.gd" id="1"]
 [ext_resource type="Resource" path="res://resources/skills/basic_shot.tres" id="2"]
 [ext_resource type="Resource" path="res://resources/skills/multishot.tres" id="10"]
 [ext_resource type="Resource" path="res://resources/skills/piercing_arrow.tres" id="11"]
 [ext_resource type="Texture2D" path="res://art/characters/archer_idle_01.png" id="3"]
-[ext_resource type="Texture2D" path="res://art/characters/archer_idle_02.png" id="4"]
-[ext_resource type="Texture2D" path="res://art/characters/archer_shoot_01.png" id="5"]
-[ext_resource type="Texture2D" path="res://art/characters/archer_shoot_02.png" id="6"]
-[ext_resource type="Texture2D" path="res://art/characters/archer_shoot_03.png" id="7"]
-[ext_resource type="Texture2D" path="res://art/characters/archer_shoot_04.png" id="8"]
-[ext_resource type="Texture2D" path="res://art/characters/archer_shoot_05.png" id="9"]
+[ext_resource type="Texture2D" path="res://art/characters/archer_shoot_01.png" id="4"]
+[ext_resource type="Texture2D" path="res://art/characters/archer_shoot_02.png" id="5"]
+[ext_resource type="Texture2D" path="res://art/characters/archer_shoot_03.png" id="6"]
+[ext_resource type="Texture2D" path="res://art/characters/archer_shoot_04.png" id="7"]
 
 [sub_resource type="CircleShape2D" id="CircleShape1"]
 radius = 20.0
@@ -20,15 +18,15 @@ animations = [{
 "frames": [{
 "duration": 1.0,
 "texture": ExtResource("3")
-}, {
-"duration": 1.0,
-"texture": ExtResource("4")
 }],
 "loop": true,
 "name": &"idle",
 "speed": 4.0
 }, {
 "frames": [{
+"duration": 1.0,
+"texture": ExtResource("4")
+}, {
 "duration": 1.0,
 "texture": ExtResource("5")
 }, {
@@ -37,16 +35,10 @@ animations = [{
 }, {
 "duration": 1.0,
 "texture": ExtResource("7")
-}, {
-"duration": 1.0,
-"texture": ExtResource("8")
-}, {
-"duration": 1.0,
-"texture": ExtResource("9")
 }],
 "loop": false,
 "name": &"attack",
-"speed": 12.0
+"speed": 9.0
 }]
 
 [node name="Player" type="CharacterBody2D"]
@@ -60,7 +52,7 @@ piercing_arrow = ExtResource("11")
 [node name="Sprite" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"idle"
-scale = Vector2(1.6, 1.6)
+scale = Vector2(1.3, 1.3)
 
 [node name="Collision" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape1")
