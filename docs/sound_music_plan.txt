@@ -1,0 +1,148 @@
+SOUND AND MUSIC PLAN - Vertical Endless Archer RPG
+
+1) Audio Goal
+- Make the game feel exciting, readable, and responsive.
+- Use short sound effects for combat feedback.
+- Use music to support the wave-based flow.
+- Boss fights should feel louder and more intense.
+
+2) Main Audio Categories
+- Music.
+- Player actions.
+- Enemy actions.
+- Boss actions.
+- UI sounds.
+- Pickup sounds.
+- Damage and hit sounds.
+- Victory and failure sounds.
+- Ambient effects.
+
+3) Music Plan
+A. Main Menu Music
+- Calm fantasy tone.
+- Light mystery or adventure feeling.
+
+B. Gameplay Music
+- Fast rhythm.
+- Steady pulse.
+- Works well for endless waves.
+
+C. Boss Music
+- Strong percussion.
+- Higher tension.
+- More dramatic than normal gameplay.
+
+D. Victory Music
+- Short, uplifting melody.
+- Play after boss defeat or milestone clear.
+
+E. Game Over Music
+- Short sad or tense sting.
+- Not too long.
+
+4) Sound Effects for Player
+- Bow shot.
+- Arrow hit.
+- Skill cast.
+- Level up.
+- Damage taken.
+- Heal.
+- Dash or dodge.
+- UI confirm click.
+
+5) Sound Effects for Enemies
+- Spawn sound.
+- Move or growl sound.
+- Attack sound.
+- Hit sound.
+- Death sound.
+- Elite enemy aura sound.
+
+6) Sound Effects for Bosses
+- Boss intro roar or warning cue.
+- Heavy attack sound.
+- Phase change sound.
+- Summon minion sound.
+- Special attack warning sound.
+- Boss death explosion or collapse sound.
+
+7) UI Sound Design
+- Button hover.
+- Button click.
+- Inventory open.
+- Inventory close.
+- Skill upgrade select.
+- Pause menu open and close.
+- Error or locked item click.
+
+8) Pickup Sounds
+- Coin pickup.
+- XP pickup.
+- Item pickup.
+- Rare item drop.
+- Health or mana pickup.
+
+9) Audio Priority Rules
+- Important combat sounds should be louder than background sounds.
+- Boss warning sounds should stand out clearly.
+- UI sounds should be short and not annoying.
+- Music should never hide enemy attack cues.
+
+10) Suggested Audio Mix
+- Music: medium volume.
+- Player shot: medium-high volume.
+- Hit impacts: high clarity.
+- UI sounds: low-medium volume.
+- Boss attacks: high impact.
+- Ambient: low volume.
+
+11) File Naming Example
+Music:
+- music_menu.ogg
+- music_gameplay.ogg
+- music_boss.ogg
+- music_victory.ogg
+- music_gameover.ogg
+
+SFX:
+- sfx_arrow_shot_01.wav
+- sfx_arrow_hit_01.wav
+- sfx_skill_cast_01.wav
+- sfx_levelup_01.wav
+- sfx_enemy_hit_01.wav
+- sfx_enemy_die_01.wav
+- sfx_boss_roar_01.wav
+- sfx_ui_click_01.wav
+- sfx_item_pickup_01.wav
+
+12) Implementation Notes in Godot
+- Use AudioStreamPlayer for music.
+- Use AudioStreamPlayer2D or AudioStreamPlayer for sound effects.
+- Keep music and SFX in separate buses.
+- Add volume sliders in settings later.
+- Add pitch variation for repeated sounds if needed.
+
+13) Audio Buses Suggestion
+- Master.
+- Music.
+- SFX.
+- UI.
+- Ambience.
+
+14) MVP Audio Set
+- 1 menu music track.
+- 1 gameplay music track.
+- 1 boss music track.
+- 6 player SFX.
+- 6 enemy SFX.
+- 4 UI SFX.
+- 3 pickup SFX.
+- 2 boss special SFX.
+
+15) Future Audio Expansion
+- Layered boss music phases.
+- Ambient forest and ruin sounds.
+- Rare item jingle.
+- Companion voice effects.
+- More enemy variety sounds.
+- Dynamic music that changes with wave intensity.

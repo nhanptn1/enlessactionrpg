@@ -1,0 +1,486 @@
+VERTICAL ENDLESS ARCHER RPG - MASTER PLAN
+
+1) GAME CONCEPT
+- Genre: vertical endless action RPG.
+- Player: archer fixed at the bottom of the screen.
+- Enemies spawn from the top and move downward.
+- Every 10 waves, a boss appears.
+- The game continues endlessly with scaling difficulty.
+
+2) CORE GAME LOOP
+- Start a wave.
+- Enemies spawn in patterns.
+- Player attacks automatically or by using skills.
+- Gain XP from kills.
+- Level up and choose upgrades.
+- Clear the wave.
+- Fight a boss every 10 waves.
+- Repeat with harder waves.
+
+3) MAIN SYSTEMS
+- Player system.
+- Skill system.
+- Enemy system.
+- Boss system.
+- Wave manager.
+- XP and level-up system.
+- HUD and UI.
+- Game over and restart flow.
+
+4) SCENE ARCHITECTURE
+Main.tscn
+- World
+  - Background
+  - Player
+  - EnemySpawner
+  - WaveManager
+  - BossManager
+  - ProjectileManager
+  - PickupManager
+  - VFXManager
+- HUD
+  - HPBar
+  - XPBar
+  - WaveLabel
+  - SkillBar
+  - BossHPBar
+  - LevelUpPanel
+  - PausePanel
+  - GameOverPanel
+
+Player.tscn
+- CharacterBody2D
+  - AnimatedSprite2D
+  - CollisionShape2D
+  - AttackOrigin
+  - SkillController
+  - PlayerStateMachine
+
+Enemy.tscn
+- CharacterBody2D or Area2D
+  - AnimatedSprite2D
+  - CollisionShape2D
+  - EnemyAI
+  - HurtBox
+  - HealthComponent
+  - DropComponent
+
+Boss.tscn
+- CharacterBody2D
+  - AnimatedSprite2D
+  - CollisionShape2D
+  - BossAI
+  - HealthComponent
+  - PhaseController
+  - SpecialAttackController
+
+5) FOLDER STRUCTURE
+res://
+  scenes/
+    main/
+    player/
+    enemies/
+    bosses/
+    ui/
+    effects/
+    pickups/
+  scripts/
+    systems/
+    data/
+    states/
+    ui/
+    components/
+  resources/
+    skills/
+    enemies/
+    bosses/
+    waves/
+    upgrades/
+    items/
+  art/
+    characters/
+    enemies/
+    bosses/
+    items/
+    ui/
+    vfx/
+    backgrounds/
+    tilesets/
+    portraits/
+    icons/
+  audio/
+    music/
+    sfx/
+  autoload/
+
+6) AUTLOAD SINGLETONS
+- GameManager.
+- AudioManager.
+- SaveManager.
+- SignalBus.
+- Randomizer or RunData.
+
+7) STATE ARCHITECTURE
+Player states:
+- Idle.
+- Attack.
+- SkillCast.
+- Hit.
+- Dead.
+
+Enemy states:
+- Spawn.
+- Move.
+- Attack.
+- Hit.
+- Die.
+
+Game states:
+- Boot.
+- Ready.
+- WaveActive.
+- BossActive.
+- LevelUp.
+- Paused.
+- GameOver.
+
+8) PLAYER DESIGN
+- Fixed archer at the bottom.
+- Can move left and right only, or stay fixed.
+- Basic bow shot is always available.
+- 3 to 4 active skills.
+- Gains XP and levels up.
+- Uses a simple and readable attack style.
+
+9) SKILL SYSTEM
+Basic attack:
+- Fast.
+- Low damage.
+- Always available.
+
+Active skills:
+- Multishot.
+- Piercing Arrow.
+- Arrow Rain.
+- Trap Shot.
+
+Skill progression:
+- Level 1: basic attack.
+- Level 3: Multishot.
+- Level 5: Piercing Arrow.
+- Level 8: Arrow Rain or Trap Shot.
+
+10) ENEMY DESIGN
+Normal enemies:
+- Slime Scout.
+- Goblin Runner.
+- Bat Swarm.
+- Skeleton Soldier.
+- Wolf Beast.
+
+Tank enemies:
+- Armored Brute.
+- Shield Skeleton.
+- Stone Golem.
+
+Elite enemies:
+- Stronger versions of normal monsters.
+- More HP.
+- Faster speed or special ability.
+
+11) BOSS DESIGN
+Boss concepts:
+- Corrupted Forest Guardian.
+- Dark Ranger Commander.
+- Fallen Knight.
+- Demon Beast.
+
+Boss rules:
+- Boss is larger than normal enemies.
+- Boss has 2 to 4 attack patterns.
+- Boss has telegraphed attacks.
+- Boss changes behavior in phases.
+- Boss appears every 10 waves.
+
+12) WAVE SYSTEM
+- Waves 1 to 3: easy waves.
+- Waves 4 to 6: new enemy types.
+- Waves 7 to 9: elites and mixed groups.
+- Wave 10: boss wave.
+- After wave 10: continue with stronger stats and more enemies.
+
+13) XP AND LEVEL-UP SYSTEM
+- Enemies drop XP.
+- Basic enemies give small XP.
+- Elites give medium XP.
+- Bosses give large XP.
+- XP bar fills toward next level.
+- On level-up, show 3 random choices.
+- Player picks one upgrade.
+- Upgrade applies immediately.
+
+14) UPGRADE CATEGORIES
+Offense:
+- Damage.
+- Crit chance.
+- Attack speed.
+- Arrow count.
+- Projectile speed.
+
+Defense:
+- HP.
+- Shield.
+- Damage reduction.
+- Healing bonus.
+
+Utility:
+- Cooldown reduction.
+- XP gain bonus.
+- Movement speed.
+- Pickup range.
+
+Skill modifiers:
+- Extra projectile.
+- Bigger area.
+- Longer duration.
+- Chain effect.
+- Pierce count.
+
+15) UI LAYOUT
+- HP bar.
+- XP bar.
+- Wave number.
+- Skill icons.
+- Cooldown overlays.
+- Boss HP bar.
+- Level-up popup.
+- Pause menu.
+- Game over panel.
+
+16) ART STYLE
+- Top-down pixel art fantasy.
+- Clean silhouettes and readable shapes.
+- Slightly dark adventure mood.
+- Same pixel size for all main assets.
+- Consistent outline thickness and shading.
+
+17) THEME
+- Forest fantasy and ruined kingdom.
+- Nature, corruption, and ancient magic.
+- Player is a ranger archer.
+- Enemies are corrupted creatures and undead.
+- Bosses are major dark fantasy threats.
+
+18) PLAYER VISUAL STYLE
+- Forest ranger / hunter.
+- Hood or short cloak.
+- Leather armor.
+- Bow always visible.
+- Green, brown, gold color palette.
+
+19) MONSTER STYLE
+- Small enemies: slimes, bats, goblins, insects.
+- Medium enemies: skeletons, wolves, bandits.
+- Tank enemies: armored brutes, stone golems.
+- Bosses: corrupted guardian, dark ranger, fallen knight, demon beast.
+
+20) ITEM STYLE
+Weapons:
+- Bows.
+- Daggers.
+- Short swords.
+- Staffs.
+
+Armor:
+- Leather vest.
+- Cloak.
+- Chestplate.
+- Boots.
+
+Accessories:
+- Ring.
+- Amulet.
+- Charm.
+- Bracelet.
+
+Consumables:
+- Potion.
+- Elixir.
+- Bomb.
+- Scroll.
+
+21) UI STYLE
+- Dark fantasy panels.
+- Parchment or stone frame look.
+- Gold or blue borders.
+- Rounded square inventory slots.
+- Skill buttons with cooldown overlays.
+
+22) AUDIO PLAN
+Music:
+- Main menu music.
+- Gameplay music.
+- Boss music.
+- Victory music.
+- Game over music.
+
+Sound effects:
+- Bow shot.
+- Arrow hit.
+- Skill cast.
+- Level up.
+- Damage taken.
+- Enemy hit.
+- Enemy death.
+- Boss roar.
+- Boss attack.
+- UI click.
+- Item pickup.
+
+23) FILE NAMING CONVENTION
+Use lowercase and underscore.
+
+Character examples:
+- archer_idle_01.png
+- archer_walk_01.png
+- archer_shoot_01.png
+
+Enemy examples:
+- slime_idle_01.png
+- goblin_run_01.png
+- skeleton_walk_01.png
+
+Boss examples:
+- boss_forest_guardian_attack_01.png
+- boss_dark_ranger_phase2_01.png
+
+Item examples:
+- item_bow_basic.png
+- item_armor_leather.png
+- item_ring_accuracy.png
+
+UI examples:
+- ui_hp_bar.png
+- ui_skill_slot.png
+- ui_boss_hp_bar.png
+
+Music examples:
+- music_menu.ogg
+- music_gameplay.ogg
+- music_boss.ogg
+
+SFX examples:
+- sfx_arrow_shot_01.wav
+- sfx_skill_cast_01.wav
+- sfx_ui_click_01.wav
+
+24) SOUND AND MUSIC RULES
+- Combat sounds must be clear.
+- Boss warning sounds must stand out.
+- UI sounds should be short.
+- Music should not hide attack cues.
+- Use separate volume buses for music, SFX, UI, and ambience.
+
+25) MVP FEATURE SET
+Gameplay:
+- Fixed archer player.
+- 3 active skills.
+- 3 normal enemy types.
+- 1 boss.
+- XP and level-up system.
+- Boss every 10 waves.
+- Endless scaling.
+
+UI:
+- HP bar.
+- XP bar.
+- Wave counter.
+- Skill buttons.
+- Boss HP bar.
+- Level-up popup.
+- Game over screen.
+
+Art:
+- 1 archer.
+- 3 enemies.
+- 1 boss.
+- 9 item icons.
+- 6 UI elements.
+- Basic backgrounds and VFX.
+
+Audio:
+- Gameplay music.
+- Boss music.
+- Player attack sounds.
+- Enemy hit and death sounds.
+- UI sounds.
+
+26) MVP EXCLUSIONS
+- No story system yet.
+- No inventory system yet.
+- No crafting yet.
+- No companion system yet.
+- No large open world.
+- No multiplayer.
+- No complex meta progression.
+
+27) PRODUCTION ROADMAP
+Phase 1: Core Prototype
+- Set portrait screen.
+- Add player attack.
+- Add one enemy.
+- Add health and damage.
+- Add enemy spawning.
+
+Phase 2: Wave System
+- Add wave manager.
+- Add wave numbers.
+- Add wave end detection.
+- Add enemy scaling.
+- Add boss every 10 waves.
+
+Phase 3: Progression
+- Add XP system.
+- Add level-up choices.
+- Add skills and cooldowns.
+- Add skill unlocks.
+
+Phase 4: Boss and Polish
+- Add boss scene.
+- Add attack patterns.
+- Add telegraph warnings.
+- Add boss HP UI.
+- Add victory and defeat flow.
+
+Phase 5: Art and Audio Polish
+- Replace placeholder sprites.
+- Add item and skill icons.
+- Add music and sound effects.
+- Add VFX, screen shake, and hit feedback.
+
+Phase 6: Balance and Content
+- Tune XP curve.
+- Tune wave difficulty.
+- Tune skill cooldowns.
+- Tune boss attacks.
+- Add more enemy and item variety.
+
+28) SUCCESS CRITERIA
+- The game is playable from start to boss.
+- The player feels progress through level-ups.
+- Boss waves are exciting and clear.
+- Endless mode keeps getting harder.
+- The UI is readable on a vertical screen.
+
+29) BIGGEST RISKS
+- Too many features too early.
+- Poor readability on a vertical screen.
+- Enemy waves becoming repetitive.
+- Skills feeling weak or unbalanced.
+- Boss fights being unclear or unfair.
+
+30) BEST PRACTICE
+- Build one complete loop first.
+- Make it fun before adding content.
+- Use simple assets until the game works.
+- Add polish only after the core loop feels good.

@@ -1,0 +1,172 @@
+ART ASSET LIST AND FILE NAMING CONVENTION - Vertical Endless Archer RPG
+
+1) Asset Organization Goal
+- Keep all art assets easy to find.
+- Use one consistent naming style.
+- Separate characters, enemies, items, UI, and effects.
+- Make future scaling and team work easier.
+
+2) Main Asset Categories
+- Characters.
+- Enemies.
+- Bosses.
+- Items.
+- UI.
+- Effects.
+- Backgrounds.
+- Tilesets.
+- Icons.
+- Portraits.
+
+3) Suggested Folder Structure
+res://art/
+  characters/
+  enemies/
+  bosses/
+  items/
+  ui/
+  vfx/
+  backgrounds/
+  tilesets/
+  portraits/
+  icons/
+
+4) Character Assets
+Player archer folder:
+- idle.
+- walk.
+- shoot.
+- special.
+- hit.
+- death.
+
+Example file names:
+- archer_idle_01.png
+- archer_walk_01.png
+- archer_shoot_01.png
+- archer_skill_01.png
+- archer_hit_01.png
+- archer_death_01.png
+
+5) Enemy Assets
+Normal enemy examples:
+- slime_idle_01.png
+- goblin_run_01.png
+- bat_fly_01.png
+- skeleton_walk_01.png
+- wolf_charge_01.png
+
+Recommended enemy folders:
+- normal/
+- elite/
+- special/
+
+6) Boss Assets
+Boss naming example:
+- boss_forest_guardian_idle_01.png
+- boss_forest_guardian_attack_01.png
+- boss_forest_guardian_attack_02.png
+- boss_forest_guardian_phase2_01.png
+- boss_forest_guardian_death_01.png
+
+7) Item Assets
+Weapon examples:
+- item_bow_basic.png
+- item_bow_hunter.png
+- item_bow_shadow.png
+
+Armor examples:
+- item_armor_leather.png
+- item_armor_cloak.png
+- item_armor_guardian.png
+
+Accessory examples:
+- item_ring_accuracy.png
+- item_amulet_speed.png
+- item_charm_vitality.png
+
+Consumable examples:
+- item_potion_small.png
+- item_mana_drink.png
+- item_arrow_bundle.png
+
+8) UI Assets
+UI elements:
+- ui_hp_bar.png
+- ui_xp_bar.png
+- ui_wave_label.png
+- ui_skill_slot.png
+- ui_skill_cooldown.png
+- ui_panel_main.png
+- ui_panel_pause.png
+- ui_panel_gameover.png
+- ui_boss_hp_bar.png
+- ui_button_normal.png
+- ui_button_hover.png
+
+9) VFX Assets
+Effect examples:
+- vfx_arrow_trail_01.png
+- vfx_hit_spark_01.png
+- vfx_explosion_01.png
+- vfx_heal_circle_01.png
+- vfx_boss_warning_01.png
+
+10) Background Assets
+Background examples:
+- bg_forest_ruins_day.png
+- bg_forest_ruins_night.png
+- bg_boss_arena.png
+- bg_wave_stage_01.png
+
+11) Tileset Assets
+Tileset examples:
+- tiles_forest.png
+- tiles_ruins.png
+- tiles_dungeon.png
+- tiles_boss_arena.png
+
+12) Portrait Assets
+Use portraits for:
+- player level-up.
+- boss intro.
+- story dialogue.
+- item pickup or special events.
+
+Portrait file examples:
+- portrait_archer.png
+- portrait_forest_guardian.png
+- portrait_dark_ranger.png
+
+13) Naming Rules
+- Use lowercase only.
+- Separate words with underscore.
+- Keep names short but clear.
+- Include type, character, state, and index if needed.
+- Examples: archer_shoot_01.png, boss_guardian_phase2_01.png.
+
+14) Versioning Rule
+If an asset is updated, use a version suffix:
+- archer_idle_v1.png
+- archer_idle_v2.png
+- ui_hp_bar_v3.png
+
+15) Export Rule
+- Keep PNG for sprites and UI.
+- Keep transparent background for characters, enemies, items, and icons.
+- Keep background assets without transparency if needed.
+- Keep frame size consistent across the same asset type.
+
+16) Recommended MVP Asset Set
+- 1 player archer.
+- 3 enemy types.
+- 1 boss.
+- 9 item icons.
+- 6 UI elements.
+- 3 background images.
+- 4 VFX effects.
+
+17) Practical Tip
+- Do not mix many art styles.
+- Use one pixel size and one lighting style.
+- Keep icons, sprites, and UI visually consistent.

@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/systems/enemy_spawner.gd" id="2"]
@@ -9,6 +9,7 @@
 [ext_resource type="Resource" path="res://resources/waves/wave_03.tres" id="7"]
 [ext_resource type="Resource" path="res://resources/enemies/slime_scout.tres" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/ui/LevelUpPopup.tscn" id="9"]
+[ext_resource type="Resource" path="res://resources/enemies/corrupted_forest_guardian.tres" id="10"]
 
 [node name="Main" type="Node2D"]
 
@@ -25,6 +26,7 @@ center_x = 360.0
 script = ExtResource("3")
 waves = [ExtResource("5"), ExtResource("6"), ExtResource("7")]
 procedural_enemy_data = ExtResource("8")
+boss_enemy_data = ExtResource("10")
 
 [node name="HUD" parent="." instance=ExtResource("4")]
 

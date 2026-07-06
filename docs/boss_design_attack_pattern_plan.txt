@@ -1,0 +1,150 @@
+BOSS DESIGN AND ATTACK PATTERN PLAN - Vertical Endless Archer RPG
+
+1) Boss Design Goal
+- Bosses should feel like the main challenge of every 10 waves.
+- Boss fights should be readable, fair, and exciting.
+- Each boss should have unique attacks and a strong visual identity.
+- Bosses should create a clear change in game pace.
+
+2) Boss Design Rules
+- Bigger sprite or model than normal enemies.
+- Strong silhouette and color contrast.
+- 2 to 4 attack patterns for MVP.
+- Clear telegraph before each attack.
+- Different phase behavior when HP is reduced.
+- Reward the player with large XP or upgrade after defeat.
+
+3) Boss Phase Structure
+Phase 1:
+- Basic attacks.
+- Slow movement or mostly stationary.
+- Easy to learn patterns.
+
+Phase 2:
+- Faster attacks.
+- Extra projectiles or summons.
+- More pressure on the player.
+
+Phase 3:
+- Low HP enraged state.
+- Faster movement or shorter cooldowns.
+- Final attack sequence before defeat.
+
+4) Boss Concept A: Corrupted Forest Guardian
+Visual:
+- Huge plant-stone creature.
+- Dark green, brown, black, glowing purple.
+- Roots, vines, and cracked stone body.
+
+Attacks:
+- Root Slam: hits the ground in front.
+- Vine Whip: long-range sweeping attack.
+- Poison Burst: area attack around boss.
+- Summon Saplings: spawns small minions.
+
+Phases:
+- Phase 1: root slam and vine whip.
+- Phase 2: poison burst and summon saplings.
+- Phase 3: faster vine attacks and enraged movement.
+
+5) Boss Concept B: Dark Ranger Commander
+Visual:
+- Large enemy archer with cloak and horned mask.
+- Black, red, silver, or dark purple color scheme.
+- Bow glows with cursed energy.
+
+Attacks:
+- Rapid Volley: several arrows in a fan spread.
+- Aimed Shot: strong single attack with warning line.
+- Arrow Rain: attacks multiple points from above.
+- Shadow Step: short teleport or dash.
+
+Phases:
+- Phase 1: aimed shot and rapid volley.
+- Phase 2: arrow rain and shadow step.
+- Phase 3: faster volley and mixed attack chains.
+
+6) Boss Concept C: Fallen Knight
+Visual:
+- Heavy armored knight.
+- Broken shield, giant sword, cursed aura.
+- Steel, dark blue, red glow.
+
+Attacks:
+- Sword Slash: close frontal attack.
+- Charge: rushes forward quickly.
+- Shockwave: heavy ground attack.
+- Shield Burst: defensive counter attack.
+
+Phases:
+- Phase 1: sword slash and charge.
+- Phase 2: shockwave and shield burst.
+- Phase 3: faster charge chains and stronger shockwave.
+
+7) Boss Concept D: Demon Beast
+Visual:
+- Large horned beast.
+- Red, black, orange, fire effects.
+- Claws, teeth, smoke, and glowing eyes.
+
+Attacks:
+- Claw Swipe: fast close-range hit.
+- Fire Breath: cone attack.
+- Leap Smash: jumps to a target area.
+- Summon Flames: creates dangerous zones.
+
+Phases:
+- Phase 1: claw swipe and fire breath.
+- Phase 2: leap smash and summon flames.
+- Phase 3: rage state with faster combos.
+
+8) Telegraph Design
+- Show warning markers before heavy attacks.
+- Use glowing lines, circles, or floor cracks.
+- Boss should never hit without warning in MVP.
+- Good telegraphing makes difficult fights feel fair.
+
+9) Boss Arena Behavior
+- Boss wave should clear most normal enemies.
+- The screen should focus on the boss.
+- Add limited support enemies only if needed.
+- Boss arena should feel more intense than normal waves.
+
+10) Attack Pattern Examples
+- Single shot.
+- Fan spread.
+- Area slam.
+- Summon minions.
+- Dash attack.
+- Line attack.
+- Circle explosion.
+- Multi-phase combo.
+
+11) Boss Difficulty Scaling
+- Boss HP increases every 10-wave cycle.
+- Attack speed increases in later cycles.
+- Boss gains one extra pattern after certain milestones.
+- Boss movement speed can also increase slightly.
+
+12) Boss Rewards
+- Large XP gain.
+- Level-up bonus or guaranteed upgrade choice.
+- Gold or currency reward.
+- Chance for rare item or relic.
+- Optional healing after victory.
+
+13) MVP Boss Set
+For the first version, build only one boss:
+- Corrupted Forest Guardian.
+- 3 attack patterns.
+- 2 phases.
+- 1 summon move.
+- Clear telegraph lines.
+- Big reward after defeat.
+
+14) Future Boss Expansion
+- Add more bosses for each difficulty tier.
+- Add elemental bosses.
+- Add elite mini-boss enemies.
+- Add boss mutations for endless mode.
+- Add special boss events every 30 or 50 waves.

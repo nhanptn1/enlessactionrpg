@@ -8,7 +8,8 @@ const SPEED_SCALING_PER_WAVE := 0.05
 const COUNT_SCALING_PER_WAVE := 1
 const SPAWN_INTERVAL_DECAY := 0.03
 const SPAWN_INTERVAL_FLOOR := 0.35
-const BOSS_HP_MULT := 15.0
+const BOSS_HP_MULT_BASE := 15.0
+const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.2
 const BOSS_DAMAGE_MULT := 2.0
 const BOSS_XP_REWARD := 200
 const BOSS_VISUAL_SCALE := 3.0
@@ -18,6 +19,7 @@ signal wave_cleared(wave_number: int)
 
 @export var waves: Array[WaveData] = []
 @export var procedural_enemy_data: EnemyData  # assign slime_scout.tres in Main.tscn
+@export var boss_enemy_data: EnemyData  # assign corrupted_forest_guardian.tres in Main.tscn
 
 @onready var spawner: EnemySpawner = get_parent().get_node("EnemySpawner")
 
@@ -63,8 +65,9 @@ func _start_next_wave() -> void:
 	_spawn_queue.clear()
 
 	if _is_boss_wave:
-		_spawn_queue.append(procedural_enemy_data)
-		_current_hp_mult = BOSS_HP_MULT
+		var cycle := wave_number / BOSS_WAVE_INTERVAL
+		_spawn_queue.append(boss_enemy_data)
+		_current_hp_mult = _boss_hp_mult(cycle)
 		_current_damage_mult = BOSS_DAMAGE_MULT
 		_current_xp_override = BOSS_XP_REWARD
 		_current_visual_scale = BOSS_VISUAL_SCALE
@@ -95,6 +98,10 @@ func _generate_wave(wave_number: int) -> WaveData:
 	_current_xp_override = -1
 	_current_visual_scale = 1.0
 	return wave
+
+
+func _boss_hp_mult(cycle: int) -> float:
+	return BOSS_HP_MULT_BASE * (1.0 + BOSS_HP_MULT_GROWTH_PER_CYCLE * (cycle - 1))
 
 
 func _last_authored_count() -> int:

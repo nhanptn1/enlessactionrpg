@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c86uvtmu38rk6"
-path="res://.godot/imported/slime_scout.png-f9459d29b680e98263bf64e8f7dd38fb.ctex"
+uid="uid://bo6qojovefnsh"
+path="res://.godot/imported/archer_shoot_01.png-589ef280e3a162c162b30dc908275edf.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/slime_scout.png"
-dest_files=["res://.godot/imported/slime_scout.png-f9459d29b680e98263bf64e8f7dd38fb.ctex"]
+source_file="res://art/characters/archer_shoot_01.png"
+dest_files=["res://.godot/imported/archer_shoot_01.png-589ef280e3a162c162b30dc908275edf.ctex"]
 
 [params]
 

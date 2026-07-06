@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dpixjw7g86u16"
-path="res://.godot/imported/archer_attack_5.png-b717d8ee4d72d54c6368c86bcef5f60b.ctex"
+uid="uid://cekkoxmtky0v2"
+path="res://.godot/imported/slime_idle_01.png-353b7c9c520ed422fb4062298849f9a8.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/archer_attack_5.png"
-dest_files=["res://.godot/imported/archer_attack_5.png-b717d8ee4d72d54c6368c86bcef5f60b.ctex"]
+source_file="res://art/enemies/normal/slime_idle_01.png"
+dest_files=["res://.godot/imported/slime_idle_01.png-353b7c9c520ed422fb4062298849f9a8.ctex"]
 
 [params]
 
