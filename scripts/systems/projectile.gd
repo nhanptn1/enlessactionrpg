@@ -7,6 +7,7 @@ var direction := Vector2.UP
 var speed := 500.0
 var damage := 5.0
 var pierce_count: int = 0
+var target_group: String = "enemy"
 var _hits_remaining: int
 var _already_hit: Array[Node] = []
 var _spawn_position: Vector2
@@ -26,7 +27,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _on_body_entered(body: Node) -> void:
-	if not body.is_in_group("enemy") or not body.has_method("take_damage"):
+	if not body.is_in_group(target_group) or not body.has_method("take_damage"):
 		return
 	if body in _already_hit:
 		return

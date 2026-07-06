@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="WaveData" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/wave_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/enemies/slime_scout.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/enemies/goblin_runner.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/enemies/bat_swarm.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/enemies/stinger_wasp.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/enemies/cursed_wraith.tres" id="6"]
+
+[resource]
+script = ExtResource("1")
+wave_number = 5
+enemy_pool = [ExtResource("2"), ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")]
+spawn_counts = Array[int]([8, 6, 2, 5, 3])
+spawn_interval = 0.8
+is_boss_wave = false

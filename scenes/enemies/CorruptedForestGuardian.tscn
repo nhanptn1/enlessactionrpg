@@ -1,8 +1,9 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/boss_base.gd" id="1"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/slime_idle_01.png" id="2"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/golem_idle_01.png" id="2"]
 [ext_resource type="Resource" path="res://resources/enemies/sapling.tres" id="3"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/golem_walk_01.png" id="4"]
 
 [sub_resource type="CircleShape2D" id="CircleShape1"]
 radius = 16.0
@@ -12,10 +13,13 @@ animations = [{
 "frames": [{
 "duration": 1.0,
 "texture": ExtResource("2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4")
 }],
 "loop": true,
 "name": &"move",
-"speed": 5.0
+"speed": 3.0
 }]
 
 [node name="CorruptedForestGuardian" type="CharacterBody2D"]
@@ -27,8 +31,7 @@ sapling_data = ExtResource("3")
 [node name="Sprite" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"move"
-scale = Vector2(2.0, 2.0)
-modulate = Color(0.25, 0.32, 0.18, 1)
+scale = Vector2(1.0, 1.0)
 
 [node name="Collision" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape1")

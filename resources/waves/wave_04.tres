@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="WaveData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="WaveData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/wave_data.gd" id="1"]
 [ext_resource type="Resource" path="res://resources/enemies/slime_scout.tres" id="2"]
 [ext_resource type="Resource" path="res://resources/enemies/goblin_runner.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/enemies/bat_swarm.tres" id="4"]
 
 [resource]
 script = ExtResource("1")
-wave_number = 1
-enemy_pool = [ExtResource("2"), ExtResource("3")]
-spawn_counts = Array[int]([5, 2])
-spawn_interval = 1.2
+wave_number = 4
+enemy_pool = [ExtResource("2"), ExtResource("3"), ExtResource("4")]
+spawn_counts = Array[int]([10, 6, 2])
+spawn_interval = 0.85
 is_boss_wave = false

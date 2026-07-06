@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cekkoxmtky0v2"
-path="res://.godot/imported/slime_idle_01.png-353b7c9c520ed422fb4062298849f9a8.ctex"
+uid="uid://lgrsaut5n682"
+path="res://.godot/imported/wraith_move_01.png-d9fa05dda6dec6c605891bff34f948a7.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/enemies/normal/slime_idle_01.png"
-dest_files=["res://.godot/imported/slime_idle_01.png-353b7c9c520ed422fb4062298849f9a8.ctex"]
+source_file="res://art/enemies/normal/wraith_move_01.png"
+dest_files=["res://.godot/imported/wraith_move_01.png-d9fa05dda6dec6c605891bff34f948a7.ctex"]
 
 [params]
 

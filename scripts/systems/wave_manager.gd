@@ -18,7 +18,7 @@ signal wave_started(wave_number: int)
 signal wave_cleared(wave_number: int)
 
 @export var waves: Array[WaveData] = []
-@export var procedural_enemy_data: EnemyData  # assign slime_scout.tres in Main.tscn
+@export var procedural_enemy_pool: Array[EnemyData] = []  # assign [slime_scout, goblin_runner, bat_swarm] in Main.tscn
 @export var boss_enemy_data: EnemyData  # assign corrupted_forest_guardian.tres in Main.tscn
 
 @onready var spawner: EnemySpawner = get_parent().get_node("EnemySpawner")
@@ -85,7 +85,7 @@ func _start_next_wave() -> void:
 func _generate_wave(wave_number: int) -> WaveData:
 	var wave := WaveData.new()
 	wave.wave_number = wave_number
-	wave.enemy_pool = [procedural_enemy_data]
+	wave.enemy_pool = [procedural_enemy_pool[randi() % procedural_enemy_pool.size()]]
 	var extra_waves := wave_number - waves.size()
 	var count: int = _last_authored_count() + COUNT_SCALING_PER_WAVE * extra_waves
 	wave.spawn_counts = [count]
@@ -126,7 +126,15 @@ func _on_spawn_tick() -> void:
 	if _spawn_queue.is_empty():
 		_spawn_timer.stop()
 		return
-	spawner.spawn(_spawn_queue.pop_back(), _current_hp_mult, _current_speed_mult, _current_damage_mult, _current_xp_override, _current_visual_scale)
+	var enemy_data: EnemyData = _spawn_queue.pop_back()
+	var cluster_size: int = maxi(enemy_data.cluster_size, 1)
+	if cluster_size == 1:
+		spawner.spawn(enemy_data, _current_hp_mult, _current_speed_mult, _current_damage_mult, _current_xp_override, _current_visual_scale)
+	else:
+		_alive_count += cluster_size - 1  # this entry only counted as 1 in the initial _alive_count
+		var cluster_center_x := randf_range(-spawner.spawn_width / 2.0, spawner.spawn_width / 2.0) + spawner.center_x
+		for _n in cluster_size:
+			spawner.spawn(enemy_data, _current_hp_mult, _current_speed_mult, _current_damage_mult, _current_xp_override, _current_visual_scale, cluster_center_x + randf_range(-30.0, 30.0))
 
 
 func notify_enemy_died() -> void:
