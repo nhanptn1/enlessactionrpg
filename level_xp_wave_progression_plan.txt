@@ -1,0 +1,139 @@
+LEVEL-UP, XP, AND WAVE PROGRESSION PLAN - Vertical Endless Archer RPG
+
+1) Progression Goal
+- Keep the game easy to understand.
+- Make each wave feel slightly harder than the last.
+- Reward the player often with upgrades.
+- Boss waves should feel like milestones.
+- Endless mode should continue scaling without stopping.
+
+2) XP System
+- Enemies drop XP when defeated.
+- Different enemy types can give different XP values.
+- Basic enemies give small XP.
+- Elites give medium XP.
+- Bosses give large XP.
+- XP bar fills toward next level.
+
+3) Level-Up Timing
+- Early levels should come fast.
+- Later levels should take longer.
+- Example: level 1 to 2 is easy, level 10 to 11 takes more XP.
+- This keeps early game fun and late game controlled.
+
+4) Level-Up Rewards
+When the player levels up, show 3 random choices:
+- Increase damage.
+- Reduce cooldown.
+- Increase arrow count.
+- Increase projectile speed.
+- Increase area size.
+- Increase critical hit chance.
+- Gain HP.
+- Gain shield.
+- Improve XP gain.
+
+5) Skill Unlock Plan
+- Level 1: basic attack only.
+- Level 3: unlock Multishot.
+- Level 5: unlock Piercing Arrow.
+- Level 8: unlock Arrow Rain or Trap Shot.
+- Later levels: upgrade skill strength or reduce cooldown.
+
+6) Wave Structure
+- Waves 1 to 3: easy waves.
+- Waves 4 to 6: introduce new enemy types.
+- Waves 7 to 9: add elites and more mixed groups.
+- Wave 10: boss wave.
+- After wave 10, continue with stronger stats and more enemies.
+
+7) Endless Scaling Rules
+- Enemy HP increases every wave or every few waves.
+- Enemy speed increases slowly.
+- Enemy count increases gradually.
+- Elite spawn chance increases over time.
+- Bosses gain new phase behavior in later cycles.
+
+8) Difficulty Curve
+Early game:
+- Fewer enemies.
+- Slow speed.
+- Fast level-ups.
+- Simple choices.
+
+Mid game:
+- More mixed enemies.
+- More elites.
+- Slightly faster waves.
+- More important upgrade choices.
+
+Late game:
+- Dense enemy groups.
+- Faster enemies.
+- Strong elites.
+- Bosses with stronger patterns.
+- Survival becomes the main challenge.
+
+9) Boss Wave Structure
+- Boss appears every 10 waves.
+- Normal enemies stop spawning or spawn very lightly during boss fight.
+- Boss has 2 to 4 attack patterns.
+- Boss may summon adds in phase 2 or phase 3.
+- Boss defeat ends the wave and gives large XP.
+
+10) Upgrade Categories
+A. Offense
+- Damage.
+- Crit chance.
+- Attack speed.
+- Arrow count.
+- Projectile speed.
+
+B. Defense
+- HP.
+- Shield.
+- Damage reduction.
+- Healing bonus.
+
+C. Utility
+- Cooldown reduction.
+- XP gain bonus.
+- Movement speed.
+- Pickup range.
+
+D. Skill Modifiers
+- Extra projectile.
+- Bigger area.
+- Longer duration.
+- Chain effect.
+- Pierce count.
+
+11) Example Wave Reward Loop
+- Clear wave.
+- Gain XP.
+- Level up if XP is full.
+- Choose a new upgrade.
+- Prepare for the next wave.
+- Continue until boss wave.
+
+12) Recommended Balance Approach
+- Do not make enemies too strong too early.
+- Let the player feel powerful for the first few waves.
+- Increase difficulty only after the player has time to learn the system.
+- Give meaningful rewards often enough to keep the run exciting.
+
+13) MVP Progression Set
+- 1 XP bar.
+- 1 level-up popup.
+- 8 possible upgrades.
+- 4 skill unlock steps.
+- 10-wave boss cycle.
+- Endless wave scaling.
+
+14) Future Expansion Ideas
+- Permanent meta progression.
+- Character classes.
+- Relics and gear.
+- Random run modifiers.
+- Daily challenge mode.
+- Achievement rewards.

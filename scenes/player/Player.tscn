@@ -1,7 +1,9 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/player.gd" id="1"]
 [ext_resource type="Resource" path="res://resources/skills/basic_shot.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/skills/multishot.tres" id="10"]
+[ext_resource type="Resource" path="res://resources/skills/piercing_arrow.tres" id="11"]
 [ext_resource type="Texture2D" path="res://art/sprites/archer_idle_1.png" id="3"]
 [ext_resource type="Texture2D" path="res://art/sprites/archer_idle_2.png" id="4"]
 [ext_resource type="Texture2D" path="res://art/sprites/archer_attack_1.png" id="5"]
@@ -52,6 +54,8 @@ collision_layer = 1
 collision_mask = 1
 script = ExtResource("1")
 basic_shot = ExtResource("2")
+multishot = ExtResource("10")
+piercing_arrow = ExtResource("11")
 
 [node name="Sprite" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames1")
@@ -66,3 +70,7 @@ position = Vector2(0, -40)
 
 [node name="BasicShotTimer" type="Timer" parent="."]
 autostart = true
+
+[node name="MultishotTimer" type="Timer" parent="."]
+
+[node name="PiercingArrowTimer" type="Timer" parent="."]
