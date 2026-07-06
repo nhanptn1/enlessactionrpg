@@ -1,0 +1,89 @@
+ART BIBLE - Vertical Endless Archer RPG
+
+1) Overall Art Style
+- Top-down pixel art fantasy.
+- Clean silhouettes and readable shapes.
+- Slightly dark adventure mood, not horror.
+- Consistent sprite scale across characters, enemies, and items.
+- Use the same outline thickness and shading style for all assets.
+
+2) Main Theme
+- Forest fantasy / ruined kingdom.
+- Nature, corruption, and ancient magic.
+- Player is a ranger archer fighting waves of monsters.
+- Visual tone: adventurous, mystical, and energetic.
+
+3) Color Palette
+- Primary: green, brown, gold.
+- Secondary: blue, gray, white.
+- Danger accents: red, dark purple, black.
+- UI highlight colors: gold and cyan.
+- Boss colors: dark red, black, purple, or corrupted green.
+
+4) Player Character - Archer
+- Role: forest ranger / hunter.
+- Silhouette: slim, agile, readable bow shape.
+- Clothes: hood, short cloak, leather armor, boots, gloves.
+- Colors: green cloak, brown leather, gold trim.
+- Signature detail: always visible bow and quiver.
+- Animation focus: idle, shoot, dash, hit, special skill.
+
+5) Monster Design
+- Small enemies: slimes, bats, goblins, insects.
+- Medium enemies: skeleton warriors, wolves, masked bandits.
+- Tank enemies: armored brute, stone beast, shield skeleton.
+- Elite enemies: glowing or corrupted versions of normal enemies.
+- Bosses: corrupted guardian, demon beast, dark ranger, giant knight.
+- Rule: make every enemy readable by silhouette first.
+
+6) Item Design
+- Weapons: bows, daggers, short swords, staffs.
+- Armor: leather vest, cloak, chestplate, boots.
+- Accessories: ring, amulet, charm, bracelet.
+- Consumables: potion, elixir, bomb, scroll.
+- Style: simple fantasy icons with strong contrast.
+- Inventory icons should be easy to read at small size.
+
+7) UI Style
+- Dark fantasy panels.
+- Parchment or stone frame look.
+- Gold or blue borders for selected elements.
+- Rounded square inventory slots.
+- Skill buttons with cooldown overlays.
+- Boss HP bar with strong warning color.
+
+8) Boss Visual Style
+- Larger silhouette than normal enemies.
+- Strong color contrast.
+- More details around head, weapon, or glowing core.
+- Use particles, aura, or shadow effects.
+- Boss design should look dangerous even in a small sprite.
+
+9) Animation Style
+- Keep animations short and clear.
+- 4 to 6 frames is enough for many actions.
+- Movement should feel sharp and readable.
+- Attack animation should show impact quickly.
+- Death animation should be simple and fast.
+
+10) Asset Search Targets
+- Top-down pixel RPG starter pack.
+- Fantasy archer sprite pack.
+- Top-down monster pack.
+- RPG UI pack.
+- Item icon pack.
+- Look for assets that match the same pixel size and lighting.
+
+11) Best Design Choice
+- Hero: forest ranger archer.
+- Enemies: corrupted woodland creatures and undead.
+- Items: classic RPG gear icons.
+- UI: parchment with gold trim.
+- Mood: adventure, nature, corruption, and magic.
+
+12) Practical Rule
+- One visual language for all assets.
+- Same pixel resolution.
+- Same color brightness level.
+- Same level of detail.
+- Keep the game simple, readable, and polished.

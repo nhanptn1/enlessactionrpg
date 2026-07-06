@@ -1,0 +1,41 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/enemy_base.gd" id="1"]
+
+[sub_resource type="CircleShape2D" id="CircleShape1"]
+radius = 16.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2"]
+radius = 20.0
+
+[sub_resource type="SpriteFrames" id="SpriteFrames1"]
+animations = [{
+"frames": [],
+"loop": true,
+"name": &"move",
+"speed": 5.0
+}]
+
+[node name="EnemyBase" type="CharacterBody2D"]
+collision_layer = 1
+collision_mask = 1
+script = ExtResource("1")
+
+[node name="Sprite" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames1")
+animation = &"move"
+
+[node name="Collision" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape1")
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("CircleShape2")
+
+[node name="ContactDamageTimer" type="Timer" parent="."]
+wait_time = 0.6
+
+[node name="ScreenCheck" type="VisibleOnScreenNotifier2D" parent="."]

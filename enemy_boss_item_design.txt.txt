@@ -1,0 +1,162 @@
+ENEMY AND BOSS DESIGN - Vertical Endless Archer RPG
+
+1) Enemy Design Rules
+- Enemies must be easy to read in fast combat.
+- Strong silhouette is more important than detail.
+- Each enemy type should have one clear role.
+- Keep animations short: idle, move, attack, hit, die.
+- Use color accents to show danger or elite status.
+
+2) Normal Enemy Types
+A. Slime Scout
+- Small, simple, fast enemy.
+- Color: green or blue.
+- Role: low HP, moves quickly.
+- Behavior: rushes the player in groups.
+
+B. Goblin Runner
+- Small humanoid enemy with weapon.
+- Color: brown, green, dark red.
+- Role: fast attacker.
+- Behavior: zig-zag movement or quick rush.
+
+C. Bat Swarm
+- Flying enemy with small wings.
+- Color: black or purple.
+- Role: annoying swarm unit.
+- Behavior: comes in clusters.
+
+D. Skeleton Soldier
+- Basic medium enemy.
+- Color: bone white and gray.
+- Role: balanced unit.
+- Behavior: moves steadily, slightly tougher.
+
+E. Wolf Beast
+- Fast animal enemy.
+- Color: gray, dark brown, red eyes.
+- Role: speed pressure.
+- Behavior: fast direct charge.
+
+3) Tank Enemy Types
+A. Armored Brute
+- Large body, heavy armor.
+- Color: dark steel, red accents.
+- Role: absorbs damage.
+- Behavior: slow but dangerous.
+
+B. Shield Skeleton
+- Skeleton with big shield.
+- Color: bone white, silver, blue glow.
+- Role: blocks frontal attacks.
+- Behavior: advances slowly.
+
+C. Stone Golem
+- Rock body with glowing core.
+- Color: gray stone, orange core.
+- Role: high HP boss-like unit.
+- Behavior: slow movement, heavy attacks.
+
+4) Elite Enemy Types
+- Elite enemies are upgraded versions of normal monsters.
+- Add glow, aura, extra armor, or stronger color.
+- Give them more HP, speed, or special attack.
+- Use them to make waves feel less repetitive.
+
+Example elite versions:
+- Elite Slime: faster and splits on death.
+- Elite Goblin: throws projectiles.
+- Elite Skeleton: stronger weapon and more armor.
+- Elite Wolf: leaps farther and hits harder.
+
+5) Boss Design Rules
+- Boss must be visually larger than normal enemies.
+- Boss must have 2 to 4 attack patterns.
+- Boss should have phase changes when HP drops.
+- Boss should use stronger colors and more effects.
+- Boss should feel like a major event every 10 waves.
+
+6) Boss Concepts
+A. Corrupted Forest Guardian
+- Giant plant and stone guardian.
+- Color: dark green, black, glowing purple.
+- Attacks: root slam, vine whip, poison wave.
+- Theme: protects the ruined forest.
+
+B. Dark Ranger Commander
+- Large enemy archer with cloak and horned mask.
+- Color: black, red, silver.
+- Attacks: rapid volleys, aimed shot, rain of arrows.
+- Theme: enemy archer rival.
+
+C. Fallen Knight
+- Heavy armored knight with broken aura.
+- Color: steel, red, dark blue.
+- Attacks: charge, sword wave, shield bash.
+- Theme: old hero turned enemy.
+
+D. Demon Beast
+- Large monster with horns and claws.
+- Color: dark red, black, orange.
+- Attacks: leap, claw swipe, fire burst.
+- Theme: late game boss.
+
+7) Wave Progression Idea
+Wave 1-3:
+- Slimes and goblins.
+
+Wave 4-6:
+- Add bats and skeletons.
+
+Wave 7-9:
+- Add wolves and elite enemies.
+
+Wave 10:
+- Boss fight.
+
+Repeat with stronger stats, more mixed groups, and more elite enemies.
+
+8) Item Design Rules
+- Item icons should be small and clear.
+- Use one icon per item type.
+- Keep rarity color consistent.
+- Make equipment look different from consumables.
+
+9) Weapon Item Ideas
+- Apprentice Bow.
+- Hunter Bow.
+- Twin Arrow Bow.
+- Silver Longbow.
+- Shadow Bow.
+- Flame Bow.
+
+10) Armor Item Ideas
+- Leather Vest.
+- Ranger Cloak.
+- Reinforced Armor.
+- Wind Robe.
+- Shadow Mantle.
+- Guardian Mail.
+
+11) Accessory Item Ideas
+- Ring of Accuracy.
+- Amulet of Speed.
+- Charm of Vitality.
+- Bracelet of Focus.
+- Rune of Power.
+- Hunter Token.
+
+12) Consumable Item Ideas
+- Small Healing Potion.
+- Mana Drink.
+- Speed Elixir.
+- Arrow Bundle.
+- Bomb.
+- Skill Scroll.
+
+13) Recommended Visual Theme
+- Player: forest ranger archer.
+- Enemies: corrupted forest creatures and undead.
+- Bosses: guardian, dark ranger, fallen knight, demon beast.
+- Items: classic fantasy gear icons.
+- Mood: adventure, corruption, magic, and survival.

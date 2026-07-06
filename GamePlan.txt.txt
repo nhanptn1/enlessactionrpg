@@ -1,0 +1,146 @@
+Vertical Endless Archer RPG - Godot 4 Development Plan
+
+1) Game Concept
+- Vertical screen portrait mode.
+- Player archer stays fixed at the bottom.
+- Enemies spawn from the top and move downward.
+- Every 10 waves spawns a boss.
+- Endless gameplay with scaling difficulty.
+
+2) Core Gameplay Loop
+- Start wave.
+- Enemies spawn in patterns.
+- Player attacks automatically or with active skills.
+- Gain XP from kills.
+- Level up and choose upgrades.
+- Clear wave.
+- Boss appears every 10th wave.
+- Continue endlessly until game over.
+
+3) Main Systems
+- Player system.
+- Skill system.
+- Enemy system.
+- Boss system.
+- Wave manager.
+- XP and level-up system.
+- HUD/UI.
+- Game over and restart flow.
+
+4) Scene Architecture
+- Main.tscn
+  - World
+  - Player
+  - EnemySpawner
+  - WaveManager
+  - BossManager
+  - ProjectileManager
+  - HUD
+  - PauseMenu
+  - GameOverUI
+
+5) Player Architecture
+- CharacterBody2D.
+- AnimatedSprite2D.
+- CollisionShape2D.
+- AttackOrigin.
+- SkillController.
+- PlayerStateMachine.
+- Player remains fixed or limited to small movement range.
+
+6) Skill Design
+- Basic Shot.
+- Multishot.
+- Piercing Arrow.
+- Arrow Rain or Trap.
+- Skill unlock by level.
+- Skills have damage, cooldown, mana cost, and VFX.
+
+7) Enemy Design
+- Base enemy scene.
+- Normal enemies.
+- Fast enemies.
+- Tank enemies.
+- Elite enemies.
+- Boss enemies.
+- Enemies move from top to bottom and attack or collide.
+
+8) Wave System
+- Waves 1 to 9: normal waves.
+- Wave 10: boss wave.
+- Wave 11 to 19: stronger normal waves.
+- Wave 20: boss wave.
+- Difficulty increases by HP, speed, count, and behavior.
+
+9) Data Architecture
+- Use Resources for data-driven design.
+- SkillData.
+- EnemyData.
+- BossData.
+- WaveData.
+- LevelCurveData.
+- ItemData if inventory is added later.
+
+10) Folder Structure
+res://
+  scenes/
+    main/
+    player/
+    enemies/
+    bosses/
+    ui/
+    effects/
+  scripts/
+    systems/
+    data/
+    states/
+    ui/
+  resources/
+    skills/
+    enemies/
+    bosses/
+    waves/
+  art/
+    sprites/
+    icons/
+    vfx/
+  audio/
+
+11) UI Layout
+- HP bar.
+- XP bar.
+- Wave number.
+- Skill icons.
+- Cooldown overlays.
+- Boss HP bar.
+- Level-up selection popup.
+
+12) Player Progression
+- Start with basic shot.
+- Unlock one new skill every few levels.
+- Choose upgrades after level-up.
+- Upgrades include damage, cooldown, speed, crit chance, and area.
+
+13) Implementation Order
+1. Vertical screen setup.
+2. Player fixed position.
+3. Basic enemy spawn.
+4. Basic shooting.
+5. Wave manager.
+6. XP and leveling.
+7. Skill unlocks.
+8. Boss wave.
+9. HUD and feedback.
+10. Balance and polish.
+
+14) MVP Scope
+- 1 player.
+- 3 skills.
+- 3 enemy types.
+- 1 boss type.
+- 10-wave loop.
+- Endless scaling.
+
+15) First Milestone
+- A playable prototype with one enemy type, one skill, one wave manager, and one basic UI.
+- Then expand into boss waves, upgrades, and more enemies.
