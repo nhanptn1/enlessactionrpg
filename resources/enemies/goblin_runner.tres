@@ -1,7 +1,9 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/GoblinRunner.tscn" id="2"]
+[ext_resource type="Resource" path="res://resources/behaviors/zigzag_movement.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/behaviors/contact_attack.tres" id="4"]
 
 [resource]
 script = ExtResource("1")
@@ -13,8 +15,8 @@ base_speed = 100.0
 base_damage = 7.0
 xp_reward = 6
 tier = 1
-attack_type = "contact"
-movement_pattern = "zigzag"
+movement_behavior = ExtResource("3")
+attack_behavior = ExtResource("4")
 zigzag_speed = 70.0
 zigzag_frequency = 1.2
 cluster_size = 1

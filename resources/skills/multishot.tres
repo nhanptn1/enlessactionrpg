@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="SkillData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/skill_data.gd" id="1"]
-[ext_resource type="PackedScene" path="res://scenes/effects/Projectile.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/effects/ProjectileMultishot.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")

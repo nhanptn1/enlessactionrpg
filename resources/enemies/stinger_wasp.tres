@@ -1,7 +1,9 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/StingerWasp.tscn" id="2"]
+[ext_resource type="Resource" path="res://resources/behaviors/dive_movement.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/behaviors/contact_attack.tres" id="4"]
 
 [resource]
 script = ExtResource("1")
@@ -13,6 +15,6 @@ base_speed = 140.0
 base_damage = 6.0
 xp_reward = 5
 tier = 1
-attack_type = "contact"
-movement_pattern = "dive"
+movement_behavior = ExtResource("3")
+attack_behavior = ExtResource("4")
 drop_chance = 0.15

@@ -14,9 +14,7 @@ const UPGRADE_POOL: Array[String] = [
 
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var attack_origin: Marker2D = $AttackOrigin
-@onready var basic_shot_timer: Timer = $BasicShotTimer
-@onready var multishot_timer: Timer = $MultishotTimer
-@onready var piercing_timer: Timer = $PiercingArrowTimer
+@onready var attack_timer: Timer = $BasicShotTimer  # the one and only attack loop; see _current_skill
 
 @export var basic_shot: SkillData
 @export var multishot: SkillData
@@ -37,9 +35,8 @@ var shield_capacity := 0.0
 var current_shield := 0.0
 var xp_gain_mult := 1.0
 
-var multishot_unlocked := false
-var piercing_arrow_unlocked := false
 var is_dead := false
+var _current_skill: SkillData  # the single active attack; upgrades wholesale at Lv3/Lv5
 
 var _sprite_base_position: Vector2
 var _idle_tween: Tween
@@ -55,10 +52,9 @@ signal item_collected(item: ItemData)
 
 func _ready() -> void:
 	add_to_group("player")
-	basic_shot_timer.wait_time = basic_shot.cooldown
-	basic_shot_timer.timeout.connect(_on_basic_shot_timeout)
-	multishot_timer.timeout.connect(_on_multishot_timeout)
-	piercing_timer.timeout.connect(_on_piercing_timeout)
+	_current_skill = basic_shot
+	attack_timer.wait_time = _current_skill.cooldown
+	attack_timer.timeout.connect(_on_attack_timeout)
 	sprite.animation_finished.connect(_on_animation_finished)
 	_sprite_base_position = sprite.position
 	sprite.play("idle")
@@ -82,14 +78,17 @@ func gain_xp(amount: int) -> void:
 func _on_level_up(new_level: int) -> void:
 	level_up.emit(new_level)
 	if new_level == 3:
-		multishot_unlocked = true
-		multishot_timer.wait_time = multishot.cooldown * cooldown_mult
-		multishot_timer.start()
+		# Replaces the active attack wholesale rather than adding a second
+		# independent timer -- the "+1 Arrow" upgrade already generalizes
+		# "fire more arrows per shot", so a permanently-running separate
+		# Multishot loop just duplicated that and visually collided with
+		# Basic Shot (two unrelated arrows firing on overlapping schedules).
+		_current_skill = multishot
+		_refresh_timer_cooldowns()
 		skill_unlocked.emit("Multishot")
 	if new_level == 5:
-		piercing_arrow_unlocked = true
-		piercing_timer.wait_time = piercing_arrow.cooldown * cooldown_mult
-		piercing_timer.start()
+		_current_skill = piercing_arrow
+		_refresh_timer_cooldowns()
 		skill_unlocked.emit("Piercing Arrow")
 	if new_level == 8:
 		# TODO: replace with a real Arrow Rain/Trap Shot skill; stubbed for now
@@ -123,25 +122,11 @@ func apply_upgrade(upgrade_id: String) -> void:
 
 
 func _refresh_timer_cooldowns() -> void:
-	basic_shot_timer.wait_time = basic_shot.cooldown * cooldown_mult
-	if multishot_unlocked:
-		multishot_timer.wait_time = multishot.cooldown * cooldown_mult
-	if piercing_arrow_unlocked:
-		piercing_timer.wait_time = piercing_arrow.cooldown * cooldown_mult
+	attack_timer.wait_time = _current_skill.cooldown * cooldown_mult
 
 
-func _on_basic_shot_timeout() -> void:
-	_auto_fire(basic_shot)
-
-
-func _on_multishot_timeout() -> void:
-	if multishot_unlocked:
-		_auto_fire(multishot)
-
-
-func _on_piercing_timeout() -> void:
-	if piercing_arrow_unlocked:
-		_auto_fire(piercing_arrow)
+func _on_attack_timeout() -> void:
+	_auto_fire(_current_skill)
 
 
 func _auto_fire(skill: SkillData) -> void:

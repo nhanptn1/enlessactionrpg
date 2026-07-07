@@ -62,7 +62,3 @@ position = Vector2(0, -40)
 
 [node name="BasicShotTimer" type="Timer" parent="."]
 autostart = true
-
-[node name="MultishotTimer" type="Timer" parent="."]
-
-[node name="PiercingArrowTimer" type="Timer" parent="."]

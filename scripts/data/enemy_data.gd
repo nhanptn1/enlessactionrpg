@@ -9,12 +9,12 @@ class_name EnemyData
 @export var base_damage: float = 5.0
 @export var xp_reward: int = 5
 @export var tier: int = 1
-@export var attack_type: String = "contact"  # "contact" | "pattern" (bosses, MVP+)
-@export var movement_pattern: String = "straight"  # "straight" | "zigzag" | "dive"
-@export var zigzag_speed: float = 0.0     # px/sec, max horizontal speed
-@export var zigzag_frequency: float = 1.2 # oscillations per second
+@export var movement_behavior: MovementBehavior  # e.g. res://resources/behaviors/zigzag_movement.tres
+@export var attack_behavior: AttackBehavior      # e.g. res://resources/behaviors/ranged_attack.tres
+@export var zigzag_speed: float = 0.0     # px/sec, max horizontal speed -- read by ZigzagMovement
+@export var zigzag_frequency: float = 1.2 # oscillations per second -- read by ZigzagMovement
 @export var cluster_size: int = 1         # bodies spawned per queue entry
-@export var projectile_scene: PackedScene # only used when attack_type == "ranged"
-@export var attack_interval: float = 2.0  # ranged attack cooldown, seconds
+@export var projectile_scene: PackedScene # read by RangedAttack
+@export var attack_interval: float = 2.0  # ranged attack cooldown, seconds -- read by RangedAttack
 @export var projectile_speed: float = 220.0
 @export var drop_chance: float = 0.0      # chance to drop an item on death

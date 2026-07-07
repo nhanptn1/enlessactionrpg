@@ -1,8 +1,10 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/CursedWraith.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/effects/CursedBolt.tscn" id="3"]
+[ext_resource type="Resource" path="res://resources/behaviors/straight_movement.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/behaviors/ranged_attack.tres" id="5"]
 
 [resource]
 script = ExtResource("1")
@@ -14,8 +16,8 @@ base_speed = 70.0
 base_damage = 6.0
 xp_reward = 8
 tier = 2
-attack_type = "ranged"
-movement_pattern = "straight"
+movement_behavior = ExtResource("4")
+attack_behavior = ExtResource("5")
 projectile_scene = ExtResource("3")
 attack_interval = 2.0
 projectile_speed = 220.0

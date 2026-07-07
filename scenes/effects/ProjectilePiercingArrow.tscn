@@ -1,10 +1,10 @@
 [gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/projectile.gd" id="1"]
-[ext_resource type="Texture2D" path="res://art/vfx/arrow_basic_01.png" id="2"]
-[ext_resource type="Texture2D" path="res://art/vfx/arrow_basic_02.png" id="3"]
-[ext_resource type="Texture2D" path="res://art/vfx/arrow_basic_03.png" id="4"]
-[ext_resource type="Texture2D" path="res://art/vfx/arrow_basic_04.png" id="5"]
+[ext_resource type="Texture2D" path="res://art/vfx/arrow_lightning_01.png" id="2"]
+[ext_resource type="Texture2D" path="res://art/vfx/arrow_lightning_02.png" id="3"]
+[ext_resource type="Texture2D" path="res://art/vfx/arrow_lightning_03.png" id="4"]
+[ext_resource type="Texture2D" path="res://art/vfx/arrow_lightning_04.png" id="5"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape1"]
 size = Vector2(26, 4)

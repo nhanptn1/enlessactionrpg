@@ -42,14 +42,8 @@ func setup(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0,
 func _ready() -> void:
 	add_to_group("enemy")
 	current_hp = data.base_hp * _hp_mult
-	if data.movement_pattern == "dive":
-		var player := get_tree().get_first_node_in_group("player")
-		if is_instance_valid(player):
-			velocity = (player.global_position - global_position).normalized() * data.base_speed * _speed_mult
-		else:
-			velocity = Vector2(0, data.base_speed * _speed_mult)
-	else:
-		velocity = Vector2(0, data.base_speed * _speed_mult)
+	if data.movement_behavior:
+		data.movement_behavior.on_ready(self)
 	hurtbox.body_entered.connect(_on_hurtbox_body_entered)
 	hurtbox.body_exited.connect(_on_hurtbox_body_exited)
 	contact_timer.wait_time = CONTACT_DAMAGE_INTERVAL
@@ -58,16 +52,14 @@ func _ready() -> void:
 	_base_modulate = sprite.modulate
 	_base_scale = sprite.scale
 	sprite.play("move")
-	if data.attack_type == "ranged":
-		attack_timer.wait_time = data.attack_interval
-		attack_timer.timeout.connect(_on_attack_timer_timeout)
-		attack_timer.start()
+	if data.attack_behavior:
+		data.attack_behavior.on_ready(self)
 
 
 func _physics_process(delta: float) -> void:
 	_time_alive += delta
-	if data.movement_pattern == "zigzag":
-		velocity.x = sin(_time_alive * data.zigzag_frequency * TAU) * data.zigzag_speed
+	if data.movement_behavior:
+		data.movement_behavior.physics_process(self, delta)
 	move_and_slide()
 
 
@@ -107,13 +99,8 @@ func _play_attack_lunge() -> void:
 
 
 func _on_hurtbox_body_entered(body: Node) -> void:
-	if data.attack_type != "contact":
-		return
-	if body.is_in_group("player") and body.has_method("take_damage"):
-		_player_in_contact = body
-		body.take_damage(data.base_damage * _damage_mult)
-		contact_timer.start()
-		_play_attack_lunge()
+	if data.attack_behavior:
+		data.attack_behavior.on_contact(self, body)
 
 
 func _on_hurtbox_body_exited(body: Node) -> void:
@@ -123,23 +110,13 @@ func _on_hurtbox_body_exited(body: Node) -> void:
 
 
 func _on_contact_timer_timeout() -> void:
-	if is_instance_valid(_player_in_contact):
-		_player_in_contact.take_damage(data.base_damage * _damage_mult)
-		_play_attack_lunge()
+	if data.attack_behavior:
+		data.attack_behavior.on_contact_tick(self)
 
 
 func _on_attack_timer_timeout() -> void:
-	var player := get_tree().get_first_node_in_group("player")
-	if not is_instance_valid(player) or data.projectile_scene == null:
-		return
-	var proj = data.projectile_scene.instantiate()
-	proj.direction = (player.global_position - global_position).normalized()
-	proj.damage = data.base_damage * _damage_mult
-	proj.speed = data.projectile_speed
-	proj.target_group = "player"
-	proj.global_position = global_position
-	get_tree().current_scene.add_child(proj)
-	_play_attack_lunge()
+	if data.attack_behavior:
+		data.attack_behavior.on_attack_timer_timeout(self)
 
 
 func _on_screen_exited() -> void:
