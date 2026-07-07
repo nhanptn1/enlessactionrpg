@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ItemData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "bomb"
+display_name = "Bomb"
+category = "consumable"
+rarity = "epic"
+effect_type = "instant_bomb"
+effect_amount = 15.0

@@ -2,6 +2,12 @@ extends CharacterBody2D
 class_name EnemyBase
 
 const CONTACT_DAMAGE_INTERVAL := 0.6
+const ITEM_PICKUP_SCENE := preload("res://scenes/effects/ItemPickup.tscn")
+const HIT_FLASH_DURATION := 0.08
+const HIT_PUNCH_SCALE := 1.2
+const ATTACK_LUNGE_OFFSET := 4.0
+const ATTACK_LUNGE_DURATION := 0.1
+const DEATH_FADE_DURATION := 0.25
 
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var hurtbox: Area2D = $Hurtbox
@@ -17,6 +23,12 @@ var _speed_mult := 1.0
 var _damage_mult := 1.0
 var _xp_override := -1  # -1 sentinel = "use data.xp_reward unmodified"
 var _time_alive := 0.0
+
+var _base_modulate: Color
+var _base_scale: Vector2
+var _hit_tween: Tween
+var _lunge_tween: Tween
+var _is_dying := false
 
 
 func setup(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0, damage_mult: float = 1.0, xp_override: int = -1) -> void:
@@ -42,7 +54,9 @@ func _ready() -> void:
 	hurtbox.body_exited.connect(_on_hurtbox_body_exited)
 	contact_timer.wait_time = CONTACT_DAMAGE_INTERVAL
 	contact_timer.timeout.connect(_on_contact_timer_timeout)
-	screen_check.screen_exited.connect(queue_free)
+	screen_check.screen_exited.connect(_on_screen_exited)
+	_base_modulate = sprite.modulate
+	_base_scale = sprite.scale
 	sprite.play("move")
 	if data.attack_type == "ranged":
 		attack_timer.wait_time = data.attack_interval
@@ -58,9 +72,38 @@ func _physics_process(delta: float) -> void:
 
 
 func take_damage(amount: float) -> void:
+	if _is_dying:
+		return
 	current_hp -= amount
 	if current_hp <= 0.0:
 		_die()
+	else:
+		_play_hit_reaction()
+
+
+func _play_hit_reaction() -> void:
+	if _hit_tween:
+		_hit_tween.kill()
+	sprite.scale = _base_scale
+	sprite.modulate = Color(2.5, 2.5, 2.5, 1.0)
+	_hit_tween = create_tween()
+	_hit_tween.set_parallel(true)
+	_hit_tween.tween_property(sprite, "modulate", _base_modulate, HIT_FLASH_DURATION)
+	_hit_tween.tween_property(sprite, "scale", _base_scale * HIT_PUNCH_SCALE, HIT_FLASH_DURATION * 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_hit_tween.chain().tween_property(sprite, "scale", _base_scale, HIT_FLASH_DURATION * 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+
+func _play_attack_lunge() -> void:
+	if _lunge_tween:
+		_lunge_tween.kill()
+	sprite.position = Vector2.ZERO
+	var player := get_tree().get_first_node_in_group("player")
+	var lunge_dir := Vector2.DOWN
+	if is_instance_valid(player):
+		lunge_dir = (player.global_position - global_position).normalized()
+	_lunge_tween = create_tween()
+	_lunge_tween.tween_property(sprite, "position", lunge_dir * ATTACK_LUNGE_OFFSET, ATTACK_LUNGE_DURATION).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_lunge_tween.tween_property(sprite, "position", Vector2.ZERO, ATTACK_LUNGE_DURATION * 1.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 func _on_hurtbox_body_entered(body: Node) -> void:
@@ -70,6 +113,7 @@ func _on_hurtbox_body_entered(body: Node) -> void:
 		_player_in_contact = body
 		body.take_damage(data.base_damage * _damage_mult)
 		contact_timer.start()
+		_play_attack_lunge()
 
 
 func _on_hurtbox_body_exited(body: Node) -> void:
@@ -81,6 +125,7 @@ func _on_hurtbox_body_exited(body: Node) -> void:
 func _on_contact_timer_timeout() -> void:
 	if is_instance_valid(_player_in_contact):
 		_player_in_contact.take_damage(data.base_damage * _damage_mult)
+		_play_attack_lunge()
 
 
 func _on_attack_timer_timeout() -> void:
@@ -94,14 +139,47 @@ func _on_attack_timer_timeout() -> void:
 	proj.target_group = "player"
 	proj.global_position = global_position
 	get_tree().current_scene.add_child(proj)
+	_play_attack_lunge()
+
+
+func _on_screen_exited() -> void:
+	# An enemy that falls past the player without dying still needs to count
+	# against the wave's alive tally, or a single escapee permanently blocks
+	# notify_enemy_died()'s "_alive_count <= 0" wave-clear check — no XP/drop,
+	# just an accounting update so the wave can actually complete.
+	var wm := get_tree().get_first_node_in_group("wave_manager")
+	if is_instance_valid(wm):
+		wm.notify_enemy_died()
+	queue_free()
 
 
 func _die() -> void:
+	if _is_dying:
+		return
+	_is_dying = true
 	var player := get_tree().get_first_node_in_group("player")
 	if is_instance_valid(player) and player.has_method("gain_xp"):
 		var xp_reward: int = _xp_override if _xp_override >= 0 else data.xp_reward
 		player.gain_xp(xp_reward)
 	var wm := get_tree().get_first_node_in_group("wave_manager")
 	if is_instance_valid(wm):
+		if randf() < data.drop_chance:
+			var item: ItemData = wm.roll_item_drop()
+			if item != null:
+				var pickup = ITEM_PICKUP_SCENE.instantiate()
+				pickup.item_data = item  # BEFORE add_child — _ready() reads it synchronously
+				pickup.global_position = global_position
+				get_tree().current_scene.add_child(pickup)
 		wm.notify_enemy_died()
-	queue_free()
+	# Stop everything that could still act during the fade-out (the corpse
+	# shouldn't keep contact-damaging or firing at the player for the brief
+	# window before it's actually removed).
+	contact_timer.stop()
+	attack_timer.stop()
+	hurtbox.set_deferred("monitoring", false)
+	set_physics_process(false)
+	var death_tween := create_tween()
+	death_tween.set_parallel(true)
+	death_tween.tween_property(sprite, "scale", Vector2.ZERO, DEATH_FADE_DURATION).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	death_tween.tween_property(sprite, "modulate:a", 0.0, DEATH_FADE_DURATION)
+	death_tween.chain().tween_callback(queue_free)

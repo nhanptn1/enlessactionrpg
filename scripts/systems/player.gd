@@ -2,6 +2,10 @@ extends CharacterBody2D
 class_name Player
 
 const BASE_PROJECTILE_SPEED := 500.0
+const IDLE_BOB_AMPLITUDE := 2.5
+const IDLE_BOB_DURATION := 1.1
+const RECOIL_OFFSET := 6.0
+const RECOIL_DURATION := 0.12
 
 const UPGRADE_POOL: Array[String] = [
 	"damage", "cooldown", "projectile_count", "projectile_speed",
@@ -35,11 +39,18 @@ var xp_gain_mult := 1.0
 
 var multishot_unlocked := false
 var piercing_arrow_unlocked := false
+var is_dead := false
+
+var _sprite_base_position: Vector2
+var _idle_tween: Tween
+var _recoil_tween: Tween
 
 signal hp_changed(current: float, max_hp: float)
 signal xp_changed(current: int, needed: int)
 signal level_up(new_level: int)
 signal skill_unlocked(skill_name: String)
+signal died
+signal item_collected(item: ItemData)
 
 
 func _ready() -> void:
@@ -49,7 +60,9 @@ func _ready() -> void:
 	multishot_timer.timeout.connect(_on_multishot_timeout)
 	piercing_timer.timeout.connect(_on_piercing_timeout)
 	sprite.animation_finished.connect(_on_animation_finished)
+	_sprite_base_position = sprite.position
 	sprite.play("idle")
+	_start_idle_bob()
 
 
 func xp_to_next_level() -> int:
@@ -142,7 +155,35 @@ func _auto_fire(skill: SkillData) -> void:
 		if targets.size() < shot_count:
 			angle_offset = deg_to_rad(15.0 * (i - float(shot_count - 1) / 2.0))
 		_fire_at(target, skill, angle_offset)
+	_stop_idle_bob()
+	_play_recoil()
 	sprite.play("attack")
+
+
+func _start_idle_bob() -> void:
+	if _idle_tween:
+		_idle_tween.kill()
+	sprite.position = _sprite_base_position
+	_idle_tween = create_tween()
+	_idle_tween.set_loops()
+	_idle_tween.tween_property(sprite, "position:y", _sprite_base_position.y - IDLE_BOB_AMPLITUDE, IDLE_BOB_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_idle_tween.tween_property(sprite, "position:y", _sprite_base_position.y + IDLE_BOB_AMPLITUDE, IDLE_BOB_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _stop_idle_bob() -> void:
+	if _idle_tween:
+		_idle_tween.kill()
+		_idle_tween = null
+	sprite.position = _sprite_base_position
+
+
+func _play_recoil() -> void:
+	if _recoil_tween:
+		_recoil_tween.kill()
+	sprite.position.x = _sprite_base_position.x
+	_recoil_tween = create_tween()
+	_recoil_tween.tween_property(sprite, "position:x", _sprite_base_position.x - RECOIL_OFFSET, RECOIL_DURATION).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_recoil_tween.tween_property(sprite, "position:x", _sprite_base_position.x, RECOIL_DURATION * 1.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 func _get_nearest_enemies(count: int) -> Array[Node2D]:
@@ -158,18 +199,36 @@ func _get_nearest_enemies(count: int) -> Array[Node2D]:
 
 func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> void:
 	var proj = skill.projectile_scene.instantiate()
-	var dir := (target.global_position - attack_origin.global_position).normalized().rotated(angle_offset)
+	var proj_speed: float = BASE_PROJECTILE_SPEED * projectile_speed_mult
+	var aim_point := _predict_intercept(attack_origin.global_position, target, proj_speed)
+	var dir := (aim_point - attack_origin.global_position).normalized().rotated(angle_offset)
 	proj.direction = dir
 	proj.damage = skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
-	proj.speed = BASE_PROJECTILE_SPEED * projectile_speed_mult
+	proj.speed = proj_speed
 	proj.pierce_count = skill.pierce_count
 	proj.global_position = attack_origin.global_position
 	get_tree().current_scene.add_child(proj)
 
 
+func _predict_intercept(from: Vector2, target: Node2D, proj_speed: float) -> Vector2:
+	# Enemies keep falling while the shot is in flight, so aiming at their
+	# current position alone would systematically miss (arrows travel far
+	# slower relative to fall speed than it looks at a glance). Since
+	# proj_speed is much greater than any enemy's speed, a couple of
+	# fixed-point passes converges to a good intercept point without a full
+	# quadratic solve.
+	var target_vel: Vector2 = target.velocity if "velocity" in target else Vector2.ZERO
+	var predicted := target.global_position
+	for _i in 4:
+		var travel_time := from.distance_to(predicted) / proj_speed
+		predicted = target.global_position + target_vel * travel_time
+	return predicted
+
+
 func _on_animation_finished() -> void:
 	if sprite.animation == "attack":
 		sprite.play("idle")
+		_start_idle_bob()
 
 
 func take_damage(amount: float) -> void:
@@ -180,7 +239,27 @@ func take_damage(amount: float) -> void:
 		remaining -= absorbed
 	current_hp = maxf(current_hp - remaining, 0.0)
 	hp_changed.emit(current_hp, max_hp)
+	if current_hp <= 0.0 and not is_dead:
+		is_dead = true
+		died.emit()
 
 
 func refill_shield() -> void:
 	current_shield = shield_capacity  # called by WaveManager at the start of every wave
+
+
+func apply_item(item: ItemData) -> void:
+	match item.effect_type:
+		"stat_boost":
+			for _i in item.upgrade_stacks:
+				apply_upgrade(item.upgrade_id)
+		"instant_heal":
+			current_hp = minf(current_hp + item.effect_amount, max_hp)
+			hp_changed.emit(current_hp, max_hp)
+		"instant_bomb":
+			for enemy in get_tree().get_nodes_in_group("enemy"):
+				if is_instance_valid(enemy) and enemy.has_method("take_damage"):
+					enemy.take_damage(item.effect_amount)
+		"instant_xp":
+			gain_xp(int(item.effect_amount))
+	item_collected.emit(item)

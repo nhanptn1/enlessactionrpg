@@ -14,3 +14,4 @@ base_damage = 5.0
 xp_reward = 200
 tier = 3
 attack_type = "pattern"
+drop_chance = 1.0

@@ -17,3 +17,4 @@ class_name EnemyData
 @export var projectile_scene: PackedScene # only used when attack_type == "ranged"
 @export var attack_interval: float = 2.0  # ranged attack cooldown, seconds
 @export var projectile_speed: float = 220.0
+@export var drop_chance: float = 0.0      # chance to drop an item on death

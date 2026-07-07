@@ -14,3 +14,4 @@ base_damage = 5.0
 xp_reward = 5
 tier = 1
 attack_type = "contact"
+drop_chance = 0.15

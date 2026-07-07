@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/WolfBeast.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "wolf_beast"
+display_name = "Wolf Beast"
+scene = ExtResource("2")
+base_hp = 6.0
+base_speed = 155.0
+base_damage = 8.0
+xp_reward = 6
+tier = 1
+attack_type = "contact"
+movement_pattern = "dive"
+drop_chance = 0.15

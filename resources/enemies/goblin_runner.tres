@@ -18,3 +18,4 @@ movement_pattern = "zigzag"
 zigzag_speed = 70.0
 zigzag_frequency = 1.2
 cluster_size = 1
+drop_chance = 0.15

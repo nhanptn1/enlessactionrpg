@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ItemData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "small_healing_potion"
+display_name = "Small Healing Potion"
+category = "consumable"
+rarity = "common"
+effect_type = "instant_heal"
+effect_amount = 25.0

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "amulet_of_speed"
+display_name = "Amulet of Speed"
+category = "accessory"
+rarity = "common"
+effect_type = "stat_boost"
+upgrade_id = "cooldown"
+upgrade_stacks = 1

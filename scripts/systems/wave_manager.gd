@@ -13,6 +13,7 @@ const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.2
 const BOSS_DAMAGE_MULT := 2.0
 const BOSS_XP_REWARD := 200
 const BOSS_VISUAL_SCALE := 3.0
+const RARITY_WEIGHTS := {"common": 0.55, "rare": 0.30, "epic": 0.15}
 
 signal wave_started(wave_number: int)
 signal wave_cleared(wave_number: int)
@@ -20,6 +21,7 @@ signal wave_cleared(wave_number: int)
 @export var waves: Array[WaveData] = []
 @export var procedural_enemy_pool: Array[EnemyData] = []  # assign [slime_scout, goblin_runner, bat_swarm] in Main.tscn
 @export var boss_enemy_data: EnemyData  # assign corrupted_forest_guardian.tres in Main.tscn
+@export var item_pool: Array[ItemData] = []  # assign all ItemData resources in Main.tscn
 
 @onready var spawner: EnemySpawner = get_parent().get_node("EnemySpawner")
 
@@ -102,6 +104,27 @@ func _generate_wave(wave_number: int) -> WaveData:
 
 func _boss_hp_mult(cycle: int) -> float:
 	return BOSS_HP_MULT_BASE * (1.0 + BOSS_HP_MULT_GROWTH_PER_CYCLE * (cycle - 1))
+
+
+func roll_item_drop() -> ItemData:
+	if item_pool.is_empty():
+		return null
+	var roll := randf()
+	var rarity := "common"
+	if roll < RARITY_WEIGHTS["epic"]:
+		rarity = "epic"
+	elif roll < RARITY_WEIGHTS["epic"] + RARITY_WEIGHTS["rare"]:
+		rarity = "rare"
+	var matches: Array[ItemData] = []
+	for item in item_pool:
+		if item.rarity == rarity:
+			matches.append(item)
+	if matches.is_empty():
+		# authoring gap (e.g. no items of this rarity yet, or a typo'd
+		# rarity string) — fall back to the full pool rather than
+		# silently never dropping anything for this tier
+		matches = item_pool
+	return matches[randi() % matches.size()]
 
 
 func _last_authored_count() -> int:

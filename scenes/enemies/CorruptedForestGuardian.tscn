@@ -23,7 +23,7 @@ animations = [{
 }]
 
 [node name="CorruptedForestGuardian" type="CharacterBody2D"]
-collision_layer = 1
+collision_layer = 2
 collision_mask = 1
 script = ExtResource("1")
 sapling_data = ExtResource("3")
