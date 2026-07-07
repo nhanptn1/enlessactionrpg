@@ -2,7 +2,6 @@ extends CharacterBody2D
 class_name EnemyBase
 
 const CONTACT_DAMAGE_INTERVAL := 0.6
-const ITEM_PICKUP_SCENE := preload("res://scenes/effects/ItemPickup.tscn")
 const HIT_FLASH_DURATION := 0.08
 const HIT_PUNCH_SCALE := 1.2
 const ATTACK_LUNGE_OFFSET := 4.0
@@ -23,12 +22,15 @@ var _speed_mult := 1.0
 var _damage_mult := 1.0
 var _xp_override := -1  # -1 sentinel = "use data.xp_reward unmodified"
 var _time_alive := 0.0
+var _is_wave_tracked := true  # false for boss-summoned minions -- must never affect wave-clear accounting
 
 var _base_modulate: Color
 var _base_scale: Vector2
 var _hit_tween: Tween
 var _lunge_tween: Tween
 var _is_dying := false
+
+signal died(xp_reward: int, drop_chance: float, death_position: Vector2)
 
 
 func setup(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0, damage_mult: float = 1.0, xp_override: int = -1) -> void:
@@ -123,10 +125,14 @@ func _on_screen_exited() -> void:
 	# An enemy that falls past the player without dying still needs to count
 	# against the wave's alive tally, or a single escapee permanently blocks
 	# notify_enemy_died()'s "_alive_count <= 0" wave-clear check — no XP/drop,
-	# just an accounting update so the wave can actually complete.
-	var wm := get_tree().get_first_node_in_group("wave_manager")
-	if is_instance_valid(wm):
-		wm.notify_enemy_died()
+	# just an accounting update so the wave can actually complete. Boss-
+	# summoned minions are NOT wave-tracked, so this must stay gated the same
+	# way _die()'s signal routing is, or a sapling escaping off-screen would
+	# prematurely clear the wave exactly like a killed one would.
+	if _is_wave_tracked:
+		var wm := get_tree().get_first_node_in_group("wave_manager")
+		if is_instance_valid(wm):
+			wm.notify_enemy_died()
 	queue_free()
 
 
@@ -134,20 +140,8 @@ func _die() -> void:
 	if _is_dying:
 		return
 	_is_dying = true
-	var player := get_tree().get_first_node_in_group("player")
-	if is_instance_valid(player) and player.has_method("gain_xp"):
-		var xp_reward: int = _xp_override if _xp_override >= 0 else data.xp_reward
-		player.gain_xp(xp_reward)
-	var wm := get_tree().get_first_node_in_group("wave_manager")
-	if is_instance_valid(wm):
-		if randf() < data.drop_chance:
-			var item: ItemData = wm.roll_item_drop()
-			if item != null:
-				var pickup = ITEM_PICKUP_SCENE.instantiate()
-				pickup.item_data = item  # BEFORE add_child — _ready() reads it synchronously
-				pickup.global_position = global_position
-				get_tree().current_scene.add_child(pickup)
-		wm.notify_enemy_died()
+	var xp_reward: int = _xp_override if _xp_override >= 0 else data.xp_reward
+	died.emit(xp_reward, data.drop_chance, global_position)
 	# Stop everything that could still act during the fade-out (the corpse
 	# shouldn't keep contact-damaging or firing at the player for the brief
 	# window before it's actually removed).

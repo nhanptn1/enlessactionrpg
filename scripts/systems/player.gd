@@ -183,16 +183,13 @@ func _get_nearest_enemies(count: int) -> Array[Node2D]:
 
 
 func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> void:
-	var proj = skill.projectile_scene.instantiate()
 	var proj_speed: float = BASE_PROJECTILE_SPEED * projectile_speed_mult
 	var aim_point := _predict_intercept(attack_origin.global_position, target, proj_speed)
 	var dir := (aim_point - attack_origin.global_position).normalized().rotated(angle_offset)
-	proj.direction = dir
-	proj.damage = skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
-	proj.speed = proj_speed
-	proj.pierce_count = skill.pierce_count
-	proj.global_position = attack_origin.global_position
-	get_tree().current_scene.add_child(proj)
+	var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
+	var pool := get_tree().get_first_node_in_group("projectile_pool")
+	var proj = pool.acquire(skill.projectile_scene)
+	proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy")
 
 
 func _predict_intercept(from: Vector2, target: Node2D, proj_speed: float) -> Vector2:
@@ -224,6 +221,10 @@ func take_damage(amount: float) -> void:
 		remaining -= absorbed
 	current_hp = maxf(current_hp - remaining, 0.0)
 	hp_changed.emit(current_hp, max_hp)
+	if remaining > 0.0:
+		var cam := get_viewport().get_camera_2d()
+		if is_instance_valid(cam) and cam.has_method("shake"):
+			cam.shake(6.0, 0.18)
 	if current_hp <= 0.0 and not is_dead:
 		is_dead = true
 		died.emit()

@@ -3,10 +3,9 @@ class_name BossBase
 
 # Not an EnemyBase: a phase/telegraph attack pattern is a different shape than
 # EnemyBase's "walk down, contact-damage on overlap" loop. This keeps its own
-# take_damage()/_die() (calling the same player.gain_xp()/wave_manager hooks)
-# but owns movement/attack logic outright.
+# take_damage()/_die() (emitting the same `died` signal EnemyBase does, so
+# WaveManager handles both uniformly) but owns movement/attack logic outright.
 
-const ITEM_PICKUP_SCENE := preload("res://scenes/effects/ItemPickup.tscn")
 const HIT_FLASH_DURATION := 0.08
 const HIT_PUNCH_SCALE := 1.06
 const DEATH_FADE_DURATION := 0.4
@@ -36,6 +35,8 @@ const INITIAL_ATTACK_DELAY := 1.5
 @export var sapling_data: EnemyData
 
 @onready var sprite: AnimatedSprite2D = $Sprite
+
+signal died(xp_reward: int, drop_chance: float, death_position: Vector2)
 
 var data: EnemyData
 var current_hp: float
@@ -93,6 +94,9 @@ func take_damage(amount: float) -> void:
 	_play_hit_reaction()
 	if current_phase == 1 and current_hp <= _max_hp * PHASE2_HP_RATIO:
 		current_phase = 2
+		var cam := get_viewport().get_camera_2d()
+		if is_instance_valid(cam) and cam.has_method("shake"):
+			cam.shake(14.0, 0.3)
 
 
 func _play_hit_reaction() -> void:
@@ -112,20 +116,8 @@ func _die() -> void:
 		return
 	_is_dying = true
 	_attack_loop_running = false
-	var player := get_tree().get_first_node_in_group("player")
-	if is_instance_valid(player) and player.has_method("gain_xp"):
-		var xp_reward: int = _xp_override if _xp_override >= 0 else data.xp_reward
-		player.gain_xp(xp_reward)
-	var wm := get_tree().get_first_node_in_group("wave_manager")
-	if is_instance_valid(wm):
-		if randf() < data.drop_chance:
-			var item: ItemData = wm.roll_item_drop()
-			if item != null:
-				var pickup = ITEM_PICKUP_SCENE.instantiate()
-				pickup.item_data = item  # BEFORE add_child — _ready() reads it synchronously
-				pickup.global_position = global_position
-				get_tree().current_scene.add_child(pickup)
-		wm.notify_enemy_died()
+	var xp_reward: int = _xp_override if _xp_override >= 0 else data.xp_reward
+	died.emit(xp_reward, data.drop_chance, global_position)
 	set_physics_process(false)
 	var death_tween := create_tween()
 	death_tween.set_parallel(true)
@@ -191,12 +183,16 @@ func _show_telegraph(info: Dictionary) -> void:
 func _summon_saplings() -> void:
 	if sapling_data == null:
 		return
+	var wm := get_tree().get_first_node_in_group("wave_manager")
 	for _i in SAPLING_COUNT:
 		var enemy = sapling_data.scene.instantiate()
 		enemy.setup(sapling_data)  # BEFORE add_child — _ready() reads data synchronously
+		enemy._is_wave_tracked = false  # a boss add, not part of the wave's own spawn queue -- must never affect wave-clear
 		enemy.global_position = global_position + Vector2(randf_range(-60.0, 60.0), 30.0 + randf_range(0.0, 20.0))
 		enemy.modulate = Color(0.4, 0.8, 0.4, 1.0)
 		get_tree().current_scene.add_child(enemy)
+		if is_instance_valid(wm):
+			enemy.died.connect(wm._on_minion_died)
 
 
 func _circle_polygon(radius: float, segments: int = 24) -> PackedVector2Array:

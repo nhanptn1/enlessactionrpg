@@ -12,11 +12,9 @@ func on_attack_timer_timeout(enemy: EnemyBase) -> void:
 	var player := enemy.get_tree().get_first_node_in_group("player")
 	if not is_instance_valid(player) or enemy.data.projectile_scene == null:
 		return
-	var proj = enemy.data.projectile_scene.instantiate()
-	proj.direction = (player.global_position - enemy.global_position).normalized()
-	proj.damage = enemy.data.base_damage * enemy._damage_mult
-	proj.speed = enemy.data.projectile_speed
-	proj.target_group = "player"
-	proj.global_position = enemy.global_position
-	enemy.get_tree().current_scene.add_child(proj)
+	var pool := enemy.get_tree().get_first_node_in_group("projectile_pool")
+	var dir = (player.global_position - enemy.global_position).normalized()
+	var dmg := enemy.data.base_damage * enemy._damage_mult
+	var proj = pool.acquire(enemy.data.projectile_scene)
+	proj.activate(dir, enemy.data.projectile_speed, dmg, enemy.global_position, 0, "player")
 	enemy._play_attack_lunge()

@@ -1,6 +1,7 @@
 extends Node
 class_name WaveManager
 
+const ITEM_PICKUP_SCENE := preload("res://scenes/effects/ItemPickup.tscn")
 const BOSS_WAVE_INTERVAL := 10
 const HP_SCALING_PER_WAVE := 0.15
 const HP_MULT_CEILING := 6.0
@@ -165,3 +166,29 @@ func notify_enemy_died() -> void:
 	if _alive_count <= 0 and _spawn_queue.is_empty():
 		wave_cleared.emit(_current_wave.wave_number)
 		_start_next_wave()
+
+
+func _on_enemy_died(xp_reward: int, drop_chance: float, death_position: Vector2) -> void:
+	_grant_death_rewards(xp_reward, drop_chance, death_position)
+	notify_enemy_died()
+
+
+func _on_minion_died(xp_reward: int, drop_chance: float, death_position: Vector2) -> void:
+	# Boss-summoned adds (e.g. saplings) still reward the player, but must
+	# NOT touch _alive_count -- they were never part of the wave's own spawn
+	# queue, so counting them would let the wave clear while the boss (the
+	# queue's actual sole entry) is still alive and fighting.
+	_grant_death_rewards(xp_reward, drop_chance, death_position)
+
+
+func _grant_death_rewards(xp_reward: int, drop_chance: float, death_position: Vector2) -> void:
+	var player := get_tree().get_first_node_in_group("player")
+	if is_instance_valid(player) and player.has_method("gain_xp"):
+		player.gain_xp(xp_reward)
+	if randf() < drop_chance:
+		var item: ItemData = roll_item_drop()
+		if item != null:
+			var pickup = ITEM_PICKUP_SCENE.instantiate()
+			pickup.item_data = item  # BEFORE add_child — _ready() reads it synchronously
+			pickup.global_position = death_position
+			get_tree().current_scene.add_child(pickup)

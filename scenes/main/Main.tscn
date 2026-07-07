@@ -1,8 +1,10 @@
-[gd_scene load_steps=43 format=3]
+[gd_scene load_steps=47 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/systems/enemy_spawner.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/systems/wave_manager.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/systems/camera_shake.gd" id="44"]
+[ext_resource type="Script" path="res://scripts/systems/projectile_pool.gd" id="45"]
 [ext_resource type="PackedScene" path="res://scenes/ui/HUD.tscn" id="4"]
 [ext_resource type="Resource" path="res://resources/waves/wave_01.tres" id="5"]
 [ext_resource type="Resource" path="res://resources/waves/wave_02.tres" id="6"]
@@ -44,7 +46,24 @@
 [ext_resource type="Resource" path="res://resources/enemies/skeleton_soldier.tres" id="42"]
 [ext_resource type="Resource" path="res://resources/enemies/wolf_beast.tres" id="43"]
 
+[sub_resource type="Environment" id="Environment1"]
+background_mode = 3
+glow_enabled = true
+glow_intensity = 0.7
+glow_strength = 1.1
+glow_bloom = 0.05
+
 [node name="Main" type="Node2D"]
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(360, 640)
+script = ExtResource("44")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment1")
+
+[node name="ProjectilePool" type="Node2D" parent="."]
+script = ExtResource("45")
 
 [node name="Player" parent="." instance=ExtResource("1")]
 position = Vector2(360, 1150)
