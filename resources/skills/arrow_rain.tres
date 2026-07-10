@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SkillData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/effects/ProjectileRain.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "arrow_rain"
+display_name = "Arrow Rain"
+base_damage = 5.0
+cooldown = 1.8
+mana_cost = 0.0
+projectile_scene = ExtResource("2")
+pierce_count = 0
+projectile_count = 1
+fire_mode = 1
+rain_arrow_count = 12
+rain_spread_width = 620.0

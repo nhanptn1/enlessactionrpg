@@ -6,6 +6,9 @@ const IDLE_BOB_AMPLITUDE := 2.5
 const IDLE_BOB_DURATION := 1.1
 const RECOIL_OFFSET := 6.0
 const RECOIL_DURATION := 0.12
+const MOVEMENT_SPEED := 400.0
+const MIN_X := 60.0
+const MAX_X := 660.0
 
 const UPGRADE_POOL: Array[String] = [
 	"damage", "cooldown", "projectile_count", "projectile_speed",
@@ -19,6 +22,8 @@ const UPGRADE_POOL: Array[String] = [
 @export var basic_shot: SkillData
 @export var multishot: SkillData
 @export var piercing_arrow: SkillData
+@export var arrow_rain: SkillData
+@export var trap_shot: SkillData
 
 var max_hp := 100.0  # was a const; now mutable since HP upgrades increase it
 var current_hp := max_hp
@@ -61,6 +66,32 @@ func _ready() -> void:
 	_start_idle_bob()
 
 
+func _physics_process(delta: float) -> void:
+	if is_dead or GameManager.state in [GameManager.State.LEVEL_UP, GameManager.State.PAUSED, GameManager.State.GAME_OVER]:
+		return
+	
+	var move_dir := 0.0
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		move_dir -= 1.0
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		move_dir += 1.0
+		
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		var mouse_pos := get_global_mouse_position()
+		var diff := mouse_pos.x - global_position.x
+		if abs(diff) > 5.0:
+			move_dir = sign(diff)
+			
+	if move_dir != 0.0:
+		velocity.x = move_dir * MOVEMENT_SPEED
+	else:
+		velocity.x = 0.0
+		
+	velocity.y = 0.0
+	move_and_slide()
+	global_position.x = clampf(global_position.x, MIN_X, MAX_X)
+
+
 func xp_to_next_level() -> int:
 	return 20 + 10 * (level - 1)
 
@@ -77,6 +108,7 @@ func gain_xp(amount: int) -> void:
 
 func _on_level_up(new_level: int) -> void:
 	level_up.emit(new_level)
+	SignalBus.level_up.emit(new_level)
 	if new_level == 3:
 		# Replaces the active attack wholesale rather than adding a second
 		# independent timer -- the "+1 Arrow" upgrade already generalizes
@@ -86,15 +118,22 @@ func _on_level_up(new_level: int) -> void:
 		_current_skill = multishot
 		_refresh_timer_cooldowns()
 		skill_unlocked.emit("Multishot")
+		SignalBus.skill_unlocked.emit("Multishot")
 	if new_level == 5:
 		_current_skill = piercing_arrow
 		_refresh_timer_cooldowns()
 		skill_unlocked.emit("Piercing Arrow")
+		SignalBus.skill_unlocked.emit("Piercing Arrow")
 	if new_level == 8:
-		# TODO: replace with a real Arrow Rain/Trap Shot skill; stubbed for now
-		apply_upgrade("damage")
-		apply_upgrade("damage")
-		skill_unlocked.emit("Power Surge (+20% dmg)")
+		_current_skill = arrow_rain
+		_refresh_timer_cooldowns()
+		skill_unlocked.emit("Arrow Rain")
+		SignalBus.skill_unlocked.emit("Arrow Rain")
+	if new_level == 10:
+		_current_skill = trap_shot
+		_refresh_timer_cooldowns()
+		skill_unlocked.emit("Trap Shot")
+		SignalBus.skill_unlocked.emit("Trap Shot")
 
 
 func apply_upgrade(upgrade_id: String) -> void:
@@ -130,19 +169,27 @@ func _on_attack_timeout() -> void:
 
 
 func _auto_fire(skill: SkillData) -> void:
-	var shot_count: int = skill.projectile_count + bonus_projectile_count
-	var targets := _get_nearest_enemies(shot_count)
-	if targets.is_empty():
-		return
-	for i in shot_count:
-		var target: Node2D = targets[i % targets.size()]
-		var angle_offset := 0.0
-		if targets.size() < shot_count:
-			angle_offset = deg_to_rad(15.0 * (i - float(shot_count - 1) / 2.0))
-		_fire_at(target, skill, angle_offset)
+	match skill.fire_mode:
+		SkillData.FireMode.ARROW_RAIN:
+			_fire_arrow_rain(skill)
+		SkillData.FireMode.TRAP_SHOT:
+			if not _fire_trap_shot(skill):
+				return
+		_:
+			var shot_count: int = skill.projectile_count + bonus_projectile_count
+			var targets := _get_nearest_enemies(shot_count)
+			if targets.is_empty():
+				return
+			for i in shot_count:
+				var target: Node2D = targets[i % targets.size()]
+				var angle_offset := 0.0
+				if targets.size() < shot_count:
+					angle_offset = deg_to_rad(15.0 * (i - float(shot_count - 1) / 2.0))
+				_fire_at(target, skill, angle_offset)
 	_stop_idle_bob()
 	_play_recoil()
 	sprite.play("attack")
+	SignalBus.player_shot.emit()
 
 
 func _start_idle_bob() -> void:
@@ -180,6 +227,42 @@ func _get_nearest_enemies(count: int) -> Array[Node2D]:
 	if enemies.size() > count:
 		enemies.resize(count)
 	return enemies
+
+
+func _fire_arrow_rain(skill: SkillData) -> void:
+	# Falls from off the top of the screen (y=-40, matching EnemySpawner)
+	# straight down toward the player at y=1150 -- needs a much longer max
+	# range than a horizontally-aimed shot, or arrows fired at
+	# Projectile.DEFAULT_MAX_RANGE (900) would expire around y=860, never
+	# reaching enemies that have already fallen close to the player.
+	const RAIN_MAX_RANGE := 1400.0
+	var pool := get_tree().get_first_node_in_group("projectile_pool")
+	if pool == null:
+		return
+	var count: int = skill.rain_arrow_count + bonus_projectile_count
+	var spread: float = skill.rain_spread_width
+	var center_x := global_position.x
+	var proj_speed: float = BASE_PROJECTILE_SPEED * 1.35 * projectile_speed_mult
+	for _i in count:
+		var x := center_x + randf_range(-spread / 2.0, spread / 2.0)
+		var spawn_pos := Vector2(x, -40.0)
+		var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
+		var proj = pool.acquire(skill.projectile_scene)
+		proj.activate(Vector2.DOWN, proj_speed, dmg, spawn_pos, 0, "enemy", RAIN_MAX_RANGE)
+
+
+func _fire_trap_shot(skill: SkillData) -> bool:
+	if skill.trap_scene == null:
+		return false
+	var targets := _get_nearest_enemies(1)
+	if targets.is_empty():
+		return false
+	var target: Node2D = targets[0]
+	var trap = skill.trap_scene.instantiate()
+	var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
+	trap.activate(dmg, skill.trap_duration, skill.trap_radius, target.global_position)
+	get_tree().current_scene.add_child(trap)
+	return true
 
 
 func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> void:
@@ -222,12 +305,14 @@ func take_damage(amount: float) -> void:
 	current_hp = maxf(current_hp - remaining, 0.0)
 	hp_changed.emit(current_hp, max_hp)
 	if remaining > 0.0:
+		SignalBus.player_damaged.emit(remaining)
 		var cam := get_viewport().get_camera_2d()
 		if is_instance_valid(cam) and cam.has_method("shake"):
 			cam.shake(6.0, 0.18)
 	if current_hp <= 0.0 and not is_dead:
 		is_dead = true
 		died.emit()
+		SignalBus.player_died.emit()
 
 
 func refill_shield() -> void:
@@ -249,3 +334,4 @@ func apply_item(item: ItemData) -> void:
 		"instant_xp":
 			gain_xp(int(item.effect_amount))
 	item_collected.emit(item)
+	SignalBus.item_collected.emit(item.id)

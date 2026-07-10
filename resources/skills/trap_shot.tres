@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SkillData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/effects/TrapZone.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "trap_shot"
+display_name = "Trap Shot"
+base_damage = 14.0
+cooldown = 2.0
+mana_cost = 0.0
+pierce_count = 0
+projectile_count = 1
+fire_mode = 2
+trap_duration = 3.5
+trap_radius = 58.0
+trap_scene = ExtResource("2")

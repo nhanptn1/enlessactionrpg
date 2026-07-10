@@ -38,13 +38,14 @@ func _on_level_up(_new_level: int) -> void:
 	for i in 3:
 		choice_buttons[i].text = UPGRADE_LABELS[_pending_ids[i]]
 	panel.visible = true
-	get_tree().paused = true
+	GameManager.request_pause("level_up")
 
 
 func _on_choice_selected(index: int) -> void:
+	AudioManager.play_ui("ui_click")
 	player.apply_upgrade(_pending_ids[index])
 	panel.visible = false
-	get_tree().paused = false
+	GameManager.request_unpause("level_up")
 
 
 func _on_skill_unlocked(skill_name: String) -> void:

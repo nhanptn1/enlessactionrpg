@@ -1,0 +1,23 @@
+[SCENE ARCHITECTURE TEMPLATE]
+GameLevel (Node2D)  <-- Main gameplay loop controller
+├── Camera2D (Camera2D)  <-- Scripted for camera shake and positioning
+├── WorldEnvironment (WorldEnvironment)  <-- Configured with 2D Canvas Glow
+├── ProjectilePool (Node2D)  <-- Spawns and recycles reused arrow entities
+│
+├── ElfArcher (CharacterBody2D)  <-- Handled by ArcherStateMachine.gd
+│   ├── Sprite2D (Sprite2D)  <-- Holds the 24-frame upward attack atlas sheet
+│   ├── AnimationPlayer (AnimationPlayer)
+│   ├── CollisionShape2D (CollisionShape2D)  <-- Player physical boundary box
+│   ├── SkillInventory (Node)  <-- Holds custom SkillData Resources (Fire/Ice/Lightning)
+│   └── WeaponMuzzle (Marker2D)  <-- Spawn point vector position for arrows
+│
+└── MonsterSpawnLane (Node2D)  <-- Manages wave orchestration vectors
+    └── WaveMonster_Variant (CharacterBody2D)  <-- Instantiated monster entity
+        ├── AnimatedSprite2D (AnimatedSprite2D)  <-- Top-down downward facing sheet
+        ├── CollisionShape2D (CollisionShape2D)  <-- General physical push boundaries
+        │
+        ├── HitboxComponent (Area2D)  <-- Target zone for incoming Arrow colliders
+        │   └── CollisionShape2D (CollisionShape2D)  <-- Slightly wider horizontal footprint
+        │
+        ├── HealthComponent (Node)  <-- Track health variables. Emits 'on_death' signals
+        └── HitFlashComponent (Node)  <-- Connects to HealthComponent to trigger hit shaders

@@ -1,4 +1,4 @@
-[gd_scene load_steps=47 format=3]
+[gd_scene load_steps=48 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/systems/enemy_spawner.gd" id="2"]
@@ -19,6 +19,7 @@
 [ext_resource type="Resource" path="res://resources/enemies/stinger_wasp.tres" id="15"]
 [ext_resource type="Resource" path="res://resources/enemies/cursed_wraith.tres" id="16"]
 [ext_resource type="PackedScene" path="res://scenes/ui/GameOverScreen.tscn" id="17"]
+[ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="46"]
 [ext_resource type="Resource" path="res://resources/items/apprentice_bow.tres" id="18"]
 [ext_resource type="Resource" path="res://resources/items/hunter_bow.tres" id="19"]
 [ext_resource type="Resource" path="res://resources/items/twin_arrow_bow.tres" id="20"]
@@ -86,3 +87,5 @@ item_pool = [ExtResource("18"), ExtResource("19"), ExtResource("20"), ExtResourc
 [node name="LevelUpPopup" parent="." instance=ExtResource("9")]
 
 [node name="GameOverScreen" parent="." instance=ExtResource("17")]
+
+[node name="PauseMenu" parent="." instance=ExtResource("46")]

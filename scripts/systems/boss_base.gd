@@ -88,12 +88,14 @@ func take_damage(amount: float) -> void:
 	if _is_dying:
 		return
 	current_hp -= amount
+	SignalBus.enemy_hit.emit()
 	if current_hp <= 0.0:
 		_die()
 		return
 	_play_hit_reaction()
 	if current_phase == 1 and current_hp <= _max_hp * PHASE2_HP_RATIO:
 		current_phase = 2
+		SignalBus.boss_phase_changed.emit(current_phase)
 		var cam := get_viewport().get_camera_2d()
 		if is_instance_valid(cam) and cam.has_method("shake"):
 			cam.shake(14.0, 0.3)
@@ -118,6 +120,7 @@ func _die() -> void:
 	_attack_loop_running = false
 	var xp_reward: int = _xp_override if _xp_override >= 0 else data.xp_reward
 	died.emit(xp_reward, data.drop_chance, global_position)
+	SignalBus.enemy_died.emit()
 	set_physics_process(false)
 	var death_tween := create_tween()
 	death_tween.set_parallel(true)
@@ -127,10 +130,14 @@ func _die() -> void:
 
 
 func _run_attack_loop() -> void:
-	await get_tree().create_timer(INITIAL_ATTACK_DELAY).timeout
+	# process_always=false on every timer in this loop -- without it, Godot's
+	# default (true) keeps these counting down in real time even while
+	# get_tree().paused is set by the Pause Menu, so the boss would keep
+	# telegraphing and landing hits on a "paused" screen.
+	await get_tree().create_timer(INITIAL_ATTACK_DELAY, false).timeout
 	while _attack_loop_running and is_instance_valid(self):
 		if not _engaged:
-			await get_tree().create_timer(0.5).timeout
+			await get_tree().create_timer(0.5, false).timeout
 			continue
 		var pool: Array[String] = PHASE_1_ATTACKS if current_phase == 1 else PHASE_2_ATTACKS
 		var attack_id: String = pool[randi() % pool.size()]
@@ -140,41 +147,61 @@ func _run_attack_loop() -> void:
 func _execute_attack(attack_id: String) -> void:
 	if attack_id == "summon_saplings":
 		_summon_saplings()
-		await get_tree().create_timer(SUMMON_COOLDOWN).timeout
+		await get_tree().create_timer(SUMMON_COOLDOWN, false).timeout
 		return
 	var info: Dictionary = ATTACK_DATA[attack_id]
-	_show_telegraph(info)
-	await get_tree().create_timer(info["telegraph_time"]).timeout
+	SignalBus.boss_attack_telegraph.emit()
+	
+	var player := get_tree().get_first_node_in_group("player")
+	var target_pos := Vector2.ZERO
+	if is_instance_valid(player):
+		target_pos = player.global_position
+		
+	_show_telegraph(info, target_pos)
+	await get_tree().create_timer(info["telegraph_time"], false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
-	_apply_attack_damage(info)
-	await get_tree().create_timer(info["cooldown"]).timeout
+	_apply_attack_damage(info, target_pos)
+	await get_tree().create_timer(info["cooldown"], false).timeout
 
 
-func _apply_attack_damage(info: Dictionary) -> void:
+func _apply_attack_damage(info: Dictionary, target_pos: Vector2) -> void:
 	var player := get_tree().get_first_node_in_group("player")
-	if is_instance_valid(player) and player.has_method("take_damage"):
+	if not is_instance_valid(player) or not player.has_method("take_damage"):
+		return
+		
+	var hit := false
+	match info["shape"]:
+		"player_circle":
+			if player.global_position.distance_to(target_pos) <= info["radius"]:
+				hit = true
+		"self_circle":
+			if player.global_position.distance_to(global_position) <= info["radius"]:
+				hit = true
+		"reach_line":
+			var poly := _rect_polygon(global_position, target_pos, info["width"])
+			if Geometry2D.is_point_in_polygon(player.global_position, poly):
+				hit = true
+				
+	if hit:
 		player.take_damage(info["damage"] * _damage_mult)
 
 
-func _show_telegraph(info: Dictionary) -> void:
-	var player := get_tree().get_first_node_in_group("player")
+func _show_telegraph(info: Dictionary, target_pos: Vector2) -> void:
 	var shape := Polygon2D.new()
 	shape.color = info["color"]
 	match info["shape"]:
 		"player_circle":
 			shape.polygon = _circle_polygon(info["radius"])
-			if is_instance_valid(player):
-				shape.global_position = player.global_position
+			shape.global_position = target_pos
 		"self_circle":
 			shape.polygon = _circle_polygon(info["radius"])
 			shape.global_position = global_position
 		"reach_line":
-			if is_instance_valid(player):
-				shape.polygon = _rect_polygon(global_position, player.global_position, info["width"])
+			shape.polygon = _rect_polygon(global_position, target_pos, info["width"])
 	get_tree().current_scene.add_child(shape)
 	var duration: float = info["telegraph_time"]
-	get_tree().create_timer(duration).timeout.connect(func():
+	get_tree().create_timer(duration, false).timeout.connect(func():
 		if is_instance_valid(shape):
 			shape.queue_free()
 	)

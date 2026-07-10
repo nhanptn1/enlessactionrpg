@@ -27,11 +27,15 @@ func _on_wave_started(wave_number: int) -> void:
 
 func _on_player_died() -> void:
 	var level: int = player.level if player else 1
-	info_label.text = "Reached Wave %d — Level %d" % [_last_wave, level]
+	SaveManager.record_run(_last_wave, level)
+	info_label.text = "Reached Wave %d — Level %d\nBest: Wave %d — Level %d" % [
+		_last_wave, level, SaveManager.best_wave, SaveManager.best_level,
+	]
 	panel.visible = true
-	get_tree().paused = true
+	GameManager.request_pause("game_over")
 
 
 func _on_restart_pressed() -> void:
-	get_tree().paused = false
+	AudioManager.play_ui("ui_click")
+	GameManager.reset_state()
 	get_tree().reload_current_scene()

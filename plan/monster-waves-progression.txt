@@ -1,0 +1,126 @@
+WAVE AND MONSTER COUNT PLAN - Endless Archer Action RPG
+
+1) GOAL
+- Make waves feel intense and attractive.
+- Use many enemies per wave like other survivor-style games.
+- Keep the screen busy, but still readable.
+- Match skill upgrades to the bigger enemy count.
+
+2) WAVE SIZE TARGET
+- Early waves: 20 to 30 total monsters.
+- Mid waves: 40 to 70 total monsters.
+- Late waves: 70 to 100 total monsters.
+- Boss waves: boss + 10 to 25 support monsters.
+
+3) ACTIVE MONSTER LIMIT
+- Do not spawn all monsters at once.
+- Keep 10 to 15 monsters active on screen at the same time.
+- Spawn the rest in short groups or timed intervals.
+- This keeps performance stable and the action easy to read.
+
+4) WAVE PROGRESSION
+Wave 1:
+- 20 monsters total.
+- 5 active at once.
+
+Wave 2:
+- 25 monsters total.
+- 5 to 6 active at once.
+
+Wave 3:
+- 30 monsters total.
+- 6 active at once.
+
+Wave 4:
+- 35 monsters total.
+- 7 active at once.
+
+Wave 5:
+- 40 monsters total.
+- 8 active at once.
+
+Wave 6:
+- 50 monsters total.
+- 9 active at once.
+
+Wave 7:
+- 60 monsters total.
+- 10 active at once.
+
+Wave 8:
+- 70 monsters total.
+- 12 active at once.
+
+Wave 9:
+- 80 monsters total.
+- 12 to 15 active at once.
+
+Wave 10:
+- Boss wave.
+- Boss + 10 to 25 support monsters.
+
+5) LATER WAVE CYCLE
+- Waves 11 to 19 repeat the same style.
+- Add more enemy HP, speed, and spawn pressure.
+- Increase elite enemy chance.
+- Add stronger mixed groups.
+- Wave 20 becomes a harder boss wave.
+
+6) ENEMY MIX RULE
+Use different monster roles in each wave:
+- 50% basic enemies.
+- 20% fast enemies.
+- 15% swarm enemies.
+- 10% tank enemies.
+- 5% elite or special enemies.
+
+7) SKILL PROGRESSION MATCH
+Because waves are large, skills must grow fast enough:
+- Level 1: basic shot.
+- Level 3: choose Fire, Frost, or Lightning.
+- Level 5: first skill upgrade.
+- Level 8: stronger crowd-control skill.
+- Level 12: advanced branch upgrade.
+- Level 16+: final branch version.
+
+8) GAME FEEL
+- Many monsters should make the game feel active and exciting.
+- The player should always feel pressure from the top of the screen.
+- Skill upgrades must help with crowd control and boss damage.
+- Large waves should feel fair, not random.
+
+9) GODOT IMPLEMENTATION
+Create these systems:
+- WaveManager.
+- EnemySpawner.
+- EnemyPoolManager.
+- XPManager.
+- SkillTreeManager.
+- LevelUpUI.
+
+10) WAVE SYSTEM DATA
+Store each wave as data:
+- total monsters.
+- max active monsters.
+- spawn interval.
+- enemy type mix.
+- boss flag.
+- elite chance.
+
+11) PERFORMANCE RULE
+- Use object pooling for enemies and projectiles.
+- Keep enemy AI simple.
+- Keep effects lightweight.
+- Avoid spawning all monsters as separate heavy objects at once.
+
+12) MVP TARGET
+- Early game: 20 to 40 monsters.
+- Mid game: 50 to 80 monsters.
+- Late game: 100 monsters maximum.
+- Active on screen: 10 to 15 monsters.
+
+13) IMPORTANT DESIGN RULE
+- More monsters should increase excitement.
+- Skill upgrades should match monster pressure.
+- Boss waves should still feel special.
+- Keep the screen readable even with many enemies.

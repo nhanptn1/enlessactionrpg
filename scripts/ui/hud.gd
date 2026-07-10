@@ -5,6 +5,7 @@ class_name HUD
 @onready var xp_bar: ProgressBar = $Margin/VBox/XPBar
 @onready var level_label: Label = $Margin/VBox/LevelLabel
 @onready var wave_label: Label = $Margin/VBox/WaveLabel
+@onready var pause_button: Button = $PauseButton
 
 
 func _ready() -> void:
@@ -21,6 +22,17 @@ func _ready() -> void:
 	var wave_manager := get_tree().get_first_node_in_group("wave_manager")
 	if wave_manager:
 		wave_manager.wave_started.connect(_on_wave_started)
+	# Touch/mobile-friendly entry point for pausing -- the "pause" input
+	# action (Escape) still works too, this is the on-screen equivalent.
+	# No unpause branch needed here: while paused, HUD is frozen along with
+	# every other default-process_mode gameplay node, so this button simply
+	# can't be pressed again until PauseMenu's own Resume button unpauses.
+	pause_button.pressed.connect(_on_pause_pressed)
+
+
+func _on_pause_pressed() -> void:
+	AudioManager.play_ui("ui_click")
+	GameManager.request_pause("pause_menu")
 
 
 func _on_player_hp_changed(current: float, max_hp: float) -> void:

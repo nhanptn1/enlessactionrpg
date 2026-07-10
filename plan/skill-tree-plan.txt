@@ -1,0 +1,121 @@
+SKILL TREE PLAN - Endless Archer Action RPG
+
+1) GOAL
+- Build a path-based skill system for the archer game.
+- Player chooses one branch on level-up.
+- Each branch gives a different playstyle.
+- The system should be easy to read and easy to expand in Godot.
+
+2) MAIN BRANCHES
+- Fire path: damage, burn, explosion, crowd clear.
+- Frost path: slow, freeze, control, safety.
+- Lightning path: fast burst, chain attack, crit, multi-hit.
+
+3) LEVEL-UP FLOW
+- Player gains XP from enemy kills.
+- When XP bar is full, pause combat and show skill choice UI.
+- Show 3 branch choices or 3 upgrade cards.
+- Player picks one path or one skill upgrade.
+- Apply the skill immediately.
+- Return to combat.
+
+4) SKILL TREE STRUCTURE
+Each branch should have 3 tiers:
+- Tier 1: base skill.
+- Tier 2: upgraded version.
+- Tier 3: stronger final version.
+
+Example:
+- Fire Shot -> Ignite Trail -> Explosive Volley
+- Frost Arrow -> Slow Field -> Ice Wall Nova
+- Thunder Bolt -> Volt Arc -> Chain Resonance
+
+5) GODOT SYSTEM DESIGN
+Create these parts:
+- SkillData resource.
+- SkillTreeManager script.
+- LevelUpUI scene.
+- SkillCard scene.
+- PlayerSkillController script.
+- UpgradeDatabase or SkillDatabase resource.
+
+6) SKILLDATA FIELDS
+Each skill should store:
+- id
+- name
+- icon
+- description
+- element
+- damage
+- cooldown
+- unlock level
+- required skill
+- next skill
+- effect type
+
+7) LEVEL-UP UI
+- Show a popup when player levels up.
+- Display 3 skill choices.
+- Each card shows icon, name, and short description.
+- Use clear colors for each element:
+  - Fire = red/orange.
+  - Frost = blue/cyan.
+  - Lightning = purple/yellow.
+
+8) PLAYER COMBAT INTEGRATION
+- The archer starts with a basic shot.
+- Skill tree upgrades modify attacks or add new effects.
+- Fire may add burn damage.
+- Frost may slow enemies.
+- Lightning may chain between enemies.
+
+9) BALANCE RULES
+- Fire should feel strong against groups.
+- Frost should feel safe and controlling.
+- Lightning should feel fast and exciting.
+- No branch should be strictly better than the others.
+- Each branch should fit different enemy situations.
+
+10) GAME FLOW EXAMPLE
+- Start wave.
+- Kill enemies.
+- Gain XP.
+- Level up.
+- Choose Fire, Frost, or Lightning.
+- Unlock stronger skills in that path.
+- Continue until boss wave.
+- Repeat with stronger scaling.
+
+11) MVP IMPLEMENTATION ORDER
+1. Create XP and level-up system.
+2. Create skill choice popup.
+3. Add 3 branch icons.
+4. Add skill unlock data.
+5. Connect skill effects to player attacks.
+6. Add branch progression tiers.
+7. Add VFX and sound feedback.
+
+12) MVP SKILL SET
+- Fire Shot.
+- Ignite Trail.
+- Explosive Volley.
+- Frost Arrow.
+- Slow Field.
+- Ice Wall Nova.
+- Thunder Bolt.
+- Volt Arc.
+- Chain Resonance.
+
+13) FUTURE EXPANSION
+- More branches.
+- Passive bonuses.
+- Combo-based skills.
+- Rare ultimate skills.
+- Branch-specific relics.
+- Permanent meta progression.
+
+14) IMPORTANT RULE
+- Keep the skill tree simple at first.
+- Use data-driven design in Godot.
+- Make the UI clear and the path choice obvious.
+- Add more complexity only after the base system works.

@@ -1,13 +1,14 @@
 extends Area2D
 class_name Projectile
 
-const MAX_RANGE := 900.0
+const DEFAULT_MAX_RANGE := 900.0
 
 var direction := Vector2.UP
 var speed := 500.0
 var damage := 5.0
 var pierce_count: int = 0
 var target_group: String = "enemy"
+var max_range := DEFAULT_MAX_RANGE
 var _hits_remaining: int
 var _already_hit: Array[Node] = []
 var _spawn_position: Vector2
@@ -21,12 +22,13 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 
 
-func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String) -> void:
+func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE) -> void:
 	direction = p_direction
 	speed = p_speed
 	damage = p_damage
 	pierce_count = p_pierce_count
 	target_group = p_target_group
+	max_range = p_max_range
 	global_position = p_position
 	rotation = direction.angle()
 	_spawn_position = p_position
@@ -36,13 +38,17 @@ func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position:
 	visible = true
 	set_physics_process(true)
 	monitoring = true
+	if has_node("Visual"):
+		var visual_node = get_node("Visual")
+		if visual_node is AnimatedSprite2D:
+			visual_node.play()
 
 
 func _physics_process(delta: float) -> void:
 	if not _active:
 		return
 	position += direction * speed * delta
-	if global_position.distance_to(_spawn_position) >= MAX_RANGE:
+	if global_position.distance_to(_spawn_position) >= max_range:
 		_deactivate()
 
 

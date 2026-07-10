@@ -1,0 +1,142 @@
+GAMEPLAY AND CHARACTER DESIGN PLAN - Endless Archer Action RPG
+
+1) GAMEPLAY GOAL
+- The character auto-attacks.
+- The player focuses on movement, upgrades, and survival.
+- The game should feel exciting even without manual shooting.
+- The player must still be able to fail by bad positioning, weak upgrades, or missed boss patterns.
+
+2) PLAYER CORE LOOP
+- Enter wave.
+- Enemy swarm appears.
+- Archer attacks automatically.
+- Player moves to safer position.
+- Player collects XP orbs.
+- Player levels up and chooses a skill path.
+- Player becomes stronger.
+- Boss wave appears every 10 waves.
+- Repeat with harder waves.
+
+3) WHAT MAKES THE PLAYER EXCITED
+- Seeing the build grow every few levels.
+- Choosing between Fire, Frost, and Lightning paths.
+- Unlocking stronger skill combinations.
+- Watching auto-attacks become a powerful screen-clearing build.
+- Surviving a wave that looked impossible.
+
+4) HOW THE PLAYER CAN FAIL
+- HP reaches zero.
+- Too many enemies reach the bottom.
+- Player stands in the wrong position.
+- Boss telegraph attacks are ignored.
+- The build has weak damage or weak crowd control.
+- Elite enemies overwhelm the player.
+
+5) PLAYER MOVEMENT DESIGN
+- Keep movement simple and readable.
+- Player can move left and right at the bottom.
+- Movement is the main player control during combat.
+- Positioning is the key skill, not aiming.
+- Optional dash or dodge can be added later.
+
+6) CHARACTER DESIGN GOAL
+- The main character should be easy to read.
+- The character must look strong even when idle.
+- The bow should always be visible.
+- The character should fit the fantasy archer theme.
+
+7) CHARACTER VISUAL STYLE
+- Front-facing or slightly 3/4 facing upward.
+- Hood or short cloak.
+- Leather armor.
+- Bow and quiver visible.
+- Green, brown, and gold colors.
+- Simple silhouette for small-screen readability.
+
+8) CHARACTER ANIMATION SET
+- Idle.
+- Move left.
+- Move right.
+- Shoot.
+- Hit.
+- Death.
+- Skill cast.
+- Optional dash or dodge.
+
+9) SKILL PATH DESIGN
+Fire path:
+- High damage.
+- Burn effect.
+- Explosion damage.
+- Good for clearing large groups.
+
+Frost path:
+- Slow effect.
+- Freeze control.
+- Safer gameplay.
+- Good against fast waves.
+
+Lightning path:
+- Chain attacks.
+- Fast burst damage.
+- Crit and multi-hit feel.
+- Good for high-speed combat.
+
+10) LEVEL-UP DESIGN
+- Player gains XP from enemy kills.
+- Level-up pauses the game.
+- Show 3 upgrade choices.
+- Player selects one path or skill.
+- Apply the upgrade instantly.
+- Return to combat.
+
+11) PROGRESSION MATCH
+- Level 1: basic shot.
+- Level 3: choose one elemental path.
+- Level 5: first branch upgrade.
+- Level 8: stronger branch ability.
+- Level 12: advanced path upgrade.
+- Level 16+: final upgrade tier.
+
+12) ENEMY DESIGN
+- Normal enemies should be easy to identify.
+- Use different roles for different pressure types.
+- Fast enemies create danger.
+- Tank enemies force stronger attacks.
+- Elite enemies increase wave excitement.
+
+13) WAVE FEEL
+- Early waves should feel manageable.
+- Mid waves should feel crowded.
+- Late waves should feel intense and chaotic.
+- Boss waves should feel like major events.
+
+14) FAILURE RULE
+- The player should lose because of bad decisions, not because the game is random.
+- Good positioning, smart upgrades, and correct path choice should matter.
+- Auto-combat should still require real strategy.
+
+15) GODOT IMPLEMENTATION
+Create these systems:
+- PlayerController.
+- AutoAttackSystem.
+- SkillTreeManager.
+- WaveManager.
+- EnemySpawner.
+- XPManager.
+- LevelUpUI.
+- BossManager.
+
+16) MVP DESIGN TARGET
+- One archer hero.
+- 3 elemental branches.
+- 3 to 5 enemy types.
+- One boss.
+- One upgrade popup.
+- One simple movement system.
+- One clear fail condition: HP reaches zero.
+
+17) IMPORTANT RULE
+- The player should feel powerful through upgrades.
+- The game should still punish bad movement and poor build choices.
+- The character should be simple, readable, and visually strong from the bottom of the screen.

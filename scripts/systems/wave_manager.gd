@@ -48,6 +48,10 @@ func _ready() -> void:
 	_start_next_wave()
 
 
+func is_boss_wave_active() -> bool:
+	return _is_boss_wave
+
+
 func _start_next_wave() -> void:
 	current_wave_index += 1
 	var wave_number := current_wave_index + 1
@@ -65,6 +69,8 @@ func _start_next_wave() -> void:
 
 	_refill_player_shield()
 	wave_started.emit(wave_number)
+	SignalBus.wave_started.emit(wave_number, _is_boss_wave)
+	GameManager.set_play_state(_is_boss_wave)
 	_spawn_queue.clear()
 
 	if _is_boss_wave:
@@ -164,7 +170,9 @@ func _on_spawn_tick() -> void:
 func notify_enemy_died() -> void:
 	_alive_count -= 1
 	if _alive_count <= 0 and _spawn_queue.is_empty():
+		var was_boss := _is_boss_wave
 		wave_cleared.emit(_current_wave.wave_number)
+		SignalBus.wave_cleared.emit(_current_wave.wave_number, was_boss)
 		_start_next_wave()
 
 

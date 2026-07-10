@@ -69,6 +69,7 @@ func take_damage(amount: float) -> void:
 	if _is_dying:
 		return
 	current_hp -= amount
+	SignalBus.enemy_hit.emit()
 	if current_hp <= 0.0:
 		_die()
 	else:
@@ -142,6 +143,7 @@ func _die() -> void:
 	_is_dying = true
 	var xp_reward: int = _xp_override if _xp_override >= 0 else data.xp_reward
 	died.emit(xp_reward, data.drop_chance, global_position)
+	SignalBus.enemy_died.emit()
 	# Stop everything that could still act during the fade-out (the corpse
 	# shouldn't keep contact-damaging or firing at the player for the brief
 	# window before it's actually removed).
