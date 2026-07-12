@@ -1,18 +1,28 @@
 extends Node2D
 class_name EnemySpawner
 
+# Gold glow + a slight size bump, applied on top of whatever visual_scale the
+# spawn already asked for -- distinguishes an elite roll from a same-species
+# normal enemy at a glance, per the art bible's "use color accents to show
+# elite status" rule. No new sprite art needed.
+const ELITE_TINT := Color(1.6, 1.3, 0.4, 1.0)
+const ELITE_SCALE_BONUS := 1.2
+
 @export var spawn_width: float = 600.0
 @export var spawn_y: float = -40.0
 @export var center_x: float = 360.0
 
 
-func spawn(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0, damage_mult: float = 1.0, xp_override: int = -1, visual_scale: float = 1.0, x_override: float = -1.0) -> Node:
+func spawn(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0, damage_mult: float = 1.0, xp_override: int = -1, visual_scale: float = 1.0, x_override: float = -1.0, is_elite: bool = false) -> Node:
 	var enemy = enemy_data.scene.instantiate()
 	enemy.setup(enemy_data, hp_mult, speed_mult, damage_mult, xp_override)  # BEFORE add_child — _ready() reads data synchronously
 	var x: float = x_override if x_override >= 0.0 else randf_range(-spawn_width / 2.0, spawn_width / 2.0) + center_x
 	enemy.global_position = Vector2(x, spawn_y)
-	if visual_scale != 1.0:
-		enemy.scale = Vector2(visual_scale, visual_scale)
+	var final_scale := visual_scale * (ELITE_SCALE_BONUS if is_elite else 1.0)
+	if final_scale != 1.0:
+		enemy.scale = Vector2(final_scale, final_scale)
+	if is_elite:
+		enemy.modulate = ELITE_TINT
 	get_tree().current_scene.add_child(enemy)
 	var wm := get_tree().get_first_node_in_group("wave_manager")
 	if is_instance_valid(wm):

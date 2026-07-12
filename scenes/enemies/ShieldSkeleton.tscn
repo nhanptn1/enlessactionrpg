@@ -1,0 +1,43 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/enemies/EnemyBase.tscn" id="1"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/skeleton_idle_01.png" id="2"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/skeleton_attack_01.png" id="3"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames1"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3")
+}],
+"loop": true,
+"name": &"move",
+"speed": 2.5
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("3")
+}],
+"loop": false,
+"name": &"attack",
+"speed": 5.0
+}]
+
+[node name="ShieldSkeleton" instance=ExtResource("1")]
+modulate = Color(0.55, 0.75, 1.0, 1)
+
+[node name="Sprite" parent="." index="0"]
+sprite_frames = SubResource("SpriteFrames1")
+animation = &"move"
+scale = Vector2(0.27, 0.27)

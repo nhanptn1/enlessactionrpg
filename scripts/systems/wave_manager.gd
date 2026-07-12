@@ -15,13 +15,23 @@ const BOSS_DAMAGE_MULT := 2.0
 const BOSS_XP_REWARD := 200
 const BOSS_VISUAL_SCALE := 3.0
 const RARITY_WEIGHTS := {"common": 0.55, "rare": 0.30, "epic": 0.15}
+# Elite rolls only apply to normal (non-boss) waves -- the boss already has
+# its own cycle-based scaling in _boss_hp_mult(), stacking elite on top of
+# that would be redundant. 5% matches the ratio the (deferred) big-wave plan
+# docs called for, borrowed here since it's a reasonable rarity regardless of
+# wave scale.
+const ELITE_CHANCE := 0.05
+const ELITE_HP_MULT := 2.0
+const ELITE_SPEED_MULT := 1.1
+const ELITE_DAMAGE_MULT := 1.4
+const ELITE_XP_MULT := 3.0
 
 signal wave_started(wave_number: int)
 signal wave_cleared(wave_number: int)
 
 @export var waves: Array[WaveData] = []
 @export var procedural_enemy_pool: Array[EnemyData] = []  # assign [slime_scout, goblin_runner, bat_swarm] in Main.tscn
-@export var boss_enemy_data: EnemyData  # assign corrupted_forest_guardian.tres in Main.tscn
+@export var boss_pool: Array[EnemyData] = []  # bosses rotate by cycle: boss_pool[(cycle - 1) % boss_pool.size()]
 @export var item_pool: Array[ItemData] = []  # assign all ItemData resources in Main.tscn
 
 @onready var spawner: EnemySpawner = get_parent().get_node("EnemySpawner")
@@ -75,7 +85,7 @@ func _start_next_wave() -> void:
 
 	if _is_boss_wave:
 		var cycle := wave_number / BOSS_WAVE_INTERVAL
-		_spawn_queue.append(boss_enemy_data)
+		_spawn_queue.append(boss_pool[(cycle - 1) % boss_pool.size()])
 		_current_hp_mult = _boss_hp_mult(cycle)
 		_current_damage_mult = BOSS_DAMAGE_MULT
 		_current_xp_override = BOSS_XP_REWARD
@@ -159,12 +169,21 @@ func _on_spawn_tick() -> void:
 	var enemy_data: EnemyData = _spawn_queue.pop_back()
 	var cluster_size: int = maxi(enemy_data.cluster_size, 1)
 	if cluster_size == 1:
-		spawner.spawn(enemy_data, _current_hp_mult, _current_speed_mult, _current_damage_mult, _current_xp_override, _current_visual_scale)
+		_spawn_one(enemy_data, -1.0)
 	else:
 		_alive_count += cluster_size - 1  # this entry only counted as 1 in the initial _alive_count
 		var cluster_center_x := randf_range(-spawner.spawn_width / 2.0, spawner.spawn_width / 2.0) + spawner.center_x
 		for _n in cluster_size:
-			spawner.spawn(enemy_data, _current_hp_mult, _current_speed_mult, _current_damage_mult, _current_xp_override, _current_visual_scale, cluster_center_x + randf_range(-30.0, 30.0))
+			_spawn_one(enemy_data, cluster_center_x + randf_range(-30.0, 30.0))
+
+
+func _spawn_one(enemy_data: EnemyData, x_override: float) -> void:
+	var is_elite := not _is_boss_wave and randf() < ELITE_CHANCE
+	var hp_mult := _current_hp_mult * (ELITE_HP_MULT if is_elite else 1.0)
+	var speed_mult := _current_speed_mult * (ELITE_SPEED_MULT if is_elite else 1.0)
+	var damage_mult := _current_damage_mult * (ELITE_DAMAGE_MULT if is_elite else 1.0)
+	var xp_override := roundi(enemy_data.xp_reward * ELITE_XP_MULT) if is_elite else _current_xp_override
+	spawner.spawn(enemy_data, hp_mult, speed_mult, damage_mult, xp_override, _current_visual_scale, x_override, is_elite)
 
 
 func notify_enemy_died() -> void:

@@ -10,29 +10,71 @@ const HIT_FLASH_DURATION := 0.08
 const HIT_PUNCH_SCALE := 1.06
 const DEATH_FADE_DURATION := 0.4
 
-const ATTACK_DATA := {
-	"root_slam": {
-		"damage": 12.0, "telegraph_time": 0.9, "cooldown": 2.0,
-		"shape": "player_circle", "radius": 36.0, "color": Color(0.55, 0.35, 0.15, 0.5),
+# Each boss picks a named entry via @export var attack_pattern_id below --
+# one shared script serves every boss (telegraph/phase/death framework is
+# 100% generic), only the attack kit itself differs per boss. Attacks not
+# listed in "generic" (i.e. not backed by the shape-based telegraph system
+# in _execute_attack/_apply_attack_damage/_show_telegraph) are special-cased
+# by id in _execute_attack() instead -- same pattern the original
+# "summon_saplings" always used, just no longer the only one.
+const ATTACK_PATTERNS := {
+	"forest_guardian": {
+		"phase_1": ["root_slam", "vine_whip"],
+		"phase_2": ["poison_burst", "summon_saplings"],
+		"attacks": {
+			"root_slam": {
+				"damage": 12.0, "telegraph_time": 0.9, "cooldown": 2.0,
+				"shape": "player_circle", "radius": 36.0, "color": Color(0.55, 0.35, 0.15, 0.5),
+			},
+			"vine_whip": {
+				"damage": 14.0, "telegraph_time": 0.9, "cooldown": 2.2,
+				"shape": "reach_line", "width": 20.0, "color": Color(0.25, 0.55, 0.2, 0.5),
+			},
+			"poison_burst": {
+				"damage": 18.0, "telegraph_time": 1.1, "cooldown": 2.4,
+				"shape": "self_circle", "radius": 100.0, "color": Color(0.5, 0.15, 0.55, 0.5),
+			},
+		},
 	},
-	"vine_whip": {
-		"damage": 14.0, "telegraph_time": 0.9, "cooldown": 2.2,
-		"shape": "reach_line", "width": 20.0, "color": Color(0.25, 0.55, 0.2, 0.5),
-	},
-	"poison_burst": {
-		"damage": 18.0, "telegraph_time": 1.1, "cooldown": 2.4,
-		"shape": "self_circle", "radius": 100.0, "color": Color(0.5, 0.15, 0.55, 0.5),
+	"dark_ranger_commander": {
+		"phase_1": ["aimed_shot", "rapid_volley"],
+		"phase_2": ["arrow_rain", "shadow_step"],
+		"attacks": {
+			"aimed_shot": {
+				"damage": 16.0, "telegraph_time": 0.8, "cooldown": 1.8,
+				"shape": "reach_line", "width": 12.0, "color": Color(0.6, 0.1, 0.1, 0.55),
+			},
+		},
 	},
 }
-const PHASE_1_ATTACKS: Array[String] = ["root_slam", "vine_whip"]
-const PHASE_2_ATTACKS: Array[String] = ["poison_burst", "summon_saplings"]
 const PHASE2_HP_RATIO := 0.5
 const SUMMON_COOLDOWN := 5.0
 const SAPLING_COUNT := 3
 const INITIAL_ATTACK_DELAY := 1.5
 
+# Dark Ranger Commander's special-cased (non-generic-shape) attacks.
+const RAPID_VOLLEY_PROJECTILE := preload("res://scenes/effects/CursedBolt.tscn")
+const RAPID_VOLLEY_DAMAGE := 7.0
+const RAPID_VOLLEY_SHOT_COUNT := 3
+const RAPID_VOLLEY_SPREAD_DEG := 18.0
+const RAPID_VOLLEY_SPEED := 260.0
+const RAPID_VOLLEY_TELEGRAPH_TIME := 0.5
+const RAPID_VOLLEY_COOLDOWN := 2.0
+const ARROW_RAIN_DAMAGE := 10.0
+const ARROW_RAIN_IMPACT_COUNT := 3
+const ARROW_RAIN_IMPACT_RADIUS := 42.0
+const ARROW_RAIN_TELEGRAPH_TIME := 1.0
+const ARROW_RAIN_COOLDOWN := 2.6
+const ARROW_RAIN_COLOR := Color(0.7, 0.15, 0.15, 0.5)
+const SHADOW_STEP_FADE_TIME := 0.25
+const SHADOW_STEP_COOLDOWN := 1.2
+const SHADOW_STEP_RANGE := 160.0
+const SHADOW_STEP_MIN_X := 80.0
+const SHADOW_STEP_MAX_X := 640.0
+
 @export var engage_y: float = 400.0
 @export var sapling_data: EnemyData
+@export var attack_pattern_id: String = "forest_guardian"
 
 @onready var sprite: AnimatedSprite2D = $Sprite
 
@@ -52,6 +94,9 @@ var _base_modulate: Color
 var _base_scale: Vector2
 var _hit_tween: Tween
 var _is_dying := false
+var _pattern: Dictionary
+var _phase_1_attacks: Array
+var _phase_2_attacks: Array
 
 
 func setup(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0, damage_mult: float = 1.0, xp_override: int = -1) -> void:
@@ -64,6 +109,9 @@ func setup(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0,
 
 func _ready() -> void:
 	add_to_group("enemy")
+	_pattern = ATTACK_PATTERNS.get(attack_pattern_id, ATTACK_PATTERNS["forest_guardian"])
+	_phase_1_attacks = _pattern.get("phase_1", [])
+	_phase_2_attacks = _pattern.get("phase_2", [])
 	_max_hp = data.base_hp * _hp_mult
 	current_hp = _max_hp
 	velocity = Vector2(0, data.base_speed * _speed_mult)
@@ -71,6 +119,7 @@ func _ready() -> void:
 	_base_scale = sprite.scale
 	sprite.play("move")
 	_attack_loop_running = true
+	SignalBus.boss_hp_changed.emit(current_hp, _max_hp)
 	_run_attack_loop()
 
 
@@ -89,6 +138,7 @@ func take_damage(amount: float) -> void:
 		return
 	current_hp -= amount
 	SignalBus.enemy_hit.emit()
+	SignalBus.boss_hp_changed.emit(maxf(current_hp, 0.0), _max_hp)
 	if current_hp <= 0.0:
 		_die()
 		return
@@ -139,17 +189,27 @@ func _run_attack_loop() -> void:
 		if not _engaged:
 			await get_tree().create_timer(0.5, false).timeout
 			continue
-		var pool: Array[String] = PHASE_1_ATTACKS if current_phase == 1 else PHASE_2_ATTACKS
+		var pool: Array = _phase_1_attacks if current_phase == 1 else _phase_2_attacks
 		var attack_id: String = pool[randi() % pool.size()]
 		await _execute_attack(attack_id)
 
 
 func _execute_attack(attack_id: String) -> void:
-	if attack_id == "summon_saplings":
-		_summon_saplings()
-		await get_tree().create_timer(SUMMON_COOLDOWN, false).timeout
-		return
-	var info: Dictionary = ATTACK_DATA[attack_id]
+	match attack_id:
+		"summon_saplings":
+			_summon_saplings()
+			await get_tree().create_timer(SUMMON_COOLDOWN, false).timeout
+			return
+		"rapid_volley":
+			await _rapid_volley()
+			return
+		"arrow_rain":
+			await _arrow_rain()
+			return
+		"shadow_step":
+			await _shadow_step()
+			return
+	var info: Dictionary = _pattern["attacks"][attack_id]
 	SignalBus.boss_attack_telegraph.emit()
 	
 	var player := get_tree().get_first_node_in_group("player")
@@ -220,6 +280,81 @@ func _summon_saplings() -> void:
 		get_tree().current_scene.add_child(enemy)
 		if is_instance_valid(wm):
 			enemy.died.connect(wm._on_minion_died)
+
+
+# Dark Ranger Commander -- fires a fan of real (pooled) projectiles rather
+# than a static telegraphed zone, since an archer boss should visibly shoot
+# arrows. Reuses CursedBolt.tscn (already collision-configured to hit the
+# player layer) and ProjectilePool, same infrastructure RangedAttack-based
+# enemies already use.
+func _rapid_volley() -> void:
+	SignalBus.boss_attack_telegraph.emit()
+	var player := get_tree().get_first_node_in_group("player")
+	await get_tree().create_timer(RAPID_VOLLEY_TELEGRAPH_TIME, false).timeout
+	if not is_instance_valid(self) or not _attack_loop_running or not is_instance_valid(player):
+		await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN, false).timeout
+		return
+	var base_dir: Vector2 = (player.global_position - global_position).normalized()
+	var pool := get_tree().get_first_node_in_group("projectile_pool")
+	if is_instance_valid(pool):
+		for i in RAPID_VOLLEY_SHOT_COUNT:
+			var angle_offset := deg_to_rad(RAPID_VOLLEY_SPREAD_DEG * (i - float(RAPID_VOLLEY_SHOT_COUNT - 1) / 2.0))
+			var dir := base_dir.rotated(angle_offset)
+			var proj = pool.acquire(RAPID_VOLLEY_PROJECTILE)
+			proj.activate(dir, RAPID_VOLLEY_SPEED, RAPID_VOLLEY_DAMAGE * _damage_mult, global_position, 0, "player")
+	await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN, false).timeout
+
+
+# Dark Ranger Commander -- several telegraphed impact zones scattered around
+# the player's position (landing together), instead of Forest Guardian's
+# single centered zone -- reads as "raining down" rather than "one big hit."
+func _arrow_rain() -> void:
+	SignalBus.boss_attack_telegraph.emit()
+	var player := get_tree().get_first_node_in_group("player")
+	var center: Vector2 = player.global_position if is_instance_valid(player) else global_position
+	var points: Array[Vector2] = []
+	for _i in ARROW_RAIN_IMPACT_COUNT:
+		points.append(center + Vector2(randf_range(-90.0, 90.0), randf_range(-60.0, 60.0)))
+	for p in points:
+		_show_circle_telegraph(p, ARROW_RAIN_IMPACT_RADIUS, ARROW_RAIN_COLOR, ARROW_RAIN_TELEGRAPH_TIME)
+	await get_tree().create_timer(ARROW_RAIN_TELEGRAPH_TIME, false).timeout
+	if not is_instance_valid(self) or not _attack_loop_running:
+		return
+	if is_instance_valid(player):
+		for p in points:
+			if player.global_position.distance_to(p) <= ARROW_RAIN_IMPACT_RADIUS:
+				player.take_damage(ARROW_RAIN_DAMAGE * _damage_mult)
+	await get_tree().create_timer(ARROW_RAIN_COOLDOWN, false).timeout
+
+
+# Dark Ranger Commander -- a short fade-out/reposition/fade-in "teleport",
+# matching the doc's "short teleport or dash" without needing new VFX art.
+func _shadow_step() -> void:
+	SignalBus.boss_attack_telegraph.emit()
+	var fade_tween := create_tween()
+	fade_tween.tween_property(sprite, "modulate:a", 0.0, SHADOW_STEP_FADE_TIME)
+	await fade_tween.finished
+	if not is_instance_valid(self) or not _attack_loop_running:
+		return
+	global_position.x = clampf(global_position.x + randf_range(-SHADOW_STEP_RANGE, SHADOW_STEP_RANGE), SHADOW_STEP_MIN_X, SHADOW_STEP_MAX_X)
+	var fade_in_tween := create_tween()
+	fade_in_tween.tween_property(sprite, "modulate:a", _base_modulate.a, SHADOW_STEP_FADE_TIME)
+	var cam := get_viewport().get_camera_2d()
+	if is_instance_valid(cam) and cam.has_method("shake"):
+		cam.shake(4.0, 0.15)
+	await get_tree().create_timer(SHADOW_STEP_COOLDOWN, false).timeout
+
+
+func _show_circle_telegraph(pos: Vector2, radius: float, color: Color, duration: float) -> void:
+	var shape := Polygon2D.new()
+	shape.color = color
+	shape.polygon = _circle_polygon(radius)
+	shape.global_position = pos
+	get_tree().current_scene.add_child(shape)
+	get_tree().create_timer(duration, false).timeout.connect(func():
+		if is_instance_valid(shape):
+			shape.queue_free()
+	)
 
 
 func _circle_polygon(radius: float, segments: int = 24) -> PackedVector2Array:
