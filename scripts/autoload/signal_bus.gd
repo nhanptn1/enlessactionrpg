@@ -15,3 +15,4 @@ signal game_paused(source: String)
 signal game_unpaused(source: String)
 signal boss_phase_changed(phase: int)
 signal boss_attack_telegraph
+signal boss_hp_changed(current: float, max_hp: float)
