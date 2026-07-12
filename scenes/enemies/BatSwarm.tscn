@@ -1,10 +1,11 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/enemies/EnemyBase.tscn" id="1"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/bat_move_01.png" id="2"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/bat_move_02.png" id="3"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/bat_move_03.png" id="4"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/bat_move_04.png" id="5"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/bat_fly_01.png" id="2"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/bat_fly_02.png" id="3"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/bat_fly_03.png" id="4"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/bat_fly_04.png" id="5"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/bat_idle_01.png" id="6"]
 
 [sub_resource type="SpriteFrames" id="SpriteFrames1"]
 animations = [{
@@ -27,7 +28,7 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("2")
+"texture": ExtResource("6")
 }],
 "loop": true,
 "name": &"idle",
@@ -35,7 +36,7 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("2")
+"texture": ExtResource("6")
 }],
 "loop": false,
 "name": &"attack",
@@ -53,7 +54,7 @@ radius = 14.0
 [node name="Sprite" parent="." index="0"]
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"move"
-scale = Vector2(0.38, 0.38)
+scale = Vector2(0.32, 0.32)
 
 [node name="Collision" parent="." index="1"]
 shape = SubResource("CircleShape1")

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/ArmoredGargoyle.tscn" id="2"]
+[ext_resource type="Resource" path="res://resources/behaviors/dive_movement.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/behaviors/contact_attack.tres" id="4"]
+
+[resource]
+script = ExtResource("1")
+id = "armored_gargoyle"
+display_name = "Armored Gargoyle"
+scene = ExtResource("2")
+base_hp = 25.0
+base_speed = 100.0
+base_damage = 10.0
+xp_reward = 12
+tier = 2
+movement_behavior = ExtResource("3")
+attack_behavior = ExtResource("4")
+drop_chance = 0.2

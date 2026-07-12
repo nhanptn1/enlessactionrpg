@@ -1,4 +1,4 @@
-[gd_scene load_steps=48 format=3]
+[gd_scene load_steps=51 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/systems/enemy_spawner.gd" id="2"]
@@ -46,6 +46,9 @@
 [ext_resource type="Resource" path="res://resources/items/skill_scroll.tres" id="41"]
 [ext_resource type="Resource" path="res://resources/enemies/skeleton_soldier.tres" id="42"]
 [ext_resource type="Resource" path="res://resources/enemies/wolf_beast.tres" id="43"]
+[ext_resource type="Resource" path="res://resources/enemies/shield_skeleton.tres" id="47"]
+[ext_resource type="Resource" path="res://resources/enemies/dark_ranger_commander.tres" id="48"]
+[ext_resource type="Resource" path="res://resources/enemies/armored_gargoyle.tres" id="49"]
 
 [sub_resource type="Environment" id="Environment1"]
 background_mode = 3
@@ -78,8 +81,8 @@ center_x = 360.0
 [node name="WaveManager" type="Node" parent="."]
 script = ExtResource("3")
 waves = [ExtResource("5"), ExtResource("6"), ExtResource("7"), ExtResource("11"), ExtResource("14")]
-procedural_enemy_pool = [ExtResource("8"), ExtResource("12"), ExtResource("13"), ExtResource("15"), ExtResource("16"), ExtResource("42"), ExtResource("43")]
-boss_enemy_data = ExtResource("10")
+procedural_enemy_pool = [ExtResource("8"), ExtResource("12"), ExtResource("13"), ExtResource("15"), ExtResource("16"), ExtResource("42"), ExtResource("43"), ExtResource("47"), ExtResource("49")]
+boss_pool = [ExtResource("10"), ExtResource("48")]
 item_pool = [ExtResource("18"), ExtResource("19"), ExtResource("20"), ExtResource("21"), ExtResource("22"), ExtResource("23"), ExtResource("24"), ExtResource("25"), ExtResource("26"), ExtResource("27"), ExtResource("28"), ExtResource("29"), ExtResource("30"), ExtResource("31"), ExtResource("32"), ExtResource("33"), ExtResource("34"), ExtResource("35"), ExtResource("36"), ExtResource("37"), ExtResource("38"), ExtResource("39"), ExtResource("40"), ExtResource("41")]
 
 [node name="HUD" parent="." instance=ExtResource("4")]
