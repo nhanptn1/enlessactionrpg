@@ -2,7 +2,7 @@ Vertical Endless Archer RPG - Godot 4 Development Plan
 
 1) Game Concept
 - Vertical screen portrait mode.
-- Player archer stays fixed at the bottom.
+- Player archer stays at the bottom, free to move left/right (A/D or mouse-drag, clamped to the play area).
 - Enemies spawn from the top and move downward.
 - Every 10 waves spawns a boss.
 - Endless gameplay with scaling difficulty.
@@ -46,7 +46,7 @@ Vertical Endless Archer RPG - Godot 4 Development Plan
 - AttackOrigin.
 - SkillController.
 - PlayerStateMachine.
-- Player remains fixed or limited to small movement range.
+- Player is free to move left/right at the bottom of the screen (clamped to a fixed X range).
 
 6) Skill Design
 - Basic Shot.
