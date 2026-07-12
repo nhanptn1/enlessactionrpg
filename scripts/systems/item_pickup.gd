@@ -14,13 +14,14 @@ const RARITY_COLORS := {
 	"epic": Color(0.75, 0.25, 0.9, 1.0),
 }
 
-@onready var visual: Polygon2D = $Visual
+@onready var visual: ItemIcon = $Visual
 
 var item_data: ItemData  # caller MUST set this before add_child()
 
 
 func _ready() -> void:
-	visual.color = RARITY_COLORS.get(item_data.rarity, RARITY_COLORS["common"])
+	visual.rarity_color = RARITY_COLORS.get(item_data.rarity, RARITY_COLORS["common"])
+	visual.category = item_data.category
 	var player := get_tree().get_first_node_in_group("player")
 	if not is_instance_valid(player):
 		queue_free()

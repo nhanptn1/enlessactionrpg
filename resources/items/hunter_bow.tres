@@ -9,5 +9,5 @@ display_name = "Hunter Bow"
 category = "weapon"
 rarity = "common"
 effect_type = "stat_boost"
-upgrade_id = "damage"
+upgrade_id = "crit_chance"
 upgrade_stacks = 1
