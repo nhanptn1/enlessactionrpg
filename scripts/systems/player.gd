@@ -2,6 +2,12 @@ extends CharacterBody2D
 class_name Player
 
 const BASE_PROJECTILE_SPEED := 500.0
+# Enemies spawn around y=-40 (EnemySpawner) while AttackOrigin sits near
+# y=1110 -- a freshly-spawned enemy can be ~1150px away, past
+# Projectile.DEFAULT_MAX_RANGE (900). Without an explicit override here,
+# every shot aimed at a still-distant "nearest enemy" (common right after a
+# wave starts) expired mid-flight without ever landing.
+const PLAYER_SHOT_MAX_RANGE := 1300.0
 const IDLE_BOB_AMPLITUDE := 2.5
 const IDLE_BOB_DURATION := 1.1
 const RECOIL_OFFSET := 6.0
@@ -272,7 +278,7 @@ func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> vo
 	var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
 	var pool := get_tree().get_first_node_in_group("projectile_pool")
 	var proj = pool.acquire(skill.projectile_scene)
-	proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy")
+	proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE)
 
 
 func _predict_intercept(from: Vector2, target: Node2D, proj_speed: float) -> Vector2:

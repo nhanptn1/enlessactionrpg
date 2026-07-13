@@ -1,4 +1,4 @@
-[gd_scene load_steps=51 format=3]
+[gd_scene load_steps=52 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/systems/enemy_spawner.gd" id="2"]
@@ -49,6 +49,7 @@
 [ext_resource type="Resource" path="res://resources/enemies/shield_skeleton.tres" id="47"]
 [ext_resource type="Resource" path="res://resources/enemies/dark_ranger_commander.tres" id="48"]
 [ext_resource type="Resource" path="res://resources/enemies/armored_gargoyle.tres" id="49"]
+[ext_resource type="Script" path="res://scripts/systems/danger_indicator.gd" id="50"]
 
 [sub_resource type="Environment" id="Environment1"]
 background_mode = 3
@@ -77,6 +78,9 @@ script = ExtResource("2")
 spawn_width = 600.0
 spawn_y = -40.0
 center_x = 360.0
+
+[node name="DangerIndicator" type="Node2D" parent="."]
+script = ExtResource("50")
 
 [node name="WaveManager" type="Node" parent="."]
 script = ExtResource("3")
