@@ -131,6 +131,12 @@ func _physics_process(_delta: float) -> void:
 		global_position.y = engage_y
 		velocity = Vector2.ZERO
 		_engaged = true
+		# The "move" animation loops forever (matches EnemyBase's convention),
+		# which looked like the boss was perpetually trying to walk in place
+		# once stopped -- freeze on its first frame once engaged so it visibly
+		# settles into a standing pose for the fight instead.
+		sprite.stop()
+		sprite.frame = 0
 
 
 func take_damage(amount: float) -> void:
