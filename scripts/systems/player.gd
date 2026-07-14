@@ -10,11 +10,20 @@ const BASE_PROJECTILE_SPEED := 500.0
 const PLAYER_SHOT_MAX_RANGE := 1300.0
 const IDLE_BOB_AMPLITUDE := 2.5
 const IDLE_BOB_DURATION := 1.1
-const RECOIL_OFFSET := 6.0
+const RECOIL_OFFSET := 12.0
 const RECOIL_DURATION := 0.12
+const RECOIL_SCALE_PUNCH := 1.08  # extra scale-up on top of the pull-back, scaled by _recoil_intensity_for()
 const MOVEMENT_SPEED := 400.0
 const MIN_X := 60.0
 const MAX_X := 660.0
+
+# Arrow Rain / Burning Rain / Thunder Storm (SkillData.FireMode.ARROW_RAIN):
+# telegraphed area strikes, not a literal top-to-bottom falling volley -- see
+# _fire_area_strike(). Warning-circle tint per source (basic line has no
+# element of its own, so it gets a neutral warm tone).
+const AREA_STRIKE_COLOR_BASIC := Color(0.85, 0.7, 0.3, 0.5)
+const AREA_STRIKE_COLOR_FIRE := Color(0.9, 0.25, 0.1, 0.5)
+const AREA_STRIKE_COLOR_LIGHTNING := Color(0.55, 0.2, 0.85, 0.5)
 
 const UPGRADE_POOL: Array[String] = [
 	"damage", "cooldown", "projectile_count", "projectile_speed",
@@ -24,12 +33,22 @@ const UPGRADE_POOL: Array[String] = [
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var attack_origin: Marker2D = $AttackOrigin
 @onready var attack_timer: Timer = $BasicShotTimer  # the one and only attack loop; see _current_skill
+@onready var fire_skill_timer: Timer = $FireSkillTimer
+@onready var frost_skill_timer: Timer = $FrostSkillTimer
+@onready var lightning_skill_timer: Timer = $LightningSkillTimer
 
 @export var basic_shot: SkillData
 @export var multishot: SkillData
 @export var piercing_arrow: SkillData
 @export var arrow_rain: SkillData
 @export var trap_shot: SkillData
+# Index 0/1/2 = tier 1/2/3 -- e.g. fire_skills = [Fire Arrow, Explosive Volley,
+# Burning Rain]. fire_level (1-3) indexes straight into this array; each tier
+# pick wholesale-swaps the active attack, mirroring the basic line's own
+# Basic Shot -> Multishot -> ... progression, just scoped per element.
+@export var fire_skills: Array[SkillData] = []
+@export var frost_skills: Array[SkillData] = []
+@export var lightning_skills: Array[SkillData] = []
 
 var max_hp := 100.0  # was a const; now mutable since HP upgrades increase it
 var current_hp := max_hp
@@ -45,18 +64,56 @@ var crit_chance := 0.0
 var shield_capacity := 0.0
 var current_shield := 0.0
 var xp_gain_mult := 1.0
+var fire_level := 0  # highest tier reached (0-3), not a pick count
+var lightning_level := 0
+var frost_level := 0
+var chosen_branches: Dictionary = {}  # exclusive_group -> picked UpgradeResource.id
+
+# Independent elemental skill damage/cooldown multipliers -- deliberately kept
+# separate from the basic line's damage_mult/cooldown_mult/bonus_projectile_count
+# so the two skill tracks stay fully independent (see _fire_elemental_skill()).
+var fire_skill_dmg_mult := 1.0
+var fire_skill_cd_mult := 1.0
+var frost_skill_dmg_mult := 1.0
+var frost_skill_cd_mult := 1.0
+var lightning_skill_dmg_mult := 1.0
+var lightning_skill_cd_mult := 1.0
+
+# Elemental skill-tree branch stats -- see resources/upgrades/*.tres and
+# StatusEffects for where each is read.
+var fire_spread_chance := 0.0
+var fire_dps_mult := 1.0
+var fire_explode_on_death := 0.0
+var fire_duration_bonus := 0.0
+var frost_duration_bonus := 0.0
+var frost_damage_amp := 0.0
+var frost_spread_chance := 0.0
+var frost_combo_bonus_mult := 0.0
+var lightning_slow_bonus := 0.0
+var lightning_dps := 0.0
+var lightning_spread_chance := 0.0
+var lightning_combo_bonus_mult := 0.0
 
 var is_dead := false
-var _current_skill: SkillData  # the single active attack; upgrades wholesale at Lv3/Lv5
+var _current_skill: SkillData  # the single active attack; upgrades wholesale at fixed levels
+var _current_fire_skill: SkillData  # null until fire_level >= 1; see _update_elemental_skill()
+var _current_frost_skill: SkillData
+var _current_lightning_skill: SkillData
 
 var _sprite_base_position: Vector2
+var _sprite_base_scale: Vector2
 var _idle_tween: Tween
 var _recoil_tween: Tween
 
 signal hp_changed(current: float, max_hp: float)
 signal xp_changed(current: int, needed: int)
 signal level_up(new_level: int)
-signal skill_unlocked(skill_name: String)
+signal skill_unlocked(skill: SkillData)
+# HUD-only signal: fires whenever an element's active skill is set or swaps
+# tier, so HUD can relabel/track the row by element identity rather than by
+# SkillData reference (which changes across tiers). Element is
+# UpgradeResource.ElementType, typed int since signals can't carry a nested enum.
+signal elemental_skill_changed(element: int, skill: SkillData)
 signal died
 signal item_collected(item: ItemData)
 
@@ -66,14 +123,18 @@ func _ready() -> void:
 	_current_skill = basic_shot
 	attack_timer.wait_time = _current_skill.cooldown
 	attack_timer.timeout.connect(_on_attack_timeout)
+	fire_skill_timer.timeout.connect(_on_fire_skill_timeout)
+	frost_skill_timer.timeout.connect(_on_frost_skill_timeout)
+	lightning_skill_timer.timeout.connect(_on_lightning_skill_timeout)
 	sprite.animation_finished.connect(_on_animation_finished)
 	_sprite_base_position = sprite.position
+	_sprite_base_scale = sprite.scale
 	sprite.play("idle")
 	_start_idle_bob()
 
 
 func _physics_process(delta: float) -> void:
-	if is_dead or GameManager.state in [GameManager.State.LEVEL_UP, GameManager.State.PAUSED, GameManager.State.GAME_OVER]:
+	if is_dead or GameManager.state in [GameManager.State.LEVEL_UP, GameManager.State.WAVE_UPGRADE, GameManager.State.PAUSED, GameManager.State.GAME_OVER]:
 		return
 	
 	var move_dir := 0.0
@@ -123,23 +184,23 @@ func _on_level_up(new_level: int) -> void:
 		# Basic Shot (two unrelated arrows firing on overlapping schedules).
 		_current_skill = multishot
 		_refresh_timer_cooldowns()
-		skill_unlocked.emit("Multishot")
-		SignalBus.skill_unlocked.emit("Multishot")
+		skill_unlocked.emit(multishot)
+		SignalBus.skill_unlocked.emit(multishot)
 	if new_level == 5:
 		_current_skill = piercing_arrow
 		_refresh_timer_cooldowns()
-		skill_unlocked.emit("Piercing Arrow")
-		SignalBus.skill_unlocked.emit("Piercing Arrow")
+		skill_unlocked.emit(piercing_arrow)
+		SignalBus.skill_unlocked.emit(piercing_arrow)
 	if new_level == 8:
 		_current_skill = arrow_rain
 		_refresh_timer_cooldowns()
-		skill_unlocked.emit("Arrow Rain")
-		SignalBus.skill_unlocked.emit("Arrow Rain")
+		skill_unlocked.emit(arrow_rain)
+		SignalBus.skill_unlocked.emit(arrow_rain)
 	if new_level == 10:
 		_current_skill = trap_shot
 		_refresh_timer_cooldowns()
-		skill_unlocked.emit("Trap Shot")
-		SignalBus.skill_unlocked.emit("Trap Shot")
+		skill_unlocked.emit(trap_shot)
+		SignalBus.skill_unlocked.emit(trap_shot)
 
 
 func apply_upgrade(upgrade_id: String) -> void:
@@ -164,6 +225,154 @@ func apply_upgrade(upgrade_id: String) -> void:
 		"xp_gain":
 			xp_gain_mult += 0.10
 	_refresh_timer_cooldowns()
+
+
+func apply_element_upgrade(upgrade: UpgradeResource) -> void:
+	# tier == 0 marks the repeatable +damage/-cooldown cards (see
+	# fire_damage_boost.tres etc.) -- these must not advance tree progress or
+	# swap the active skill.
+	if upgrade.tier >= 1:
+		match upgrade.element:
+			UpgradeResource.ElementType.FIRE:
+				fire_level += 1
+			UpgradeResource.ElementType.LIGHTNING:
+				lightning_level += 1
+			UpgradeResource.ElementType.FROST:
+				frost_level += 1
+		_update_elemental_skill(upgrade.element)
+	if upgrade.exclusive_group != "":
+		chosen_branches[upgrade.exclusive_group] = upgrade.id
+	set(upgrade.stat_to_modify, get(upgrade.stat_to_modify) + upgrade.modification_value)
+	_refresh_elemental_timer(upgrade.element)
+
+
+func _update_elemental_skill(element: UpgradeResource.ElementType) -> void:
+	# fire_level/frost_level/lightning_level (1-3) index straight into that
+	# element's 3-tier skill array. Every tier pick -- the tier-1 root unlock
+	# or a later tier-2/3 fork -- swaps the active attack wholesale: Fire Arrow
+	# (T1) -> Explosive Volley (T2) -> Burning Rain (T3), same idea per element.
+	match element:
+		UpgradeResource.ElementType.FIRE:
+			var was_dormant := fire_skill_timer.is_stopped()
+			_current_fire_skill = fire_skills[fire_level - 1]
+			# Refresh wait_time BEFORE start() -- Timer.start() latches whatever
+			# wait_time currently holds into time_left, and a never-started Timer
+			# still has Godot's default wait_time (1.0s), not the skill's real
+			# cooldown. Setting wait_time after start() left the very first shot
+			# firing off the stale 1.0s default instead of e.g. Fire Arrow's 1.6s.
+			_refresh_elemental_timer(element)
+			if was_dormant:
+				fire_skill_timer.start()
+			skill_unlocked.emit(_current_fire_skill)
+			SignalBus.skill_unlocked.emit(_current_fire_skill)
+			elemental_skill_changed.emit(element, _current_fire_skill)
+		UpgradeResource.ElementType.FROST:
+			var was_dormant := frost_skill_timer.is_stopped()
+			_current_frost_skill = frost_skills[frost_level - 1]
+			_refresh_elemental_timer(element)
+			if was_dormant:
+				frost_skill_timer.start()
+			skill_unlocked.emit(_current_frost_skill)
+			SignalBus.skill_unlocked.emit(_current_frost_skill)
+			elemental_skill_changed.emit(element, _current_frost_skill)
+		UpgradeResource.ElementType.LIGHTNING:
+			var was_dormant := lightning_skill_timer.is_stopped()
+			_current_lightning_skill = lightning_skills[lightning_level - 1]
+			_refresh_elemental_timer(element)
+			if was_dormant:
+				lightning_skill_timer.start()
+			skill_unlocked.emit(_current_lightning_skill)
+			SignalBus.skill_unlocked.emit(_current_lightning_skill)
+			elemental_skill_changed.emit(element, _current_lightning_skill)
+
+
+func _refresh_elemental_timer(element: UpgradeResource.ElementType) -> void:
+	# Recomputes the given element's Timer.wait_time from whichever tier is
+	# currently active -- covers both "just unlocked/tiered up" and "picked a
+	# later cooldown-reduction card" with one code path.
+	match element:
+		UpgradeResource.ElementType.FIRE:
+			if _current_fire_skill != null:
+				fire_skill_timer.wait_time = _current_fire_skill.cooldown * maxf(fire_skill_cd_mult, 0.3)
+		UpgradeResource.ElementType.FROST:
+			if _current_frost_skill != null:
+				frost_skill_timer.wait_time = _current_frost_skill.cooldown * maxf(frost_skill_cd_mult, 0.3)
+		UpgradeResource.ElementType.LIGHTNING:
+			if _current_lightning_skill != null:
+				lightning_skill_timer.wait_time = _current_lightning_skill.cooldown * maxf(lightning_skill_cd_mult, 0.3)
+
+
+func get_elemental_timer_by_element(element: UpgradeResource.ElementType) -> Timer:
+	match element:
+		UpgradeResource.ElementType.FIRE:
+			return fire_skill_timer
+		UpgradeResource.ElementType.FROST:
+			return frost_skill_timer
+		UpgradeResource.ElementType.LIGHTNING:
+			return lightning_skill_timer
+	return null
+
+
+func _on_fire_skill_timeout() -> void:
+	_fire_elemental_skill(_current_fire_skill, StatusEffects.FIRE, fire_skill_dmg_mult, StatusEffects.FIRE_DURATION + fire_duration_bonus)
+
+
+func _on_frost_skill_timeout() -> void:
+	_fire_elemental_skill(_current_frost_skill, StatusEffects.FROST, frost_skill_dmg_mult, StatusEffects.FROST_DURATION + frost_duration_bonus)
+
+
+func _on_lightning_skill_timeout() -> void:
+	_fire_elemental_skill(_current_lightning_skill, StatusEffects.LIGHTNING, lightning_skill_dmg_mult, StatusEffects.LIGHTNING_DURATION)
+
+
+func _fire_elemental_skill(skill: SkillData, element: String, dmg_mult: float, duration: float) -> void:
+	if skill == null:
+		return
+	# chance: 1.0 -- an elemental skill's own hit always applies its status,
+	# unlike the basic line which carries no status at all (see _fire_at()).
+	var status_rolls: Array[Dictionary] = [{"element": element, "chance": 1.0, "duration": duration}]
+	if skill.fire_mode == SkillData.FireMode.ARROW_RAIN:
+		_fire_elemental_rain(skill, dmg_mult, status_rolls)
+	else:
+		_fire_elemental_projectile(skill, dmg_mult, status_rolls)
+	_stop_idle_bob()
+	_play_recoil(_recoil_intensity_for(skill))
+	if sprite.animation != "attack":
+		sprite.play("attack")
+	SignalBus.player_shot.emit()
+
+
+func _fire_elemental_projectile(skill: SkillData, dmg_mult: float, status_rolls: Array[Dictionary]) -> void:
+	# Handles both single-target tiers (Fire Arrow/Ice Shot/Volt Arrow,
+	# projectile_count=1) and the multi-arrow tier-2 spread (Explosive Volley,
+	# projectile_count=3) -- burst_radius/chain_count (Frozen Burst, Ice Wall
+	# Nova, Chain Spark) ride along on the projectile itself, applied at hit
+	# time in Projectile._on_body_entered().
+	var shot_count: int = skill.projectile_count
+	var targets := _get_nearest_enemies(shot_count)
+	if targets.is_empty():
+		return
+	var proj_speed: float = BASE_PROJECTILE_SPEED * projectile_speed_mult
+	var pool := get_tree().get_first_node_in_group("projectile_pool")
+	for i in shot_count:
+		var target: Node2D = targets[i % targets.size()]
+		var aim_point := _predict_intercept(attack_origin.global_position, target, proj_speed)
+		var angle_offset := 0.0
+		if targets.size() < shot_count:
+			angle_offset = deg_to_rad(15.0 * (i - float(shot_count - 1) / 2.0))
+		var dir := (aim_point - attack_origin.global_position).normalized().rotated(angle_offset)
+		var dmg := skill.base_damage * dmg_mult * (2.0 if randf() < crit_chance else 1.0)
+		var proj = pool.acquire(skill.projectile_scene)
+		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, status_rolls, skill.burst_radius, skill.chain_count, skill.visual_scale, skill.burst_vfx_id)
+
+
+func _fire_elemental_rain(skill: SkillData, dmg_mult: float, status_rolls: Array[Dictionary]) -> void:
+	# Burning Rain / Thunder Storm (tier 3): a telegraphed area strike, same
+	# as the basic line's Arrow Rain -- see _fire_area_strike().
+	var color := AREA_STRIKE_COLOR_LIGHTNING
+	if not status_rolls.is_empty() and status_rolls[0]["element"] == StatusEffects.FIRE:
+		color = AREA_STRIKE_COLOR_FIRE
+	_fire_area_strike(skill, dmg_mult, status_rolls, color)
 
 
 func _refresh_timer_cooldowns() -> void:
@@ -193,8 +402,9 @@ func _auto_fire(skill: SkillData) -> void:
 					angle_offset = deg_to_rad(15.0 * (i - float(shot_count - 1) / 2.0))
 				_fire_at(target, skill, angle_offset)
 	_stop_idle_bob()
-	_play_recoil()
-	sprite.play("attack")
+	_play_recoil(_recoil_intensity_for(skill))
+	if sprite.animation != "attack":
+		sprite.play("attack")
 	SignalBus.player_shot.emit()
 
 
@@ -215,13 +425,35 @@ func _stop_idle_bob() -> void:
 	sprite.position = _sprite_base_position
 
 
-func _play_recoil() -> void:
-	if _recoil_tween:
-		_recoil_tween.kill()
+func _play_recoil(intensity: float = 1.0) -> void:
+	# With multiple skills able to fire in the same or adjacent frames, killing
+	# and restarting this tween on every single shot made overlapping fires
+	# visually stutter -- let an in-progress recoil finish instead of resetting.
+	if _recoil_tween and _recoil_tween.is_running():
+		return
 	sprite.position.x = _sprite_base_position.x
+	sprite.scale = _sprite_base_scale
+	var offset := RECOIL_OFFSET * intensity
+	var punch := 1.0 + (RECOIL_SCALE_PUNCH - 1.0) * intensity
 	_recoil_tween = create_tween()
-	_recoil_tween.tween_property(sprite, "position:x", _sprite_base_position.x - RECOIL_OFFSET, RECOIL_DURATION).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	_recoil_tween.tween_property(sprite, "position:x", _sprite_base_position.x, RECOIL_DURATION * 1.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_recoil_tween.set_parallel(true)
+	_recoil_tween.tween_property(sprite, "position:x", _sprite_base_position.x - offset, RECOIL_DURATION).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_recoil_tween.tween_property(sprite, "scale", _sprite_base_scale * punch, RECOIL_DURATION * 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_recoil_tween.chain().set_parallel(true)
+	_recoil_tween.tween_property(sprite, "position:x", _sprite_base_position.x, RECOIL_DURATION * 1.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_recoil_tween.tween_property(sprite, "scale", _sprite_base_scale, RECOIL_DURATION * 1.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func _recoil_intensity_for(skill: SkillData) -> float:
+	# Heavier skills get a bigger kick, matching the plan docs' "heavier
+	# skills feel heavier" guidance without needing new sprite frames.
+	if skill.fire_mode == SkillData.FireMode.ARROW_RAIN:
+		return 1.5
+	if skill.fire_mode == SkillData.FireMode.TRAP_SHOT:
+		return 1.2
+	if skill.projectile_count > 1:
+		return 1.25
+	return 1.0
 
 
 func _get_nearest_enemies(count: int) -> Array[Node2D]:
@@ -236,25 +468,67 @@ func _get_nearest_enemies(count: int) -> Array[Node2D]:
 
 
 func _fire_arrow_rain(skill: SkillData) -> void:
-	# Falls from off the top of the screen (y=-40, matching EnemySpawner)
-	# straight down toward the player at y=1150 -- needs a much longer max
-	# range than a horizontally-aimed shot, or arrows fired at
-	# Projectile.DEFAULT_MAX_RANGE (900) would expire around y=860, never
-	# reaching enemies that have already fallen close to the player.
-	const RAIN_MAX_RANGE := 1400.0
-	var pool := get_tree().get_first_node_in_group("projectile_pool")
-	if pool == null:
+	# Basic-line Arrow Rain: a telegraphed area strike (see _fire_area_strike),
+	# not a literal top-to-bottom falling volley. Carries no status (the basic
+	# line never does) and, unlike the elemental rain skills, its zone count
+	# scales with bonus_projectile_count ("+1 Arrow" still means "more zones").
+	_fire_area_strike(skill, damage_mult, [], AREA_STRIKE_COLOR_BASIC, bonus_projectile_count)
+
+
+func _fire_area_strike(skill: SkillData, dmg_mult: float, status_rolls: Array[Dictionary], telegraph_color: Color, bonus_zones: int = 0) -> void:
+	# Scatters impact zones near real enemies (falling back to the general
+	# engagement area above the player if none are in range), shows a warning
+	# circle on each, then guarantee-hits everything caught inside once the
+	# telegraph resolves -- matches the plan docs' "warning marker -> impact"
+	# framing and reuses boss_base.gd's own telegraphed-zone pattern.
+	var zone_count: int = skill.rain_arrow_count + bonus_zones
+	var scatter: float = skill.rain_spread_width
+	var radius: float = skill.trap_radius
+	# Burning Rain and Thunder Storm each get their own falling/impact art
+	# instead of the plain procedural circle basic Arrow Rain still uses.
+	var is_fire = not status_rolls.is_empty() and status_rolls[0]["element"] == StatusEffects.FIRE
+	var is_lightning = not status_rolls.is_empty() and status_rolls[0]["element"] == StatusEffects.LIGHTNING
+	var targets := _get_nearest_enemies(zone_count)
+	var points: Array[Vector2] = []
+	if targets.is_empty():
+		for _i in zone_count:
+			points.append(global_position + Vector2(randf_range(-scatter, scatter) / 2.0, -randf_range(150.0, 500.0)))
+	else:
+		for _i in zone_count:
+			var anchor: Vector2 = targets[randi() % targets.size()].global_position
+			points.append(anchor + Vector2(randf_range(-scatter, scatter) / 2.0, randf_range(-scatter, scatter) / 2.0))
+	for p in points:
+		Telegraph.show_circle(p, radius, telegraph_color, skill.telegraph_time, self)
+		if is_fire:
+			ImpactVFX.fire_meteor_fall(p, skill.telegraph_time, self)
+		elif is_lightning:
+			ImpactVFX.lightning_strike_fall(p, skill.telegraph_time, self)
+		else:
+			ImpactVFX.arrow_rain_fall(p, skill.telegraph_time, self)
+	await get_tree().create_timer(skill.telegraph_time, false).timeout
+	if not is_instance_valid(self):
 		return
-	var count: int = skill.rain_arrow_count + bonus_projectile_count
-	var spread: float = skill.rain_spread_width
-	var center_x := global_position.x
-	var proj_speed: float = BASE_PROJECTILE_SPEED * 1.35 * projectile_speed_mult
-	for _i in count:
-		var x := center_x + randf_range(-spread / 2.0, spread / 2.0)
-		var spawn_pos := Vector2(x, -40.0)
-		var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
-		var proj = pool.acquire(skill.projectile_scene)
-		proj.activate(Vector2.DOWN, proj_speed, dmg, spawn_pos, 0, "enemy", RAIN_MAX_RANGE)
+	var dmg := skill.base_damage * dmg_mult * (2.0 if randf() < crit_chance else 1.0)
+	var cam := get_viewport().get_camera_2d()
+	if is_instance_valid(cam) and cam.has_method("shake"):
+		cam.shake(7.0, 0.18)
+	for p in points:
+		if is_fire:
+			ImpactVFX.fire_explosion(p, radius, self)
+		elif is_lightning:
+			ImpactVFX.spark_burst(p, radius, self)
+		else:
+			ImpactVFX.arrow_rain_impact(p, radius, self)
+		for enemy in get_tree().get_nodes_in_group("enemy"):
+			if not is_instance_valid(enemy) or not enemy.has_method("take_damage"):
+				continue
+			if enemy.global_position.distance_to(p) > radius:
+				continue
+			enemy.take_damage(dmg)
+			if enemy.has_method("apply_status"):
+				for roll in status_rolls:
+					if randf() < roll["chance"]:
+						enemy.apply_status(roll["element"], roll["duration"])
 
 
 func _fire_trap_shot(skill: SkillData) -> bool:

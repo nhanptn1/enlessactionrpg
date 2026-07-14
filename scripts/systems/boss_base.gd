@@ -97,6 +97,7 @@ var _is_dying := false
 var _pattern: Dictionary
 var _phase_1_attacks: Array
 var _phase_2_attacks: Array
+var status: Dictionary = {}  # element name (StatusEffects.FIRE/LIGHTNING/FROST) -> seconds remaining -- bosses only take DOT/combo damage, no movement lock
 
 
 func setup(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0, damage_mult: float = 1.0, xp_override: int = -1) -> void:
@@ -123,7 +124,10 @@ func _ready() -> void:
 	_run_attack_loop()
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
+	StatusEffects.tick(self, delta)
+	if not is_instance_valid(self):
+		return  # a Fire DOT tick can kill the boss mid-frame
 	if _engaged:
 		return
 	move_and_slide()
@@ -139,10 +143,14 @@ func _physics_process(_delta: float) -> void:
 		sprite.frame = 0
 
 
+func apply_status(element: String, duration: float) -> void:
+	StatusEffects.apply(self, element, duration)
+
+
 func take_damage(amount: float) -> void:
 	if _is_dying:
 		return
-	current_hp -= amount
+	current_hp -= amount * StatusEffects.damage_amp(self)  # Brittle Frost: frozen bosses take extra damage too
 	SignalBus.enemy_hit.emit()
 	SignalBus.boss_hp_changed.emit(maxf(current_hp, 0.0), _max_hp)
 	if current_hp <= 0.0:
@@ -174,6 +182,7 @@ func _die() -> void:
 		return
 	_is_dying = true
 	_attack_loop_running = false
+	StatusEffects.explode_on_death(self)  # Explosive Volley: no-op unless burning and the player has the branch
 	var xp_reward: int = _xp_override if _xp_override >= 0 else data.xp_reward
 	died.emit(xp_reward, data.drop_chance, global_position)
 	SignalBus.enemy_died.emit()

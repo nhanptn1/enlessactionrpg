@@ -7,12 +7,14 @@
 script = ExtResource("1")
 id = "arrow_rain"
 display_name = "Arrow Rain"
-base_damage = 5.0
+base_damage = 8.0
 cooldown = 1.8
 mana_cost = 0.0
 projectile_scene = ExtResource("2")
 pierce_count = 0
 projectile_count = 1
 fire_mode = 1
-rain_arrow_count = 12
-rain_spread_width = 620.0
+rain_arrow_count = 5
+rain_spread_width = 140.0
+telegraph_time = 0.6
+trap_radius = 55.0

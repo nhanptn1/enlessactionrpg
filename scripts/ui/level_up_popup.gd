@@ -48,5 +48,5 @@ func _on_choice_selected(index: int) -> void:
 	GameManager.request_unpause("level_up")
 
 
-func _on_skill_unlocked(skill_name: String) -> void:
-	skill_banner_label.text = "%s Unlocked!" % skill_name
+func _on_skill_unlocked(skill: SkillData) -> void:
+	skill_banner_label.text = "%s Unlocked!" % skill.display_name

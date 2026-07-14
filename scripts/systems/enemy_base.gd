@@ -29,6 +29,8 @@ var _base_scale: Vector2
 var _hit_tween: Tween
 var _lunge_tween: Tween
 var _is_dying := false
+var status: Dictionary = {}  # element name (StatusEffects.FIRE/LIGHTNING/FROST) -> seconds remaining
+var _base_velocity: Vector2 = Vector2.ZERO  # velocity as the movement behavior last set it, before any status scaling
 
 signal died(xp_reward: int, drop_chance: float, death_position: Vector2)
 
@@ -46,6 +48,7 @@ func _ready() -> void:
 	current_hp = data.base_hp * _hp_mult
 	if data.movement_behavior:
 		data.movement_behavior.on_ready(self)
+	_base_velocity = velocity
 	hurtbox.body_entered.connect(_on_hurtbox_body_entered)
 	hurtbox.body_exited.connect(_on_hurtbox_body_exited)
 	contact_timer.wait_time = CONTACT_DAMAGE_INTERVAL
@@ -60,15 +63,33 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_time_alive += delta
+	StatusEffects.tick(self, delta)
+	if not is_instance_valid(self):
+		return  # a Fire DOT tick can kill the enemy mid-frame
+	# Restore the un-scaled velocity before the movement behavior runs, or a
+	# Frost/Lightning multiplier applied last frame would compound every frame
+	# instead of holding steady -- straight/dive movement only ever set
+	# velocity once in on_ready() and never touch it again, so without this
+	# reset a slow effect would silently decay toward zero within a few frames.
+	velocity = _base_velocity
 	if data.movement_behavior:
 		data.movement_behavior.physics_process(self, delta)
+	_base_velocity = velocity
+	if StatusEffects.is_frozen(self):
+		velocity = Vector2.ZERO
+	else:
+		velocity *= StatusEffects.speed_multiplier(self)
 	move_and_slide()
+
+
+func apply_status(element: String, duration: float) -> void:
+	StatusEffects.apply(self, element, duration)
 
 
 func take_damage(amount: float) -> void:
 	if _is_dying:
 		return
-	current_hp -= amount
+	current_hp -= amount * StatusEffects.damage_amp(self)  # Brittle Frost: frozen enemies take extra damage
 	SignalBus.enemy_hit.emit()
 	if current_hp <= 0.0:
 		_die()
@@ -141,6 +162,7 @@ func _die() -> void:
 	if _is_dying:
 		return
 	_is_dying = true
+	StatusEffects.explode_on_death(self)  # Explosive Volley: no-op unless burning and the player has the branch
 	var xp_reward: int = _xp_override if _xp_override >= 0 else data.xp_reward
 	died.emit(xp_reward, data.drop_chance, global_position)
 	SignalBus.enemy_died.emit()

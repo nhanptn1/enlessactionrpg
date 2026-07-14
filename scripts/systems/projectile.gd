@@ -2,6 +2,7 @@ extends Area2D
 class_name Projectile
 
 const DEFAULT_MAX_RANGE := 900.0
+const CHAIN_RANGE := 220.0  # Chain Spark: max distance to the next chain jump
 
 var direction := Vector2.UP
 var speed := 500.0
@@ -9,10 +10,15 @@ var damage := 5.0
 var pierce_count: int = 0
 var target_group: String = "enemy"
 var max_range := DEFAULT_MAX_RANGE
+var status_rolls: Array[Dictionary] = []  # {element, chance, duration} rolled once per shot by the shooter
+var burst_radius: float = 0.0  # 0 = off; guaranteed splash to enemies within this radius of the hit
+var chain_count: int = 0  # 0 = off; guaranteed chain to N additional nearest distinct enemies
+var burst_vfx_id: String = ""  # "" = element-default burst look (see SkillData.burst_vfx_id)
 var _hits_remaining: int
 var _already_hit: Array[Node] = []
 var _spawn_position: Vector2
 var _active := false
+var _base_visual_scale := Vector2.ONE
 
 
 func _ready() -> void:
@@ -20,15 +26,21 @@ func _ready() -> void:
 	# without _ready() running again, so re-connecting on every activate()
 	# would double (or triple, ...) the signal.
 	body_entered.connect(_on_body_entered)
+	if has_node("Visual"):
+		_base_visual_scale = get_node("Visual").scale
 
 
-func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE) -> void:
+func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE, p_status_rolls: Array[Dictionary] = [], p_burst_radius: float = 0.0, p_chain_count: int = 0, p_visual_scale: float = 1.0, p_burst_vfx_id: String = "") -> void:
 	direction = p_direction
 	speed = p_speed
 	damage = p_damage
 	pierce_count = p_pierce_count
 	target_group = p_target_group
 	max_range = p_max_range
+	status_rolls = p_status_rolls
+	burst_radius = p_burst_radius
+	chain_count = p_chain_count
+	burst_vfx_id = p_burst_vfx_id
 	global_position = p_position
 	rotation = direction.angle()
 	_spawn_position = p_position
@@ -40,6 +52,7 @@ func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position:
 	monitoring = true
 	if has_node("Visual"):
 		var visual_node = get_node("Visual")
+		visual_node.scale = _base_visual_scale * p_visual_scale
 		if visual_node is AnimatedSprite2D:
 			visual_node.play()
 
@@ -64,9 +77,95 @@ func _on_body_entered(body: Node) -> void:
 		return
 	_already_hit.append(body)
 	body.take_damage(damage)
+	if body.has_method("apply_status"):
+		for roll in status_rolls:
+			if randf() < roll["chance"]:
+				body.apply_status(roll["element"], roll["duration"])
+	if burst_radius > 0.0:
+		_apply_burst(body)
+	if chain_count > 0:
+		_apply_chain(body)
 	_hits_remaining -= 1
 	if _hits_remaining <= 0:
 		_deactivate()
+
+
+func _apply_burst(origin_body: Node) -> void:
+	# Explosive Volley / Frozen Burst / Ice Wall Nova: guaranteed splash (not a
+	# chance roll) to every enemy within radius of the primary hit.
+	if not is_instance_valid(origin_body):
+		return
+	var element: String = status_rolls[0]["element"] if not status_rolls.is_empty() else ""
+	if burst_vfx_id == "ice_burst":
+		ImpactVFX.ice_burst(origin_body.global_position, burst_radius, self)
+	elif burst_vfx_id == "ice_wall_nova":
+		ImpactVFX.ice_wall_nova_burst(origin_body.global_position, burst_radius, self)
+	elif element == StatusEffects.FIRE:
+		ImpactVFX.fire_explosion(origin_body.global_position, burst_radius, self)
+	else:
+		ImpactVFX.flash_burst(origin_body.global_position, burst_radius, _burst_color_for(element), self)
+		if element == StatusEffects.FROST:
+			ImpactVFX.ice_shards(origin_body.global_position, self)
+	for enemy in origin_body.get_tree().get_nodes_in_group(target_group):
+		if enemy == origin_body or not is_instance_valid(enemy) or enemy in _already_hit:
+			continue
+		if not enemy.has_method("take_damage"):
+			continue
+		if origin_body.global_position.distance_to(enemy.global_position) > burst_radius:
+			continue
+		_already_hit.append(enemy)
+		enemy.take_damage(damage)
+		if enemy.has_method("apply_status"):
+			for roll in status_rolls:
+				if randf() < roll["chance"]:
+					enemy.apply_status(roll["element"], roll["duration"])
+
+
+func _apply_chain(from_body: Node) -> void:
+	# Chain Spark: jumps to chain_count additional nearest distinct enemies in
+	# sequence, each within CHAIN_RANGE of the previous hit.
+	var last := from_body
+	for _i in chain_count:
+		var next := _find_chain_target(last)
+		if next == null:
+			return
+		_already_hit.append(next)
+		ImpactVFX.chain_bolt(last.global_position, next.global_position, Color(0.75, 0.4, 1.0, 0.9), self)
+		ImpactVFX.spark_burst(next.global_position, ImpactVFX.CHAIN_SPARK_BURST_RADIUS, self)
+		next.take_damage(damage)
+		if next.has_method("apply_status"):
+			for roll in status_rolls:
+				if randf() < roll["chance"]:
+					next.apply_status(roll["element"], roll["duration"])
+		last = next
+
+
+func _burst_color_for(element: String) -> Color:
+	match element:
+		StatusEffects.FIRE:
+			return Color(1.0, 0.45, 0.1, 0.85)
+		StatusEffects.FROST:
+			return Color(0.6, 0.9, 1.0, 0.85)
+		StatusEffects.LIGHTNING:
+			return Color(0.7, 0.3, 1.0, 0.85)
+	return Color(1.0, 0.85, 0.4, 0.85)
+
+
+func _find_chain_target(from_body: Node) -> Node:
+	if not is_instance_valid(from_body):
+		return null
+	var best: Node = null
+	var best_dist := CHAIN_RANGE
+	for enemy in from_body.get_tree().get_nodes_in_group(target_group):
+		if not is_instance_valid(enemy) or enemy in _already_hit or enemy == from_body:
+			continue
+		if not enemy.has_method("take_damage"):
+			continue
+		var d: float = from_body.global_position.distance_to(enemy.global_position)
+		if d <= best_dist:
+			best = enemy
+			best_dist = d
+	return best
 
 
 func _deactivate() -> void:

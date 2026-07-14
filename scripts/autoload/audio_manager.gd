@@ -34,7 +34,7 @@ func _connect_signals() -> void:
 	SignalBus.enemy_died.connect(func(): play_sfx("enemy_die", 0.9))
 	SignalBus.player_damaged.connect(func(_amount): play_sfx("damage_taken"))
 	SignalBus.level_up.connect(func(_level): play_sfx("level_up"))
-	SignalBus.skill_unlocked.connect(func(_name): play_sfx("skill_cast", 1.05))
+	SignalBus.skill_unlocked.connect(func(_skill): play_sfx("skill_cast", 1.05))
 	SignalBus.item_collected.connect(func(_id): play_sfx("item_pickup", 0.95))
 	SignalBus.player_died.connect(_on_player_died)
 	SignalBus.wave_started.connect(_on_wave_started)

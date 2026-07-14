@@ -1,7 +1,7 @@
 extends Node
 ## Central game-state and pause orchestration.
 
-enum State { BOOT, PLAYING, BOSS, LEVEL_UP, PAUSED, GAME_OVER }
+enum State { BOOT, PLAYING, BOSS, LEVEL_UP, WAVE_UPGRADE, PAUSED, GAME_OVER }
 
 var state := State.BOOT
 var _pause_sources: Array[String] = []
@@ -40,6 +40,8 @@ func request_pause(source: String) -> void:
 		state = State.PAUSED
 	elif source == "level_up":
 		state = State.LEVEL_UP
+	elif source == "wave_upgrade":
+		state = State.WAVE_UPGRADE
 	elif source == "game_over":
 		state = State.GAME_OVER
 	SignalBus.game_paused.emit(source)
@@ -49,7 +51,7 @@ func request_unpause(source: String) -> void:
 	_pause_sources.erase(source)
 	if _pause_sources.is_empty():
 		get_tree().paused = false
-		if state in [State.PAUSED, State.LEVEL_UP]:
+		if state in [State.PAUSED, State.LEVEL_UP, State.WAVE_UPGRADE]:
 			state = State.BOSS if _is_boss_wave_active() else State.PLAYING
 		SignalBus.game_unpaused.emit(source)
 
@@ -61,13 +63,13 @@ func is_paused_by(source: String) -> bool:
 func can_toggle_pause() -> bool:
 	if state == State.GAME_OVER:
 		return false
-	if is_paused_by("level_up") or is_paused_by("game_over"):
+	if is_paused_by("level_up") or is_paused_by("wave_upgrade") or is_paused_by("game_over"):
 		return false
 	return state in [State.PLAYING, State.BOSS, State.PAUSED]
 
 
 func set_play_state(is_boss: bool) -> void:
-	if state in [State.LEVEL_UP, State.PAUSED, State.GAME_OVER]:
+	if state in [State.LEVEL_UP, State.WAVE_UPGRADE, State.PAUSED, State.GAME_OVER]:
 		return
 	state = State.BOSS if is_boss else State.PLAYING
 

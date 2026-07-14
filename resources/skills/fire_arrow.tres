@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SkillData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/effects/ProjectileFireSkill.tscn" id="2"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_fire_arrow.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+id = "fire_arrow"
+display_name = "Fire Arrow"
+icon = ExtResource("3")
+base_damage = 7.0
+cooldown = 1.6
+mana_cost = 0.0
+projectile_scene = ExtResource("2")
+pierce_count = 0
+projectile_count = 1

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_ice_shot.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "frost_t1_glacial_spike"
+element = 1
+icon = ExtResource("2")
+title = "Glacial Spike"
+description = "Unlocks Ice Shot: an independent bolt that fires on its own cooldown and always Chills (freezes) enemies on hit."
+stat_to_modify = "frost_skill_dmg_mult"
+modification_value = 0.0
+tier = 1
+exclusive_group = ""

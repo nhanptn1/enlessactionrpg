@@ -9,10 +9,12 @@ signal item_collected(item_id: String)
 signal wave_started(wave_number: int, is_boss: bool)
 signal wave_cleared(wave_number: int, was_boss: bool)
 signal level_up(level: int)
-signal skill_unlocked(skill_name: String)
+signal skill_unlocked(skill: SkillData)
 signal player_died
 signal game_paused(source: String)
 signal game_unpaused(source: String)
 signal boss_phase_changed(phase: int)
 signal boss_attack_telegraph
 signal boss_hp_changed(current: float, max_hp: float)
+signal status_applied(target: Node, element: String)
+signal status_combo_triggered(combo_name: String, target: Node)

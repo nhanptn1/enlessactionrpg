@@ -1,4 +1,4 @@
-[gd_scene load_steps=52 format=3]
+[gd_scene load_steps=74 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/systems/enemy_spawner.gd" id="2"]
@@ -50,6 +50,28 @@
 [ext_resource type="Resource" path="res://resources/enemies/dark_ranger_commander.tres" id="48"]
 [ext_resource type="Resource" path="res://resources/enemies/armored_gargoyle.tres" id="49"]
 [ext_resource type="Script" path="res://scripts/systems/danger_indicator.gd" id="50"]
+[ext_resource type="PackedScene" path="res://scenes/ui/WaveUpgradePopup.tscn" id="51"]
+[ext_resource type="Resource" path="res://resources/upgrades/fire_t1_searing_shot.tres" id="55"]
+[ext_resource type="Resource" path="res://resources/upgrades/fire_t2_ignite_trail.tres" id="56"]
+[ext_resource type="Resource" path="res://resources/upgrades/fire_t2_scorching_intensity.tres" id="57"]
+[ext_resource type="Resource" path="res://resources/upgrades/fire_t3_explosive_volley.tres" id="58"]
+[ext_resource type="Resource" path="res://resources/upgrades/fire_t3_inferno_core.tres" id="59"]
+[ext_resource type="Resource" path="res://resources/upgrades/frost_t1_glacial_spike.tres" id="60"]
+[ext_resource type="Resource" path="res://resources/upgrades/frost_t2_piercing_chill.tres" id="61"]
+[ext_resource type="Resource" path="res://resources/upgrades/frost_t2_brittle_frost.tres" id="62"]
+[ext_resource type="Resource" path="res://resources/upgrades/frost_t3_ice_wall_nova.tres" id="63"]
+[ext_resource type="Resource" path="res://resources/upgrades/frost_t3_absolute_zero.tres" id="64"]
+[ext_resource type="Resource" path="res://resources/upgrades/lightning_t1_thunder_bolt.tres" id="65"]
+[ext_resource type="Resource" path="res://resources/upgrades/lightning_t2_volt_arc.tres" id="66"]
+[ext_resource type="Resource" path="res://resources/upgrades/lightning_t2_static_charge.tres" id="67"]
+[ext_resource type="Resource" path="res://resources/upgrades/lightning_t3_chain_resonance.tres" id="68"]
+[ext_resource type="Resource" path="res://resources/upgrades/lightning_t3_overcharge.tres" id="69"]
+[ext_resource type="Resource" path="res://resources/upgrades/fire_damage_boost.tres" id="70"]
+[ext_resource type="Resource" path="res://resources/upgrades/fire_cooldown_boost.tres" id="71"]
+[ext_resource type="Resource" path="res://resources/upgrades/frost_damage_boost.tres" id="72"]
+[ext_resource type="Resource" path="res://resources/upgrades/frost_cooldown_boost.tres" id="73"]
+[ext_resource type="Resource" path="res://resources/upgrades/lightning_damage_boost.tres" id="74"]
+[ext_resource type="Resource" path="res://resources/upgrades/lightning_cooldown_boost.tres" id="75"]
 
 [sub_resource type="Environment" id="Environment1"]
 background_mode = 3
@@ -92,6 +114,9 @@ item_pool = [ExtResource("18"), ExtResource("19"), ExtResource("20"), ExtResourc
 [node name="HUD" parent="." instance=ExtResource("4")]
 
 [node name="LevelUpPopup" parent="." instance=ExtResource("9")]
+
+[node name="WaveUpgradePopup" parent="." instance=ExtResource("51")]
+upgrade_pool = [ExtResource("55"), ExtResource("56"), ExtResource("57"), ExtResource("58"), ExtResource("59"), ExtResource("60"), ExtResource("61"), ExtResource("62"), ExtResource("63"), ExtResource("64"), ExtResource("65"), ExtResource("66"), ExtResource("67"), ExtResource("68"), ExtResource("69"), ExtResource("70"), ExtResource("71"), ExtResource("72"), ExtResource("73"), ExtResource("74"), ExtResource("75")]
 
 [node name="GameOverScreen" parent="." instance=ExtResource("17")]
 

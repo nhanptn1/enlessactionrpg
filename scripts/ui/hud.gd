@@ -7,11 +7,13 @@ class_name HUD
 @onready var wave_label: Label = $Margin/VBox/WaveLabel
 @onready var skill_label: Label = $Margin/VBox/SkillRow/SkillLabel
 @onready var skill_cooldown: RadialCooldown = $Margin/VBox/SkillRow/SkillCooldown
+@onready var elemental_rows_container: VBoxContainer = $Margin/VBox/ElementalSkillRows
 @onready var pause_button: Button = $PauseButton
 @onready var boss_hp_bar_container: MarginContainer = $BossHPBarContainer
 @onready var boss_hp_bar: ProgressBar = $BossHPBarContainer/BossVBox/BossHPBar
 
 var _player: Node
+var _elemental_rows: Dictionary = {}  # UpgradeResource.ElementType (int) -> {ring: RadialCooldown, label: Label, icon: TextureRect}
 
 
 func _ready() -> void:
@@ -21,6 +23,7 @@ func _ready() -> void:
 		_player.xp_changed.connect(_on_player_xp_changed)
 		_player.level_up.connect(_on_player_level_up)
 		_player.skill_unlocked.connect(_on_skill_unlocked)
+		_player.elemental_skill_changed.connect(_on_elemental_skill_changed)
 		hp_bar.max_value = _player.max_hp
 		hp_bar.value = _player.current_hp
 		xp_bar.max_value = _player.xp_to_next_level()
@@ -48,9 +51,13 @@ func _process(_delta: float) -> void:
 	if not is_instance_valid(_player):
 		return
 	var timer: Timer = _player.attack_timer
-	if timer.wait_time <= 0.0:
-		return
-	skill_cooldown.value = 1.0 - (timer.time_left / timer.wait_time)
+	if timer.wait_time > 0.0:
+		skill_cooldown.value = 1.0 - (timer.time_left / timer.wait_time)
+	for element in _elemental_rows:
+		var elemental_timer: Timer = _player.get_elemental_timer_by_element(element)
+		if not is_instance_valid(elemental_timer) or elemental_timer.wait_time <= 0.0:
+			continue
+		_elemental_rows[element].ring.value = 1.0 - (elemental_timer.time_left / elemental_timer.wait_time)
 
 
 func _on_pause_pressed() -> void:
@@ -72,8 +79,59 @@ func _on_player_level_up(new_level: int) -> void:
 	level_label.text = "Lv. %d" % new_level
 
 
-func _on_skill_unlocked(skill_name: String) -> void:
-	skill_label.text = skill_name
+func _on_skill_unlocked(skill: SkillData) -> void:
+	# Elemental changes also fire this (for LevelUpPopup's generic "X
+	# Unlocked!" banner) but are tracked here via elemental_skill_changed
+	# instead, which is keyed by element rather than by SkillData reference --
+	# a SkillData reference isn't stable across an element's own tier swaps.
+	if skill in _player.fire_skills or skill in _player.frost_skills or skill in _player.lightning_skills:
+		return
+	skill_label.text = skill.display_name
+
+
+func _on_elemental_skill_changed(element: int, skill: SkillData) -> void:
+	if _elemental_rows.has(element):
+		_elemental_rows[element].label.text = skill.display_name
+		_elemental_rows[element].icon.texture = skill.icon
+	else:
+		_add_elemental_row(element, skill)
+
+
+func _add_elemental_row(element: int, skill: SkillData) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	# Icon and cooldown ring are stacked in the same 32x32 rect (icon behind,
+	# ring drawn on top) rather than placed side by side, matching a typical
+	# "ability icon with a cooldown sweep" UI convention.
+	var icon_stack := Control.new()
+	icon_stack.custom_minimum_size = Vector2(32, 32)
+	icon_stack.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var icon := TextureRect.new()
+	icon.texture = skill.icon
+	icon.anchor_right = 1.0
+	icon.anchor_bottom = 1.0
+	icon.stretch_mode = TextureRect.STRETCH_SCALE
+	# Without this, TextureRect defaults to EXPAND_KEEP_SIZE and reports the
+	# source texture's full native pixel size (~260x260) as its own minimum
+	# size, which blows the whole row up to that size regardless of the
+	# anchors set above -- this is what caused the giant icon.
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ring := RadialCooldown.new()
+	ring.anchor_right = 1.0
+	ring.anchor_bottom = 1.0
+	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon_stack.add_child(icon)
+	icon_stack.add_child(ring)
+	var label := Label.new()
+	label.text = skill.display_name
+	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", Color(1, 0.85, 0.4, 1))
+	row.add_child(icon_stack)
+	row.add_child(label)
+	elemental_rows_container.add_child(row)
+	_elemental_rows[element] = {"ring": ring, "label": label, "icon": icon}
 
 
 func _on_wave_started(wave_number: int) -> void:
