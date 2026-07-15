@@ -3,21 +3,30 @@ class_name WaveManager
 
 const ITEM_PICKUP_SCENE := preload("res://scenes/effects/ItemPickup.tscn")
 const BOSS_WAVE_INTERVAL := 10
-const HP_SCALING_PER_WAVE := 0.15
-const HP_MULT_CEILING := 6.0
-const SPEED_SCALING_PER_WAVE := 0.05
+# (2026-07-16) Bumped 0.15->0.25 and the ceiling 6.0->12.0 -- user playtest
+# feedback was that enemies felt too weak past wave 10 (dying in 1 hit
+# instead of the intended 2-3), since the player's damage output compounds
+# from multiple simultaneous sources (basic line upgrades, crit, up to 3
+# independently-firing elemental skills) while this was the only thing
+# scaling enemies back up.
+const HP_SCALING_PER_WAVE := 0.25
+const HP_MULT_CEILING := 12.0
+const SPEED_SCALING_PER_WAVE := 0.03
 const COUNT_SCALING_PER_WAVE := 1
 const SPAWN_INTERVAL_DECAY := 0.03
 const SPAWN_INTERVAL_FLOOR := 0.35
-const BOSS_HP_MULT_BASE := 15.0
+# (2026-07-16) 15.0->75.0 (x5) per direct user request.
+const BOSS_HP_MULT_BASE := 75.0
 const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.2
 const BOSS_DAMAGE_MULT := 2.0
 const BOSS_XP_REWARD := 200
 const BOSS_VISUAL_SCALE := 1.5
 const RARITY_WEIGHTS := {"common": 0.55, "rare": 0.30, "epic": 0.15}
-# Elite rolls only apply to normal (non-boss) waves -- the boss already has
-# its own cycle-based scaling in _boss_hp_mult(), stacking elite on top of
-# that would be redundant. 5% matches the ratio the (deferred) big-wave plan
+# Elite rolls apply to any regular monster, including the ones that now
+# spawn alongside a boss wave (see _start_next_wave()) -- only the boss
+# itself is excluded, since it already has its own cycle-based scaling in
+# _boss_hp_mult() and is spawned via the separate _spawn_boss(), never
+# through _spawn_one(). 5% matches the ratio the (deferred) big-wave plan
 # docs called for, borrowed here since it's a reasonable rarity regardless of
 # wave scale.
 const ELITE_CHANCE := 0.05
@@ -47,6 +56,8 @@ var _is_boss_wave := false
 var _alive_count := 0
 var _spawn_queue: Array[EnemyData] = []
 var _spawn_timer: Timer
+var _pending_boss: EnemyData = null  # set on boss waves, spawned once _spawn_queue empties -- see _spawn_boss()
+var _pending_boss_hp_mult := 1.0
 
 
 func _ready() -> void:
@@ -82,21 +93,30 @@ func _start_next_wave() -> void:
 	SignalBus.wave_started.emit(wave_number, _is_boss_wave)
 	GameManager.set_play_state(_is_boss_wave)
 	_spawn_queue.clear()
+	_pending_boss = null
+
+	# Regular monsters spawn on boss waves too now (scaled the same as any
+	# other wave at this wave_number, via _current_wave/_current_hp_mult/
+	# _current_speed_mult set above) -- the boss itself is held back as
+	# "pending" and only actually spawns once this regular queue empties,
+	# see _on_spawn_tick(). Kept as a separate spawn (not added to
+	# _spawn_queue) since it needs its own boss-specific hp/damage/visual
+	# multipliers, not the wave's normal ones.
+	for i in _current_wave.enemy_pool.size():
+		for _n in _current_wave.spawn_counts[i]:
+			_spawn_queue.append(_current_wave.enemy_pool[i])
+	_spawn_queue.shuffle()
 
 	if _is_boss_wave:
 		var cycle := wave_number / BOSS_WAVE_INTERVAL
-		_spawn_queue.append(boss_pool[(cycle - 1) % boss_pool.size()])
-		_current_hp_mult = _boss_hp_mult(cycle)
-		_current_damage_mult = BOSS_DAMAGE_MULT
-		_current_xp_override = BOSS_XP_REWARD
-		_current_visual_scale = BOSS_VISUAL_SCALE
-	else:
-		for i in _current_wave.enemy_pool.size():
-			for _n in _current_wave.spawn_counts[i]:
-				_spawn_queue.append(_current_wave.enemy_pool[i])
-		_spawn_queue.shuffle()
+		_pending_boss = boss_pool[(cycle - 1) % boss_pool.size()]
+		_pending_boss_hp_mult = _boss_hp_mult(cycle)
 
-	_alive_count = _spawn_queue.size()
+	# The boss counts toward _alive_count from the start too (as "still
+	# pending"), even though it isn't spawned yet -- otherwise the wave
+	# could read as cleared the moment the last regular monster dies, before
+	# the boss has even appeared. See _spawn_boss()/notify_enemy_died().
+	_alive_count = _spawn_queue.size() + (1 if _is_boss_wave else 0)
 	_spawn_timer.wait_time = _current_wave.spawn_interval
 	_spawn_timer.start()
 
@@ -165,6 +185,8 @@ func _refill_player_shield() -> void:
 func _on_spawn_tick() -> void:
 	if _spawn_queue.is_empty():
 		_spawn_timer.stop()
+		if _pending_boss != null:
+			_spawn_boss()
 		return
 	var enemy_data: EnemyData = _spawn_queue.pop_back()
 	var cluster_size: int = maxi(enemy_data.cluster_size, 1)
@@ -178,7 +200,9 @@ func _on_spawn_tick() -> void:
 
 
 func _spawn_one(enemy_data: EnemyData, x_override: float) -> void:
-	var is_elite := not _is_boss_wave and randf() < ELITE_CHANCE
+	# Only ever called for regular monsters -- the boss is spawned
+	# separately via _spawn_boss(), so no need to exclude boss waves here.
+	var is_elite := randf() < ELITE_CHANCE
 	var hp_mult := _current_hp_mult * (ELITE_HP_MULT if is_elite else 1.0)
 	var speed_mult := _current_speed_mult * (ELITE_SPEED_MULT if is_elite else 1.0)
 	var damage_mult := _current_damage_mult * (ELITE_DAMAGE_MULT if is_elite else 1.0)
@@ -186,9 +210,15 @@ func _spawn_one(enemy_data: EnemyData, x_override: float) -> void:
 	spawner.spawn(enemy_data, hp_mult, speed_mult, damage_mult, xp_override, _current_visual_scale, x_override, is_elite)
 
 
+func _spawn_boss() -> void:
+	var boss_data := _pending_boss
+	_pending_boss = null
+	spawner.spawn(boss_data, _pending_boss_hp_mult, 1.0, BOSS_DAMAGE_MULT, BOSS_XP_REWARD, BOSS_VISUAL_SCALE, -1.0, false)
+
+
 func notify_enemy_died() -> void:
 	_alive_count -= 1
-	if _alive_count <= 0 and _spawn_queue.is_empty():
+	if _alive_count <= 0 and _spawn_queue.is_empty() and _pending_boss == null:
 		var was_boss := _is_boss_wave
 		wave_cleared.emit(_current_wave.wave_number)
 		SignalBus.wave_cleared.emit(_current_wave.wave_number, was_boss)
