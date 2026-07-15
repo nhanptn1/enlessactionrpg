@@ -6,7 +6,8 @@ class_name HUD
 @onready var level_label: Label = $Margin/VBox/LevelLabel
 @onready var wave_label: Label = $Margin/VBox/WaveLabel
 @onready var skill_label: Label = $Margin/VBox/SkillRow/SkillLabel
-@onready var skill_cooldown: RadialCooldown = $Margin/VBox/SkillRow/SkillCooldown
+@onready var skill_icon: TextureRect = $Margin/VBox/SkillRow/SkillIconStack/Icon
+@onready var skill_cooldown: RadialCooldown = $Margin/VBox/SkillRow/SkillIconStack/SkillCooldown
 @onready var elemental_rows_container: VBoxContainer = $Margin/VBox/ElementalSkillRows
 @onready var pause_button: Button = $PauseButton
 @onready var boss_hp_bar_container: MarginContainer = $BossHPBarContainer
@@ -39,6 +40,20 @@ func _ready() -> void:
 		level_label.text = "Lv. %d" % _player.level
 		if _player.basic_shot:
 			skill_label.text = _player.basic_shot.display_name
+			skill_icon.texture = _player.basic_shot.icon
+	# Icon and cooldown ring stacked in the same 32x32 rect, same pattern as
+	# the elemental rows (icon_stack in _build_elemental_row()) -- set here
+	# in code rather than the .tscn since expand_mode matters: TextureRect
+	# defaults to EXPAND_KEEP_SIZE, which reports the source icon's full
+	# native pixel size as its own minimum size and blows up the whole row.
+	skill_icon.anchor_right = 1.0
+	skill_icon.anchor_bottom = 1.0
+	skill_icon.stretch_mode = TextureRect.STRETCH_SCALE
+	skill_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	skill_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_cooldown.anchor_right = 1.0
+	skill_cooldown.anchor_bottom = 1.0
+	skill_cooldown.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var wave_manager := get_tree().get_first_node_in_group("wave_manager")
 	if wave_manager:
 		wave_manager.wave_started.connect(_on_wave_started)
@@ -94,6 +109,7 @@ func _on_skill_unlocked(skill: SkillData) -> void:
 	if skill in _player.fire_skills or skill in _player.frost_skills or skill in _player.lightning_skills:
 		return
 	skill_label.text = skill.display_name
+	skill_icon.texture = skill.icon
 
 
 func _on_elemental_skill_changed(element: int, skill: SkillData) -> void:

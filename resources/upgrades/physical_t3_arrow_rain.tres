@@ -1,11 +1,13 @@
-[gd_resource type="Resource" script_class="UpgradeResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_arrow_rain.png" id="2"]
 
 [resource]
 script = ExtResource("1")
 id = "physical_t3_arrow_rain"
 element = 3
+icon = ExtResource("2")
 title = "Arrow Rain"
 description = "Upgrades your basic attack: a telegraphed area strike raining arrows onto nearby enemies."
 stat_to_modify = ""
