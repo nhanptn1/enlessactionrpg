@@ -54,7 +54,7 @@ radius = 14.0
 [node name="Sprite" parent="." index="0"]
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"move"
-scale = Vector2(0.32, 0.32)
+scale = Vector2(0.41, 0.41)
 
 [node name="Collision" parent="." index="1"]
 shape = SubResource("CircleShape1")

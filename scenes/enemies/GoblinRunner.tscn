@@ -39,4 +39,4 @@ animations = [{
 [node name="Sprite" parent="." index="0"]
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"move"
-scale = Vector2(0.44, 0.44)
+scale = Vector2(0.43, 0.43)

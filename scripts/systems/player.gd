@@ -1,7 +1,7 @@
 extends CharacterBody2D
 class_name Player
 
-const BASE_PROJECTILE_SPEED := 500.0
+const BASE_PROJECTILE_SPEED := 1000.0
 # Enemies spawn around y=-40 (EnemySpawner) while AttackOrigin sits near
 # y=1110 -- a freshly-spawned enemy can be ~1150px away, past
 # Projectile.DEFAULT_MAX_RANGE (900). Without an explicit override here,
@@ -69,6 +69,11 @@ var lightning_level := 0
 var frost_level := 0
 var chosen_branches: Dictionary = {}  # exclusive_group -> picked UpgradeResource.id
 
+# Only one elemental skill auto-fires at a time -- players can still invest
+# tiers into all 3 trees (see apply_element_upgrade()), but their timers stay
+# stopped unless active. -1 = no element unlocked yet. See switch_active_element().
+var active_element: int = -1
+
 # Independent elemental skill damage/cooldown multipliers -- deliberately kept
 # separate from the basic line's damage_mult/cooldown_mult/bonus_projectile_count
 # so the two skill tracks stay fully independent (see _fire_elemental_skill()).
@@ -114,6 +119,11 @@ signal skill_unlocked(skill: SkillData)
 # SkillData reference (which changes across tiers). Element is
 # UpgradeResource.ElementType, typed int since signals can't carry a nested enum.
 signal elemental_skill_changed(element: int, skill: SkillData)
+# HUD-only signal: fires when the *active* element changes (first auto-activate
+# on unlock, or a manual switch_active_element() cycle) -- distinct from
+# elemental_skill_changed, which fires on every tier pick regardless of which
+# element is active.
+signal active_element_switched(element: int, skill: SkillData)
 signal died
 signal item_collected(item: ItemData)
 
@@ -251,42 +261,80 @@ func _update_elemental_skill(element: UpgradeResource.ElementType) -> void:
 	# element's 3-tier skill array. Every tier pick -- the tier-1 root unlock
 	# or a later tier-2/3 fork -- swaps the active attack wholesale: Fire Arrow
 	# (T1) -> Explosive Volley (T2) -> Burning Rain (T3), same idea per element.
+	# Only one element's Timer ever actually runs (see active_element) -- a
+	# non-active element's data/tree progress still updates here so it's ready
+	# the moment the player switches to it, it just doesn't start firing.
 	match element:
 		UpgradeResource.ElementType.FIRE:
-			var was_dormant := fire_skill_timer.is_stopped()
 			_current_fire_skill = fire_skills[fire_level - 1]
-			# Refresh wait_time BEFORE start() -- Timer.start() latches whatever
-			# wait_time currently holds into time_left, and a never-started Timer
-			# still has Godot's default wait_time (1.0s), not the skill's real
-			# cooldown. Setting wait_time after start() left the very first shot
-			# firing off the stale 1.0s default instead of e.g. Fire Arrow's 1.6s.
-			_refresh_elemental_timer(element)
-			if was_dormant:
-				fire_skill_timer.start()
-			skill_unlocked.emit(_current_fire_skill)
-			SignalBus.skill_unlocked.emit(_current_fire_skill)
-			elemental_skill_changed.emit(element, _current_fire_skill)
 		UpgradeResource.ElementType.FROST:
-			var was_dormant := frost_skill_timer.is_stopped()
 			_current_frost_skill = frost_skills[frost_level - 1]
-			_refresh_elemental_timer(element)
-			if was_dormant:
-				frost_skill_timer.start()
-			skill_unlocked.emit(_current_frost_skill)
-			SignalBus.skill_unlocked.emit(_current_frost_skill)
-			elemental_skill_changed.emit(element, _current_frost_skill)
 		UpgradeResource.ElementType.LIGHTNING:
-			var was_dormant := lightning_skill_timer.is_stopped()
 			_current_lightning_skill = lightning_skills[lightning_level - 1]
-			_refresh_elemental_timer(element)
-			if was_dormant:
-				lightning_skill_timer.start()
-			skill_unlocked.emit(_current_lightning_skill)
-			SignalBus.skill_unlocked.emit(_current_lightning_skill)
-			elemental_skill_changed.emit(element, _current_lightning_skill)
+	# Refresh wait_time BEFORE start() -- Timer.start() latches whatever
+	# wait_time currently holds into time_left, and a never-started Timer
+	# still has Godot's default wait_time (1.0s), not the skill's real
+	# cooldown. Setting wait_time after start() left the very first shot
+	# firing off the stale 1.0s default instead of e.g. Fire Arrow's 1.6s.
+	_refresh_elemental_timer(element)
+	var skill := _current_skill_for_element(element)
+	if active_element == -1:
+		# First elemental unlock of the run -- auto-activate it so the player
+		# isn't left with zero elemental damage until they manually switch.
+		_set_active_element(element)
+	elif element == active_element:
+		var timer := get_elemental_timer_by_element(element)
+		if timer.is_stopped():
+			timer.start()
+	skill_unlocked.emit(skill)
+	SignalBus.skill_unlocked.emit(skill)
+	elemental_skill_changed.emit(element, skill)
 
 
-func _refresh_elemental_timer(element: UpgradeResource.ElementType) -> void:
+func _current_skill_for_element(element: int) -> SkillData:
+	match element:
+		UpgradeResource.ElementType.FIRE:
+			return _current_fire_skill
+		UpgradeResource.ElementType.FROST:
+			return _current_frost_skill
+		UpgradeResource.ElementType.LIGHTNING:
+			return _current_lightning_skill
+	return null
+
+
+func get_unlocked_elements() -> Array[int]:
+	var result: Array[int] = []
+	if fire_level > 0:
+		result.append(UpgradeResource.ElementType.FIRE)
+	if frost_level > 0:
+		result.append(UpgradeResource.ElementType.FROST)
+	if lightning_level > 0:
+		result.append(UpgradeResource.ElementType.LIGHTNING)
+	return result
+
+
+func switch_active_element() -> void:
+	var unlocked := get_unlocked_elements()
+	if unlocked.size() <= 1:
+		return
+	var current_index := unlocked.find(active_element)
+	var next_element: int = unlocked[(current_index + 1) % unlocked.size()]
+	_set_active_element(next_element)
+
+
+func _set_active_element(element: int) -> void:
+	if element == active_element:
+		return
+	var old_timer := get_elemental_timer_by_element(active_element)
+	if is_instance_valid(old_timer):
+		old_timer.stop()
+	active_element = element
+	_refresh_elemental_timer(element)
+	get_elemental_timer_by_element(element).start()
+	active_element_switched.emit(element, _current_skill_for_element(element))
+
+
+func _refresh_elemental_timer(element: int) -> void:
 	# Recomputes the given element's Timer.wait_time from whichever tier is
 	# currently active -- covers both "just unlocked/tiered up" and "picked a
 	# later cooldown-reduction card" with one code path.
@@ -302,7 +350,7 @@ func _refresh_elemental_timer(element: UpgradeResource.ElementType) -> void:
 				lightning_skill_timer.wait_time = _current_lightning_skill.cooldown * maxf(lightning_skill_cd_mult, 0.3)
 
 
-func get_elemental_timer_by_element(element: UpgradeResource.ElementType) -> Timer:
+func get_elemental_timer_by_element(element: int) -> Timer:
 	match element:
 		UpgradeResource.ElementType.FIRE:
 			return fire_skill_timer

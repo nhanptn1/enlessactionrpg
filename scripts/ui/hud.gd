@@ -13,7 +13,9 @@ class_name HUD
 @onready var boss_hp_bar: ProgressBar = $BossHPBarContainer/BossVBox/BossHPBar
 
 var _player: Node
-var _elemental_rows: Dictionary = {}  # UpgradeResource.ElementType (int) -> {ring: RadialCooldown, label: Label, icon: TextureRect}
+# Only one elemental row now (see Player.active_element) -- {ring, label, icon}
+# once built, {} until the player's first elemental unlock.
+var _elemental_row: Dictionary = {}
 
 
 func _ready() -> void:
@@ -24,6 +26,7 @@ func _ready() -> void:
 		_player.level_up.connect(_on_player_level_up)
 		_player.skill_unlocked.connect(_on_skill_unlocked)
 		_player.elemental_skill_changed.connect(_on_elemental_skill_changed)
+		_player.active_element_switched.connect(_on_active_element_switched)
 		hp_bar.max_value = _player.max_hp
 		hp_bar.value = _player.current_hp
 		xp_bar.max_value = _player.xp_to_next_level()
@@ -53,11 +56,10 @@ func _process(_delta: float) -> void:
 	var timer: Timer = _player.attack_timer
 	if timer.wait_time > 0.0:
 		skill_cooldown.value = 1.0 - (timer.time_left / timer.wait_time)
-	for element in _elemental_rows:
-		var elemental_timer: Timer = _player.get_elemental_timer_by_element(element)
-		if not is_instance_valid(elemental_timer) or elemental_timer.wait_time <= 0.0:
-			continue
-		_elemental_rows[element].ring.value = 1.0 - (elemental_timer.time_left / elemental_timer.wait_time)
+	if not _elemental_row.is_empty() and _player.active_element != -1:
+		var elemental_timer: Timer = _player.get_elemental_timer_by_element(_player.active_element)
+		if is_instance_valid(elemental_timer) and elemental_timer.wait_time > 0.0:
+			_elemental_row.ring.value = 1.0 - (elemental_timer.time_left / elemental_timer.wait_time)
 
 
 func _on_pause_pressed() -> void:
@@ -90,22 +92,42 @@ func _on_skill_unlocked(skill: SkillData) -> void:
 
 
 func _on_elemental_skill_changed(element: int, skill: SkillData) -> void:
-	if _elemental_rows.has(element):
-		_elemental_rows[element].label.text = skill.display_name
-		_elemental_rows[element].icon.texture = skill.icon
+	# Fires on every tier pick regardless of which element is active (see
+	# Player.elemental_skill_changed) -- only refresh the row if it's showing
+	# this element right now. A switch to a different element is handled by
+	# _on_active_element_switched instead.
+	if element != _player.active_element:
+		return
+	_show_elemental_skill(skill)
+
+
+func _on_active_element_switched(_element: int, skill: SkillData) -> void:
+	_show_elemental_skill(skill)
+
+
+func _show_elemental_skill(skill: SkillData) -> void:
+	if _elemental_row.is_empty():
+		_build_elemental_row(skill)
 	else:
-		_add_elemental_row(element, skill)
+		_elemental_row.label.text = skill.display_name
+		_elemental_row.icon.texture = skill.icon
 
 
-func _add_elemental_row(element: int, skill: SkillData) -> void:
+func _build_elemental_row(skill: SkillData) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	# Icon and cooldown ring are stacked in the same 32x32 rect (icon behind,
 	# ring drawn on top) rather than placed side by side, matching a typical
-	# "ability icon with a cooldown sweep" UI convention.
-	var icon_stack := Control.new()
+	# "ability icon with a cooldown sweep" UI convention. It's a flat/borderless
+	# Button (not a plain Control) so tapping it cycles the active element via
+	# switch_active_element() -- the only way to swap once >1 element is
+	# unlocked, since all 3 trees can be invested in simultaneously now.
+	var icon_stack := Button.new()
+	icon_stack.flat = true
+	icon_stack.focus_mode = Control.FOCUS_NONE
 	icon_stack.custom_minimum_size = Vector2(32, 32)
 	icon_stack.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon_stack.pressed.connect(func(): _player.switch_active_element())
 	var icon := TextureRect.new()
 	icon.texture = skill.icon
 	icon.anchor_right = 1.0
@@ -131,7 +153,7 @@ func _add_elemental_row(element: int, skill: SkillData) -> void:
 	row.add_child(icon_stack)
 	row.add_child(label)
 	elemental_rows_container.add_child(row)
-	_elemental_rows[element] = {"ring": ring, "label": label, "icon": icon}
+	_elemental_row = {"ring": ring, "label": label, "icon": icon}
 
 
 func _on_wave_started(wave_number: int) -> void:

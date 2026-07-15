@@ -13,7 +13,7 @@ const BOSS_HP_MULT_BASE := 15.0
 const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.2
 const BOSS_DAMAGE_MULT := 2.0
 const BOSS_XP_REWARD := 200
-const BOSS_VISUAL_SCALE := 3.0
+const BOSS_VISUAL_SCALE := 1.5
 const RARITY_WEIGHTS := {"common": 0.55, "rare": 0.30, "epic": 0.15}
 # Elite rolls only apply to normal (non-boss) waves -- the boss already has
 # its own cycle-based scaling in _boss_hp_mult(), stacking elite on top of
