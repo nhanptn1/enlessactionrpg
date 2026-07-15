@@ -9,5 +9,5 @@ display_name = "Guardian Mail"
 category = "armor"
 rarity = "epic"
 effect_type = "stat_boost"
-upgrade_id = "shield"
+upgrade_id = "hp"
 upgrade_stacks = 2

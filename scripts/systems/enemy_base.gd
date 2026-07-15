@@ -7,6 +7,7 @@ const HIT_PUNCH_SCALE := 1.2
 const ATTACK_LUNGE_OFFSET := 4.0
 const ATTACK_LUNGE_DURATION := 0.1
 const DEATH_FADE_DURATION := 0.25
+const LEAK_DAMAGE := 1.0  # HP cost when an enemy reaches the bottom of the screen without being killed
 
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var hurtbox: Area2D = $Hurtbox
@@ -155,6 +156,12 @@ func _on_screen_exited() -> void:
 		var wm := get_tree().get_first_node_in_group("wave_manager")
 		if is_instance_valid(wm):
 			wm.notify_enemy_died()
+	# (2026-07-16) Letting an enemy through unpunished made "don't kill
+	# everything" a free option -- costs 1 HP regardless of wave-tracking, so
+	# even a boss-summoned sapling that slips past still means something.
+	var player := get_tree().get_first_node_in_group("player")
+	if is_instance_valid(player) and player.has_method("take_damage"):
+		player.take_damage(LEAK_DAMAGE)
 	queue_free()
 
 

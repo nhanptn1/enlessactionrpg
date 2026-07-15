@@ -64,6 +64,7 @@ const RAPID_VOLLEY_SPREAD_DEG := 18.0
 const RAPID_VOLLEY_SPEED := 260.0
 const RAPID_VOLLEY_TELEGRAPH_TIME := 0.5
 const RAPID_VOLLEY_COOLDOWN := 2.0
+const RAPID_VOLLEY_MAX_RANGE := 1400.0  # (2026-07-16) same fix as RangedAttack.ENEMY_SHOT_MAX_RANGE -- without it these shots expired mid-flight past Projectile.DEFAULT_MAX_RANGE (900) before reaching the player
 const ARROW_RAIN_DAMAGE := 1.0  # (2026-07-16) 10.0->1.0, rescaled with player.max_hp's 100->10 rebalance (effective 2 per zone after BOSS_DAMAGE_MULT)
 const ARROW_RAIN_IMPACT_COUNT := 3
 const ARROW_RAIN_IMPACT_RADIUS := 42.0
@@ -320,7 +321,7 @@ func _rapid_volley() -> void:
 			var angle_offset := deg_to_rad(RAPID_VOLLEY_SPREAD_DEG * (i - float(RAPID_VOLLEY_SHOT_COUNT - 1) / 2.0))
 			var dir := base_dir.rotated(angle_offset)
 			var proj = pool.acquire(RAPID_VOLLEY_PROJECTILE)
-			proj.activate(dir, RAPID_VOLLEY_SPEED, RAPID_VOLLEY_DAMAGE * _damage_mult, global_position, 0, "player")
+			proj.activate(dir, RAPID_VOLLEY_SPEED, RAPID_VOLLEY_DAMAGE * _damage_mult, global_position, 0, "player", RAPID_VOLLEY_MAX_RANGE)
 	await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN, false).timeout
 
 

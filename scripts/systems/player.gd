@@ -36,7 +36,7 @@ const AREA_STRIKE_COLOR_LIGHTNING := Color(0.55, 0.2, 0.85, 0.5)
 
 const UPGRADE_POOL: Array[String] = [
 	"damage", "cooldown", "projectile_count", "projectile_speed",
-	"crit_chance", "hp", "shield", "xp_gain",
+	"crit_chance", "hp", "xp_gain",
 ]
 
 @onready var sprite: AnimatedSprite2D = $Sprite
@@ -59,7 +59,7 @@ const UPGRADE_POOL: Array[String] = [
 @export var frost_skills: Array[SkillData] = []
 @export var lightning_skills: Array[SkillData] = []
 
-var max_hp := 10.0  # was a const; now mutable since HP upgrades increase it. (2026-07-16) 100.0->10.0, see the "hp"/"shield" upgrade cases below and item/enemy-damage rescaling for the rest of this change.
+var max_hp := 10.0  # was a const; now mutable since HP upgrades increase it. (2026-07-16) 100.0->10.0, see the "hp" upgrade case below and item/enemy-damage rescaling for the rest of this change.
 var current_hp := max_hp
 
 var level := 1
@@ -70,8 +70,6 @@ var cooldown_mult := 1.0
 var bonus_projectile_count := 0
 var projectile_speed_mult := 1.0
 var crit_chance := 0.0
-var shield_capacity := 0.0
-var current_shield := 0.0
 var xp_gain_mult := 1.0
 var fire_level := 0  # highest tier reached (0-3), not a pick count
 var lightning_level := 0
@@ -226,12 +224,11 @@ func apply_upgrade(upgrade_id: String) -> void:
 		"crit_chance":
 			crit_chance = minf(crit_chance + 0.02, 1.0)
 		"hp":
-			max_hp += 2.0
-			current_hp += 2.0
+			# (2026-07-16) Restores HP instead of raising max_hp -- per user
+			# request, a straight heal reads better than a permanent capacity
+			# bump, and naturally does nothing once already at full HP via minf().
+			current_hp = minf(current_hp + 2.0, max_hp)
 			hp_changed.emit(current_hp, max_hp)
-		"shield":
-			shield_capacity += 2.0
-			current_shield = shield_capacity
 		"xp_gain":
 			xp_gain_mult += 0.05
 	_refresh_timer_cooldowns()
@@ -651,26 +648,16 @@ func _on_animation_finished() -> void:
 
 
 func take_damage(amount: float) -> void:
-	var remaining := amount
-	if current_shield > 0.0:
-		var absorbed := minf(current_shield, remaining)
-		current_shield -= absorbed
-		remaining -= absorbed
-	current_hp = maxf(current_hp - remaining, 0.0)
+	current_hp = maxf(current_hp - amount, 0.0)
 	hp_changed.emit(current_hp, max_hp)
-	if remaining > 0.0:
-		SignalBus.player_damaged.emit(remaining)
-		var cam := get_viewport().get_camera_2d()
-		if is_instance_valid(cam) and cam.has_method("shake"):
-			cam.shake(6.0, 0.18)
+	SignalBus.player_damaged.emit(amount)
+	var cam := get_viewport().get_camera_2d()
+	if is_instance_valid(cam) and cam.has_method("shake"):
+		cam.shake(6.0, 0.18)
 	if current_hp <= 0.0 and not is_dead:
 		is_dead = true
 		died.emit()
 		SignalBus.player_died.emit()
-
-
-func refill_shield() -> void:
-	current_shield = shield_capacity  # called by WaveManager at the start of every wave
 
 
 func apply_item(item: ItemData) -> void:

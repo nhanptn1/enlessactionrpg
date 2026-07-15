@@ -21,6 +21,7 @@ const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.2
 const BOSS_DAMAGE_MULT := 2.0
 const BOSS_XP_REWARD := 100  # (2026-07-16) 200->100, halved alongside every regular enemy's xp_reward
 const BOSS_VISUAL_SCALE := 1.5
+const MONSTER_XP_MULT := 1.25  # (2026-07-16) per-kill XP felt low after the earlier halving -- applied once here at the single death-reward choke point (_grant_death_rewards()), so it covers every enemy.xp_reward, BOSS_XP_REWARD, and elite/minion overrides uniformly rather than needing 12+ separate .tres edits.
 const RARITY_WEIGHTS := {"common": 0.55, "rare": 0.30, "epic": 0.15}
 # Elite rolls apply to any regular monster, including the ones that now
 # spawn alongside a boss wave (see _start_next_wave()) -- only the boss
@@ -88,7 +89,6 @@ func _start_next_wave() -> void:
 	else:
 		_current_wave = _generate_wave(wave_number)
 
-	_refill_player_shield()
 	wave_started.emit(wave_number)
 	SignalBus.wave_started.emit(wave_number, _is_boss_wave)
 	GameManager.set_play_state(_is_boss_wave)
@@ -176,12 +176,6 @@ func _last_authored_interval() -> float:
 	return waves[waves.size() - 1].spawn_interval
 
 
-func _refill_player_shield() -> void:
-	var player := get_tree().get_first_node_in_group("player")
-	if is_instance_valid(player) and player.has_method("refill_shield"):
-		player.refill_shield()
-
-
 func _on_spawn_tick() -> void:
 	if _spawn_queue.is_empty():
 		_spawn_timer.stop()
@@ -241,7 +235,7 @@ func _on_minion_died(xp_reward: int, drop_chance: float, death_position: Vector2
 func _grant_death_rewards(xp_reward: int, drop_chance: float, death_position: Vector2) -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	if is_instance_valid(player) and player.has_method("gain_xp"):
-		player.gain_xp(xp_reward)
+		player.gain_xp(roundi(xp_reward * MONSTER_XP_MULT))
 	if randf() < drop_chance:
 		var item: ItemData = roll_item_drop()
 		if item != null:
