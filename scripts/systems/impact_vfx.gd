@@ -58,17 +58,15 @@ const LIGHTNING_STRIKE_HEIGHT := 480.0 # tall enough to visibly reach off the to
 const CHAIN_SPARK_BURST_RADIUS := 32.0 # Chain Spark has no burst_radius stat -- fixed visual size for its per-node punch
 
 const ARROW_RAIN_FALL_FRAME_PATHS := [
-	"res://art/vfx/arrow_rain_target.png",
 	"res://art/vfx/arrow_rain_begins.png",
 	"res://art/vfx/arrow_rain_barrage.png",
 	"res://art/vfx/arrow_rain_falling.png",
 ]
 const ARROW_RAIN_IMPACT_FRAME_PATHS := [
 	"res://art/vfx/arrow_rain_impact.png",
-	"res://art/vfx/arrow_rain_debris.png",
 ]
-const ARROW_RAIN_IMPACT_SPEED := 7.0    # 2 frames read as one quick impact-then-settle (~0.28s)
-const ARROW_RAIN_FALL_SPEED := 7.0      # 4 frames span ~0.6s, matching arrow_rain.tres's telegraph_time
+const ARROW_RAIN_IMPACT_SPEED := 3.5    # 1 frame, held briefly as a quick impact flash (~0.28s)
+const ARROW_RAIN_FALL_SPEED := 5.0      # 3 frames span 0.6s, matching arrow_rain.tres's telegraph_time
 const ARROW_RAIN_FALL_HEIGHT := 420.0   # ground marker to full barrage height, matches the screen's scale
 
 static var _meteor_frames: SpriteFrames = null
@@ -306,11 +304,17 @@ static func _get_lightning_strike_frames() -> SpriteFrames:
 
 
 static func arrow_rain_fall(target_pos: Vector2, duration: float, host: Node) -> void:
-	# Basic-line Arrow Rain's own telegraph visual -- a real 4-frame sequence
-	# (from the supplied "physic-arrows-rain.png" reference: ground target ->
-	# arrows rising -> intense barrage -> falling arrows) instead of
-	# falling_strike()'s plain descending ball. Bottom-anchored so the ground
-	# marker stays put while the arrow cluster visibly grows up out of it.
+	# Basic-line Arrow Rain's own telegraph visual -- a real 3-frame sequence
+	# (from the supplied "physic-arrows-rain.png" reference: arrows rising ->
+	# intense barrage -> falling arrows) instead of falling_strike()'s plain
+	# descending ball. Bottom-anchored so the ground marker stays put while
+	# the arrow cluster visibly grows up out of it. The reference's 4th
+	# "ground target" frame (pure stone-ground art, no arrows) was dropped --
+	# each frame's own baked-in stone-ground band was also cleared to
+	# transparent (see art/vfx/arrow_rain_*.png), since the game already
+	# draws its own ground marker via Telegraph.show_circle() at this exact
+	# spot and the art's stone texture was never fully background-removed to
+	# begin with.
 	# `duration` isn't used to rescale the animation (fixed pre-tuned speed
 	# instead, like lightning_strike_fall()) -- _fire_arrow_rain() fires
 	# several zones from one shared cached SpriteFrames resource, and mutating
@@ -334,8 +338,11 @@ static func arrow_rain_fall(target_pos: Vector2, duration: float, host: Node) ->
 
 
 static func arrow_rain_impact(pos: Vector2, radius: float, host: Node) -> void:
-	# Basic-line Arrow Rain's impact -- a real 2-frame impact-then-debris burst
-	# (from the same reference sheet) instead of flash_burst()'s plain ring.
+	# Basic-line Arrow Rain's impact -- a real impact-burst frame (from the
+	# same reference sheet) instead of flash_burst()'s plain ring. The
+	# reference's "debris" follow-up frame was dropped -- it was almost
+	# entirely the same stone-ground art as the other frames, so once that
+	# background was cleared there was nothing left of it worth keeping.
 	_play_burst_animation(_get_arrow_rain_impact_frames(), pos, radius, host)
 
 
