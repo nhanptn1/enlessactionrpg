@@ -24,7 +24,7 @@ func _on_game_paused(source: String) -> void:
 	_update_best_label()
 
 
-func _on_game_unpaused() -> void:
+func _on_game_unpaused(_source: String) -> void:
 	panel.visible = false
 
 
