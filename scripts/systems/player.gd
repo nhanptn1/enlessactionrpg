@@ -588,13 +588,19 @@ func _fire_trap_shot(skill: SkillData) -> bool:
 
 
 func _spread_offset(i: int, shot_count: int) -> float:
-	# Symmetric fixed angular spread for a multi-arrow volley, e.g. 3 shots ->
-	# [-15, 0, +15] degrees. Shared by _auto_fire()'s default case and
-	# _fire_elemental_projectile() so both fire a predictable cone around one
-	# aim direction instead of each arrow chasing a different enemy.
-	if shot_count <= 1:
+	# Shot 0 is always the guaranteed dead-center hit on the real target;
+	# the rest fan outward in alternating +/- 15-degree steps: [0, +15, -15,
+	# +30, -30, ...]. A purely symmetric spread (the previous approach) has
+	# no exact center shot whenever shot_count is even -- e.g. 4 shots would
+	# land at +/-7.5/+/-22.5 degrees, so every single arrow misses a
+	# stationary target dead ahead. Since bonus_projectile_count ("+1 Arrow")
+	# can turn Multishot's odd base count into an even one, this isn't an
+	# edge case; it needs to hold for every shot_count.
+	if i == 0:
 		return 0.0
-	return deg_to_rad(15.0 * (i - float(shot_count - 1) / 2.0))
+	var step := (i + 1) / 2
+	var sign := 1.0 if i % 2 == 1 else -1.0
+	return deg_to_rad(15.0 * step * sign)
 
 
 func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> void:

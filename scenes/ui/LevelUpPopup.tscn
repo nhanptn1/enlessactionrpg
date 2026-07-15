@@ -56,19 +56,3 @@ layout_mode = 2
 custom_minimum_size = Vector2(105, 70)
 autowrap_mode = 2
 text = "Choice 3"
-
-[node name="SkillBanner" type="Control" parent="."]
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -320.0
-offset_top = 16.0
-offset_right = -16.0
-offset_bottom = 50.0
-
-[node name="Label" type="Label" parent="SkillBanner"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-horizontal_alignment = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
-theme_override_font_sizes/font_size = 18
-text = ""

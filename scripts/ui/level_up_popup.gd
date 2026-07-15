@@ -14,7 +14,6 @@ const UPGRADE_LABELS := {
 
 @onready var panel: Control = $Panel
 @onready var choice_buttons: Array[Button] = [$Panel/VBox/HBox/Choice1, $Panel/VBox/HBox/Choice2, $Panel/VBox/HBox/Choice3]
-@onready var skill_banner_label: Label = $SkillBanner/Label
 
 var player: Node
 var _pending_ids: Array[String] = []
@@ -26,7 +25,6 @@ func _ready() -> void:
 	player = get_tree().get_first_node_in_group("player")
 	if player:
 		player.level_up.connect(_on_level_up)
-		player.skill_unlocked.connect(_on_skill_unlocked)
 	for i in 3:
 		choice_buttons[i].pressed.connect(_on_choice_selected.bind(i))
 
@@ -46,7 +44,3 @@ func _on_choice_selected(index: int) -> void:
 	player.apply_upgrade(_pending_ids[index])
 	panel.visible = false
 	GameManager.request_unpause("level_up")
-
-
-func _on_skill_unlocked(skill: SkillData) -> void:
-	skill_banner_label.text = "%s Unlocked!" % skill.display_name
