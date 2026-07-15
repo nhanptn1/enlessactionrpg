@@ -25,7 +25,7 @@
 [ext_resource type="Texture2D" path="res://art/characters/archer_shoot_06.png" id="9"]
 
 [sub_resource type="CircleShape2D" id="CircleShape1"]
-radius = 20.0
+radius = 32.0
 
 [sub_resource type="SpriteFrames" id="SpriteFrames1"]
 animations = [{

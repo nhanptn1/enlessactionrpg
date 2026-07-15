@@ -38,7 +38,6 @@ script = ExtResource("1")
 shape = SubResource("RectangleShape1")
 
 [node name="Visual" type="AnimatedSprite2D" parent="."]
-rotation = 3.14159
 scale = Vector2(0.06, 0.06)
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"flight"

@@ -2,14 +2,14 @@ extends CanvasLayer
 class_name LevelUpPopup
 
 const UPGRADE_LABELS := {
-	"damage": "Increase Damage (+10%)",
-	"cooldown": "Reduce Cooldown (-8%)",
+	"damage": "Increase Damage (+2%)",
+	"cooldown": "Reduce Cooldown (-3%)",
 	"projectile_count": "+1 Arrow",
-	"projectile_speed": "Increase Projectile Speed (+15%)",
-	"crit_chance": "Increase Crit Chance (+5%)",
+	"projectile_speed": "Increase Projectile Speed (+5%)",
+	"crit_chance": "Increase Crit Chance (+2%)",
 	"hp": "Gain Max HP (+2)",
 	"shield": "Gain Shield (+2)",
-	"xp_gain": "Improve XP Gain (+10%)",
+	"xp_gain": "Improve XP Gain (+5%)",
 }
 
 @onready var panel: Control = $Panel

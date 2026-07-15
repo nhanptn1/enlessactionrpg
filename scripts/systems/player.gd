@@ -208,47 +208,19 @@ func _on_level_up(new_level: int) -> void:
 
 
 func apply_upgrade(upgrade_id: String) -> void:
-	match upgrade_id:
-		"damage":
-			damage_mult += 0.10
-		"cooldown":
-			cooldown_mult = maxf(cooldown_mult - 0.08, 0.3)
-		"projectile_count":
-			bonus_projectile_count += 1
-		"projectile_speed":
-			projectile_speed_mult += 0.15
-		"crit_chance":
-			crit_chance = minf(crit_chance + 0.05, 1.0)
-		"hp":
-			max_hp += 2.0  # (2026-07-16) 20.0->2.0, same 20%-of-base ratio against the new 10 HP baseline
-			current_hp += 2.0
-			hp_changed.emit(current_hp, max_hp)
-		"shield":
-			shield_capacity += 2.0  # (2026-07-16) 20.0->2.0, same ratio as the "hp" case above
-			current_shield = shield_capacity
-		"xp_gain":
-			xp_gain_mult += 0.10
-	_refresh_timer_cooldowns()
-
-
-func _apply_item_stat_boost(upgrade_id: String) -> void:
-	# (2026-07-16) World item drops apply their own increments, separate from
-	# the same-named level-up popup choice above -- items are far more
-	# frequent/passive pickups than a deliberate level-up pick, so per user
-	# request they're tuned lighter across the board: damage +2% (was
-	# +10%), cooldown -3% (was -8%), projectile_speed +5% (was +15%),
-	# crit_chance +2% (was +5%), hp/shield +2.0 (same as the level-up
-	# popup's own now-rescaled value, made explicit here rather than
-	# falling through), xp_gain +5% (was +10%). projectile_count is the
-	# only upgrade_id never called out for items, so it's the only one
-	# still falling back to the shared apply_upgrade() value.
+	# (2026-07-16) Same increments for both the level-up popup and world item
+	# drops -- damage +2%, cooldown -3%, projectile_speed +5%, crit_chance
+	# +2%, xp_gain +5%, hp/shield +2.0 (was 10%/-8%/15%/5%/10% here; item
+	# drops already used these smaller values via the now-removed
+	# _apply_item_stat_boost(), this just brings the level-up popup in line
+	# with it per user feedback that the popup still showed the old numbers).
 	match upgrade_id:
 		"damage":
 			damage_mult += 0.02
-			_refresh_timer_cooldowns()
 		"cooldown":
 			cooldown_mult = maxf(cooldown_mult - 0.03, 0.3)
-			_refresh_timer_cooldowns()
+		"projectile_count":
+			bonus_projectile_count += 1
 		"projectile_speed":
 			projectile_speed_mult += 0.05
 		"crit_chance":
@@ -262,8 +234,7 @@ func _apply_item_stat_boost(upgrade_id: String) -> void:
 			current_shield = shield_capacity
 		"xp_gain":
 			xp_gain_mult += 0.05
-		_:
-			apply_upgrade(upgrade_id)
+	_refresh_timer_cooldowns()
 
 
 func apply_element_upgrade(upgrade: UpgradeResource) -> void:
@@ -706,7 +677,7 @@ func apply_item(item: ItemData) -> void:
 	match item.effect_type:
 		"stat_boost":
 			for _i in item.upgrade_stacks:
-				_apply_item_stat_boost(item.upgrade_id)
+				apply_upgrade(item.upgrade_id)
 		"instant_heal":
 			current_hp = minf(current_hp + item.effect_amount, max_hp)
 			hp_changed.emit(current_hp, max_hp)
