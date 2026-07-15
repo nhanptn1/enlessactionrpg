@@ -121,13 +121,20 @@ func _start_next_wave() -> void:
 	_spawn_timer.start()
 
 
+const PROCEDURAL_TYPES_PER_WAVE := 3  # (2026-07-16) was 1 -- a single random type per wave meant any wave that happened to roll the pool's one ranged species (Cursed Wraith) became 100% ranged monsters; picking several distinct types every wave mixes melee/ranged naturally without needing to hand-classify each species.
+
+
 func _generate_wave(wave_number: int) -> WaveData:
 	var wave := WaveData.new()
 	wave.wave_number = wave_number
-	wave.enemy_pool = [procedural_enemy_pool[randi() % procedural_enemy_pool.size()]]
+	var pool := procedural_enemy_pool.duplicate()
+	pool.shuffle()
+	var type_count: int = mini(PROCEDURAL_TYPES_PER_WAVE, pool.size())
+	wave.enemy_pool = pool.slice(0, type_count)
+
 	var extra_waves := wave_number - waves.size()
 	var count: int = _last_authored_count() + COUNT_SCALING_PER_WAVE * extra_waves
-	wave.spawn_counts = [count]
+	wave.spawn_counts = _split_count(count, wave.enemy_pool.size())
 	wave.spawn_interval = maxf(SPAWN_INTERVAL_FLOOR, _last_authored_interval() - SPAWN_INTERVAL_DECAY * extra_waves)
 	wave.is_boss_wave = wave_number % BOSS_WAVE_INTERVAL == 0
 
@@ -137,6 +144,18 @@ func _generate_wave(wave_number: int) -> WaveData:
 	_current_xp_override = -1
 	_current_visual_scale = 1.0
 	return wave
+
+
+func _split_count(total: int, bucket_count: int) -> Array[int]:
+	# Distributes total as evenly as possible across bucket_count buckets --
+	# e.g. _split_count(11, 3) -> [4, 4, 3], preserving the exact total rather
+	# than losing spawns to integer-division rounding.
+	var result: Array[int] = []
+	var base_count := total / bucket_count
+	var remainder := total % bucket_count
+	for i in bucket_count:
+		result.append(base_count + (1 if i < remainder else 0))
+	return result
 
 
 func _boss_hp_mult(cycle: int) -> float:

@@ -305,16 +305,15 @@ static func _get_lightning_strike_frames() -> SpriteFrames:
 
 static func arrow_rain_fall(target_pos: Vector2, duration: float, host: Node) -> void:
 	# Basic-line Arrow Rain's own telegraph visual -- a real 3-frame sequence
-	# (from the supplied "physic-arrows-rain.png" reference: arrows rising ->
-	# intense barrage -> falling arrows) instead of falling_strike()'s plain
-	# descending ball. Bottom-anchored so the ground marker stays put while
-	# the arrow cluster visibly grows up out of it. The reference's 4th
-	# "ground target" frame (pure stone-ground art, no arrows) was dropped --
-	# each frame's own baked-in stone-ground band was also cleared to
-	# transparent (see art/vfx/arrow_rain_*.png), since the game already
-	# draws its own ground marker via Telegraph.show_circle() at this exact
-	# spot and the art's stone texture was never fully background-removed to
-	# begin with.
+	# (2026-07-16: re-extracted from a simpler supplied reference,
+	# "arrow-rain-simple.png" -- arrows actually descending through the air,
+	# closer to the ground each frame, replacing the earlier art's "column of
+	# arrows growing up out of the ground" abstraction) instead of
+	# falling_strike()'s plain descending ball. Bottom-anchored so the ground
+	# marker stays put while the arrows visibly approach it frame to frame.
+	# The reference sheet's own standalone telegraph-ring frame was dropped --
+	# the game already draws its own ground marker via Telegraph.show_circle()
+	# at this exact spot, so a second ring baked into the sprite would double up.
 	# `duration` isn't used to rescale the animation (fixed pre-tuned speed
 	# instead, like lightning_strike_fall()) -- _fire_arrow_rain() fires
 	# several zones from one shared cached SpriteFrames resource, and mutating
@@ -339,10 +338,8 @@ static func arrow_rain_fall(target_pos: Vector2, duration: float, host: Node) ->
 
 static func arrow_rain_impact(pos: Vector2, radius: float, host: Node) -> void:
 	# Basic-line Arrow Rain's impact -- a real impact-burst frame (from the
-	# same reference sheet) instead of flash_burst()'s plain ring. The
-	# reference's "debris" follow-up frame was dropped -- it was almost
-	# entirely the same stone-ground art as the other frames, so once that
-	# background was cleared there was nothing left of it worth keeping.
+	# same "arrow-rain-simple.png" reference as arrow_rain_fall() above)
+	# instead of flash_burst()'s plain ring.
 	_play_burst_animation(_get_arrow_rain_impact_frames(), pos, radius, host)
 
 

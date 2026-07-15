@@ -11,6 +11,7 @@ class_name HUD
 @onready var skill_cooldown: RadialCooldown = $Margin/VBox/SkillRow/SkillIconStack/SkillCooldown
 @onready var elemental_rows_container: VBoxContainer = $Margin/VBox/ElementalSkillRows
 @onready var pause_button: Button = $PauseButton
+@onready var skill_button: Button = $SkillButton
 @onready var boss_hp_bar_container: MarginContainer = $Margin/VBox/BossHPBarContainer
 @onready var boss_hp_bar: ProgressBar = $Margin/VBox/BossHPBarContainer/BossVBox/BossHPBar
 
@@ -67,6 +68,7 @@ func _ready() -> void:
 	# every other default-process_mode gameplay node, so this button simply
 	# can't be pressed again until PauseMenu's own Resume button unpauses.
 	pause_button.pressed.connect(_on_pause_pressed)
+	skill_button.pressed.connect(_on_skill_button_pressed)
 
 
 func _process(_delta: float) -> void:
@@ -87,6 +89,17 @@ func _process(_delta: float) -> void:
 func _on_pause_pressed() -> void:
 	AudioManager.play_ui("ui_click")
 	GameManager.request_pause("pause_menu")
+
+
+func _on_skill_button_pressed() -> void:
+	# Pauses via the exact same "pause_menu" source PauseButton/Esc use (so
+	# state tracking and Esc-to-resume both stay correct), then jumps straight
+	# to the skill panel instead of showing the main pause menu first.
+	AudioManager.play_ui("ui_click")
+	GameManager.request_pause("pause_menu")
+	var pause_menu := get_tree().get_first_node_in_group("pause_menu")
+	if is_instance_valid(pause_menu):
+		pause_menu.open_skills_panel()
 
 
 func _on_player_hp_changed(current: float, max_hp: float) -> void:

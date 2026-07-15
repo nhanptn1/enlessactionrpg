@@ -5,12 +5,12 @@
 
 [resource]
 script = ExtResource("1")
-id = "lightning_t2_static_charge"
+id = "lightning_t2_static_storm"
 element = 2
 icon = ExtResource("2")
-title = "Static Charge"
-description = "Shock starts dealing direct damage over time on its own. Also upgrades your Lightning skill to Chain Spark."
-stat_to_modify = "lightning_dps"
-modification_value = 3.0
+title = "Static Storm"
+description = "Shock slows enemies further. Also upgrades your Lightning skill to Chain Spark."
+stat_to_modify = "lightning_slow_bonus"
+modification_value = 0.2
 tier = 2
-exclusive_group = "lightning_t2"
+exclusive_group = ""

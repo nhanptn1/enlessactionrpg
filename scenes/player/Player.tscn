@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3]
+[gd_scene load_steps=28 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/player.gd" id="1"]
 [ext_resource type="Resource" path="res://resources/skills/basic_shot.tres" id="2"]
@@ -15,6 +15,9 @@
 [ext_resource type="Resource" path="res://resources/skills/volt_arrow.tres" id="18"]
 [ext_resource type="Resource" path="res://resources/skills/chain_spark.tres" id="23"]
 [ext_resource type="Resource" path="res://resources/skills/thunder_storm.tres" id="24"]
+[ext_resource type="Resource" path="res://resources/skills/wildfire_storm.tres" id="25"]
+[ext_resource type="Resource" path="res://resources/skills/eternal_frost.tres" id="26"]
+[ext_resource type="Resource" path="res://resources/skills/storm_overload.tres" id="27"]
 [ext_resource type="Texture2D" path="res://art/characters/archer_idle_01.png" id="3"]
 [ext_resource type="Texture2D" path="res://art/characters/archer_idle_02.png" id="14"]
 [ext_resource type="Texture2D" path="res://art/characters/archer_shoot_01.png" id="4"]
@@ -73,9 +76,9 @@ multishot = ExtResource("10")
 piercing_arrow = ExtResource("11")
 arrow_rain = ExtResource("12")
 trap_shot = ExtResource("13")
-fire_skills = [ExtResource("16"), ExtResource("19"), ExtResource("20")]
-frost_skills = [ExtResource("17"), ExtResource("21"), ExtResource("22")]
-lightning_skills = [ExtResource("18"), ExtResource("23"), ExtResource("24")]
+fire_skills = [ExtResource("16"), ExtResource("19"), ExtResource("20"), ExtResource("25")]
+frost_skills = [ExtResource("17"), ExtResource("21"), ExtResource("22"), ExtResource("26")]
+lightning_skills = [ExtResource("18"), ExtResource("23"), ExtResource("24"), ExtResource("27")]
 
 [node name="Sprite" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames1")

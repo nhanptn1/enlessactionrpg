@@ -5,12 +5,12 @@
 
 [resource]
 script = ExtResource("1")
-id = "fire_t2_ignite_trail"
+id = "fire_t2_inferno_growth"
 element = 0
 icon = ExtResource("2")
-title = "Ignite Trail"
-description = "Burning enemies have a chance to ignite one nearby enemy. Also upgrades your Fire skill to Explosive Volley."
+title = "Inferno Growth"
+description = "Burning enemies have a chance to ignite nearby enemies. Also upgrades your Fire skill to Explosive Volley."
 stat_to_modify = "fire_spread_chance"
 modification_value = 0.5
 tier = 2
-exclusive_group = "fire_t2"
+exclusive_group = ""

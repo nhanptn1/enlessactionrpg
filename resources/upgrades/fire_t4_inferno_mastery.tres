@@ -1,16 +1,16 @@
 [gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
-[ext_resource type="Texture2D" path="res://art/ui/icons/icon_explosive_volley.png" id="2"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_wildfire_storm.png" id="2"]
 
 [resource]
 script = ExtResource("1")
-id = "fire_t2_scorching_intensity"
+id = "fire_t4_inferno_mastery"
 element = 0
 icon = ExtResource("2")
-title = "Scorching Intensity"
-description = "Burn deals 50% more damage per tick. Also upgrades your Fire skill to Explosive Volley."
+title = "Inferno Mastery"
+description = "Burn deals even more damage per tick. Also upgrades your Fire skill to Wildfire Storm."
 stat_to_modify = "fire_dps_mult"
 modification_value = 0.5
-tier = 2
-exclusive_group = "fire_t2"
+tier = 4
+exclusive_group = ""

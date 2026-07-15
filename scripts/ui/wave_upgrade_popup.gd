@@ -30,6 +30,7 @@ var _card_styles: Dictionary = {}  # UpgradeResource.ElementType -> StyleBoxText
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_to_group("wave_upgrade_popup")  # lets SkillTreeView read upgrade_pool without a direct node reference
 	panel.visible = false
 	player = get_tree().get_first_node_in_group("player")
 	SignalBus.wave_cleared.connect(_on_wave_cleared)
@@ -98,12 +99,13 @@ func _apply_card_style(button: Button, element: UpgradeResource.ElementType) -> 
 
 func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Array[UpgradeResource]:
 	# Returns exactly one offerable "unit" for this element, chosen at random
-	# from whichever units currently exist: the next tier-tree match (1 or 2
-	# resources, a real fork when it's 2) while the tree isn't maxed, plus --
-	# once the element is unlocked (tier >= 1) -- the 2 repeatable tier=0
-	# +damage/-cooldown cards, each its own single-resource unit. Picking one
-	# unit (not all of them) keeps this element contributing at most one
-	# offer per wave, same as before the repeatable cards existed.
+	# from whichever units currently exist: the next tier's single direct
+	# upgrade (2026-07-16: no more forks -- every tier is exactly 1 resource
+	# now) while the tree isn't maxed, plus -- once the element is unlocked
+	# (tier >= 1) -- the 2 repeatable tier=0 +damage/-cooldown cards, each its
+	# own single-resource unit. Picking one unit (not all of them) keeps this
+	# element contributing at most one offer per wave, same as before the
+	# repeatable cards existed.
 	var current_tier := _current_level_for(target_element)
 	var units: Array = []
 	var next_tier := current_tier + 1
@@ -111,8 +113,6 @@ func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Arr
 		var tier_matches: Array[UpgradeResource] = []
 		for upgrade in upgrade_pool:
 			if upgrade.element != target_element or upgrade.tier != next_tier:
-				continue
-			if upgrade.exclusive_group != "" and player.chosen_branches.has(upgrade.exclusive_group):
 				continue
 			tier_matches.append(upgrade)
 		if not tier_matches.is_empty():
@@ -140,12 +140,12 @@ func _current_level_for(element: UpgradeResource.ElementType) -> int:
 	return 0
 
 
-func _max_tier_for(element: UpgradeResource.ElementType) -> int:
-	# Physical is a 4-step linear chain (Multishot/Piercing Arrow/Arrow
-	# Rain/Trap Shot); the 3 elemental trees each cap at tier 3.
-	if element == UpgradeResource.ElementType.PHYSICAL:
-		return 4
-	return 3
+func _max_tier_for(_element: UpgradeResource.ElementType) -> int:
+	# (2026-07-16) All 4 lines are now a direct 4-tier linear chain -- Physical
+	# was always this shape (Multishot/Piercing Arrow/Arrow Rain/Trap Shot);
+	# Fire/Frost/Lightning's former 2-option forks at tier 2/3/4 were merged
+	# into single direct upgrades (see player.gd's apply_element_upgrade()).
+	return 4
 
 
 func _on_choice_selected(index: int) -> void:

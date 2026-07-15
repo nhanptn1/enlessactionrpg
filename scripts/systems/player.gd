@@ -51,10 +51,12 @@ const UPGRADE_POOL: Array[String] = [
 @export var piercing_arrow: SkillData
 @export var arrow_rain: SkillData
 @export var trap_shot: SkillData
-# Index 0/1/2 = tier 1/2/3 -- e.g. fire_skills = [Fire Arrow, Explosive Volley,
-# Burning Rain]. fire_level (1-3) indexes straight into this array; each tier
-# pick wholesale-swaps the active attack, mirroring the basic line's own
-# Basic Shot -> Multishot -> ... progression, just scoped per element.
+# Index 0/1/2/3 = tier 1/2/3/4 -- e.g. fire_skills = [Fire Arrow, Explosive
+# Volley, Burning Rain, Wildfire Storm]. fire_level (1-4) indexes straight
+# into this array; each tier pick wholesale-swaps the active attack,
+# mirroring the basic line's own Basic Shot -> Multishot -> ... progression,
+# just scoped per element. (2026-07-16) grew from 3 to 4 tiers -- see
+# apply_element_upgrade() and wave_upgrade_popup.gd's _max_tier_for().
 @export var fire_skills: Array[SkillData] = []
 @export var frost_skills: Array[SkillData] = []
 @export var lightning_skills: Array[SkillData] = []
@@ -81,7 +83,6 @@ var frost_level := 0
 # no "active selection": whichever tier is reached is always what
 # attack_timer fires, since there's only ever one physical line.
 var physical_level := 0
-var chosen_branches: Dictionary = {}  # exclusive_group -> picked UpgradeResource.id
 
 # Only one elemental skill auto-fires at a time -- players can still invest
 # tiers into all 3 trees (see apply_element_upgrade()), but their timers stay
@@ -245,6 +246,7 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 		_refresh_timer_cooldowns()
 		skill_unlocked.emit(_current_skill)
 		SignalBus.skill_unlocked.emit(_current_skill)
+		_apply_upgrade_stats(upgrade)
 		return
 	# tier == 0 marks the repeatable +damage/-cooldown cards (see
 	# fire_damage_boost.tres etc.) -- these must not advance tree progress or
@@ -258,10 +260,16 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 			UpgradeResource.ElementType.FROST:
 				frost_level += 1
 		_update_elemental_skill(upgrade.element)
-	if upgrade.exclusive_group != "":
-		chosen_branches[upgrade.exclusive_group] = upgrade.id
-	set(upgrade.stat_to_modify, get(upgrade.stat_to_modify) + upgrade.modification_value)
+	_apply_upgrade_stats(upgrade)
 	_refresh_elemental_timer(upgrade.element)
+
+
+func _apply_upgrade_stats(upgrade: UpgradeResource) -> void:
+	# Guarded on non-empty since e.g. all physical upgrades and every tier-1
+	# root have stat_to_modify=="" -- set(upgrade.stat_to_modify, ...) would
+	# resolve get("") to null and crash on null + float otherwise.
+	if upgrade.stat_to_modify != "":
+		set(upgrade.stat_to_modify, get(upgrade.stat_to_modify) + upgrade.modification_value)
 
 
 func _update_elemental_skill(element: UpgradeResource.ElementType) -> void:
@@ -319,6 +327,29 @@ func get_unlocked_elements() -> Array[int]:
 	if lightning_level > 0:
 		result.append(UpgradeResource.ElementType.LIGHTNING)
 	return result
+
+
+func get_physical_tier() -> int:
+	return physical_level
+
+
+func get_element_tier(element: int) -> int:
+	match element:
+		UpgradeResource.ElementType.FIRE:
+			return fire_level
+		UpgradeResource.ElementType.FROST:
+			return frost_level
+		UpgradeResource.ElementType.LIGHTNING:
+			return lightning_level
+	return 0
+
+
+func get_current_physical_skill() -> SkillData:
+	return _current_skill
+
+
+func get_current_skill_for_element(element: int) -> SkillData:
+	return _current_skill_for_element(element)
 
 
 func select_active_element(element: int) -> void:

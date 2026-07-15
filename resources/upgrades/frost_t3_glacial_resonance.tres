@@ -5,12 +5,12 @@
 
 [resource]
 script = ExtResource("1")
-id = "frost_t3_ice_wall_nova"
+id = "frost_t3_glacial_resonance"
 element = 1
 icon = ExtResource("2")
-title = "Glacial Cascade"
+title = "Glacial Resonance"
 description = "Freezing an enemy has a chance to also freeze one nearby enemy. Also upgrades your Frost skill to Ice Wall Nova."
 stat_to_modify = "frost_spread_chance"
 modification_value = 0.5
 tier = 3
-exclusive_group = "frost_t3"
+exclusive_group = ""

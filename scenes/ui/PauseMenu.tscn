@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/skill_tree_view.gd" id="2"]
 
 [node name="PauseMenu" type="CanvasLayer"]
 process_mode = 3
@@ -55,9 +56,74 @@ custom_minimum_size = Vector2(160, 44)
 size_flags_horizontal = 4
 text = "Restart"
 
+[node name="SkillsButton" type="Button" parent="Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 44)
+size_flags_horizontal = 4
+text = "Skills"
+
 [node name="Hint" type="Label" parent="Panel/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
 text = "Esc to resume"
+
+[node name="SkillPanel" type="Control" parent="."]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 0
+
+[node name="Dim" type="ColorRect" parent="SkillPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.78)
+
+[node name="Margin" type="MarginContainer" parent="SkillPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 40.0
+offset_right = -24.0
+offset_bottom = -28.0
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="SkillPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="SkillPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 30
+horizontal_alignment = 1
+text = "Skills"
+
+[node name="Scroll" type="ScrollContainer" parent="SkillPanel/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ScrollVBox" type="VBoxContainer" parent="SkillPanel/Margin/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="TreeView" type="Control" parent="SkillPanel/Margin/VBox/Scroll/ScrollVBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("2")
+
+[node name="RowsContainer" type="VBoxContainer" parent="SkillPanel/Margin/VBox/Scroll/ScrollVBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 14
+
+[node name="BackButton" type="Button" parent="SkillPanel/Margin/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 48)
+size_flags_horizontal = 4
+text = "Back"

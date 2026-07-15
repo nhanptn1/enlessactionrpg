@@ -5,12 +5,12 @@
 
 [resource]
 script = ExtResource("1")
-id = "frost_t2_piercing_chill"
+id = "frost_t2_deep_freeze"
 element = 1
 icon = ExtResource("2")
-title = "Piercing Chill"
-description = "Freezes last 1 second longer. Also upgrades your Frost skill to Frozen Burst."
+title = "Deep Freeze"
+description = "Freezes last longer. Also upgrades your Frost skill to Frozen Burst."
 stat_to_modify = "frost_duration_bonus"
 modification_value = 1.0
 tier = 2
-exclusive_group = "frost_t2"
+exclusive_group = ""

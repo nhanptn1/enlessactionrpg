@@ -1,16 +1,16 @@
 [gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
-[ext_resource type="Texture2D" path="res://art/ui/icons/icon_frozen_burst.png" id="2"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_eternal_frost.png" id="2"]
 
 [resource]
 script = ExtResource("1")
-id = "frost_t2_brittle_frost"
+id = "frost_t4_frozen_mastery"
 element = 1
 icon = ExtResource("2")
-title = "Brittle Frost"
-description = "Frozen enemies take 30% more damage from all sources. Also upgrades your Frost skill to Frozen Burst."
+title = "Frozen Mastery"
+description = "Frozen enemies take even more damage from all sources. Also upgrades your Frost skill to Eternal Frost."
 stat_to_modify = "frost_damage_amp"
 modification_value = 0.3
-tier = 2
-exclusive_group = "frost_t2"
+tier = 4
+exclusive_group = ""

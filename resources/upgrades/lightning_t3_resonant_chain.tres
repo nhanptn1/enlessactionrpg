@@ -5,12 +5,12 @@
 
 [resource]
 script = ExtResource("1")
-id = "lightning_t3_overcharge"
+id = "lightning_t3_resonant_chain"
 element = 2
 icon = ExtResource("2")
-title = "Overcharge"
-description = "Superconductor Surge deals 50% more damage. Also upgrades your Lightning skill to Thunder Storm."
-stat_to_modify = "lightning_combo_bonus_mult"
+title = "Resonant Chain"
+description = "Shocking an enemy has a chance to also shock one nearby enemy. Also upgrades your Lightning skill to Thunder Storm."
+stat_to_modify = "lightning_spread_chance"
 modification_value = 0.5
 tier = 3
-exclusive_group = "lightning_t3"
+exclusive_group = ""

@@ -5,12 +5,12 @@
 
 [resource]
 script = ExtResource("1")
-id = "fire_t3_explosive_volley"
+id = "fire_t3_burning_legacy"
 element = 0
 icon = ExtResource("2")
-title = "Volatile Embers"
+title = "Burning Legacy"
 description = "A burning enemy explodes on death, damaging nearby enemies. Also upgrades your Fire skill to Burning Rain."
 stat_to_modify = "fire_explode_on_death"
 modification_value = 1.0
 tier = 3
-exclusive_group = "fire_t3"
+exclusive_group = ""
