@@ -20,6 +20,11 @@ const MAX_X := 660.0
 # too wide, especially once "+1 Arrow" stacked the shot count up (each extra
 # arrow added another full 15-degree step with no cap on the total spread).
 const SPREAD_STEP_DEGREES := 8.0
+# (2026-07-16) bonus_projectile_count ("+1 Arrow") stacks with no limit of
+# its own onto whichever basic-line skill is active -- without a ceiling,
+# enough picks could make Multishot or Piercing Arrow fire an absurd number
+# of arrows in one volley. User asked for a hard cap of 6 total arrows.
+const MAX_SHOT_COUNT := 6
 
 # Arrow Rain / Burning Rain / Thunder Storm (SkillData.FireMode.ARROW_RAIN):
 # telegraphed area strikes, not a literal top-to-bottom falling volley -- see
@@ -476,7 +481,7 @@ func _auto_fire(skill: SkillData) -> void:
 			# nearby -- previously each arrow independently retargeted its
 			# own nearest enemy, which read as erratic once the player could
 			# strafe left/right instead of staying fixed at the bottom.
-			var shot_count: int = skill.projectile_count + bonus_projectile_count
+			var shot_count: int = mini(skill.projectile_count + bonus_projectile_count, MAX_SHOT_COUNT)
 			var targets := _get_nearest_enemies(1)
 			if targets.is_empty():
 				return

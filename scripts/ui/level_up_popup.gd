@@ -7,8 +7,8 @@ const UPGRADE_LABELS := {
 	"projectile_count": "+1 Arrow",
 	"projectile_speed": "Increase Projectile Speed (+15%)",
 	"crit_chance": "Increase Crit Chance (+5%)",
-	"hp": "Gain Max HP (+20)",
-	"shield": "Gain Shield (+20)",
+	"hp": "Gain Max HP (+2)",
+	"shield": "Gain Shield (+2)",
 	"xp_gain": "Improve XP Gain (+10%)",
 }
 

@@ -2,6 +2,7 @@ extends CanvasLayer
 class_name HUD
 
 @onready var heart_hp: HeartHPDisplay = $HeartHP
+@onready var hp_bar: ProgressBar = $HPBar
 @onready var xp_bar: ProgressBar = $Margin/VBox/XPBar
 @onready var level_label: Label = $Margin/VBox/LevelLabel
 @onready var wave_label: Label = $Margin/VBox/WaveLabel
@@ -10,8 +11,8 @@ class_name HUD
 @onready var skill_cooldown: RadialCooldown = $Margin/VBox/SkillRow/SkillIconStack/SkillCooldown
 @onready var elemental_rows_container: VBoxContainer = $Margin/VBox/ElementalSkillRows
 @onready var pause_button: Button = $PauseButton
-@onready var boss_hp_bar_container: MarginContainer = $BossHPBarContainer
-@onready var boss_hp_bar: ProgressBar = $BossHPBarContainer/BossVBox/BossHPBar
+@onready var boss_hp_bar_container: MarginContainer = $Margin/VBox/BossHPBarContainer
+@onready var boss_hp_bar: ProgressBar = $Margin/VBox/BossHPBarContainer/BossVBox/BossHPBar
 
 const ACTIVE_ROW_MODULATE := Color(1, 1, 1, 1)
 const INACTIVE_ROW_MODULATE := Color(1, 1, 1, 0.45)  # dim, but still tappable -- read as "unlocked, not active"
@@ -34,6 +35,8 @@ func _ready() -> void:
 		_player.elemental_skill_changed.connect(_on_elemental_skill_changed)
 		_player.active_element_switched.connect(_on_active_element_switched)
 		heart_hp.current_hp = roundi(_player.current_hp)
+		hp_bar.max_value = _player.max_hp
+		hp_bar.value = _player.current_hp
 		xp_bar.max_value = _player.xp_to_next_level()
 		xp_bar.value = _player.xp
 		level_label.text = "Lv. %d" % _player.level
@@ -86,8 +89,10 @@ func _on_pause_pressed() -> void:
 	GameManager.request_pause("pause_menu")
 
 
-func _on_player_hp_changed(current: float, _max_hp: float) -> void:
+func _on_player_hp_changed(current: float, max_hp: float) -> void:
 	heart_hp.current_hp = roundi(current)
+	hp_bar.max_value = max_hp
+	hp_bar.value = current
 
 
 func _on_player_xp_changed(current: int, needed: int) -> void:
