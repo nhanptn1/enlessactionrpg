@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "physical_t3_arrow_rain"
+element = 3
+title = "Arrow Rain"
+description = "Upgrades your basic attack: a telegraphed area strike raining arrows onto nearby enemies."
+stat_to_modify = ""
+modification_value = 0.0
+tier = 3
+exclusive_group = ""

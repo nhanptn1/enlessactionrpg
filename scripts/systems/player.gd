@@ -67,11 +67,18 @@ var xp_gain_mult := 1.0
 var fire_level := 0  # highest tier reached (0-3), not a pick count
 var lightning_level := 0
 var frost_level := 0
+# Physical line's tier (0-4): 0 = Basic Shot (starting default, no pick
+# needed), 1-4 = Multishot/Piercing Arrow/Arrow Rain/Trap Shot, picked one at
+# a time via the wave-clear popup like the elemental trees -- see
+# apply_element_upgrade()'s PHYSICAL branch. Unlike elementals, physical has
+# no "active selection": whichever tier is reached is always what
+# attack_timer fires, since there's only ever one physical line.
+var physical_level := 0
 var chosen_branches: Dictionary = {}  # exclusive_group -> picked UpgradeResource.id
 
 # Only one elemental skill auto-fires at a time -- players can still invest
 # tiers into all 3 trees (see apply_element_upgrade()), but their timers stay
-# stopped unless active. -1 = no element unlocked yet. See switch_active_element().
+# stopped unless active. -1 = no element unlocked yet. See select_active_element().
 var active_element: int = -1
 
 # Independent elemental skill damage/cooldown multipliers -- deliberately kept
@@ -120,7 +127,7 @@ signal skill_unlocked(skill: SkillData)
 # UpgradeResource.ElementType, typed int since signals can't carry a nested enum.
 signal elemental_skill_changed(element: int, skill: SkillData)
 # HUD-only signal: fires when the *active* element changes (first auto-activate
-# on unlock, or a manual switch_active_element() cycle) -- distinct from
+# on unlock, or an explicit select_active_element() pick) -- distinct from
 # elemental_skill_changed, which fires on every tier pick regardless of which
 # element is active.
 signal active_element_switched(element: int, skill: SkillData)
@@ -186,31 +193,9 @@ func gain_xp(amount: int) -> void:
 func _on_level_up(new_level: int) -> void:
 	level_up.emit(new_level)
 	SignalBus.level_up.emit(new_level)
-	if new_level == 3:
-		# Replaces the active attack wholesale rather than adding a second
-		# independent timer -- the "+1 Arrow" upgrade already generalizes
-		# "fire more arrows per shot", so a permanently-running separate
-		# Multishot loop just duplicated that and visually collided with
-		# Basic Shot (two unrelated arrows firing on overlapping schedules).
-		_current_skill = multishot
-		_refresh_timer_cooldowns()
-		skill_unlocked.emit(multishot)
-		SignalBus.skill_unlocked.emit(multishot)
-	if new_level == 5:
-		_current_skill = piercing_arrow
-		_refresh_timer_cooldowns()
-		skill_unlocked.emit(piercing_arrow)
-		SignalBus.skill_unlocked.emit(piercing_arrow)
-	if new_level == 8:
-		_current_skill = arrow_rain
-		_refresh_timer_cooldowns()
-		skill_unlocked.emit(arrow_rain)
-		SignalBus.skill_unlocked.emit(arrow_rain)
-	if new_level == 10:
-		_current_skill = trap_shot
-		_refresh_timer_cooldowns()
-		skill_unlocked.emit(trap_shot)
-		SignalBus.skill_unlocked.emit(trap_shot)
+	# The physical line (Multishot/Piercing Arrow/Arrow Rain/Trap Shot) no
+	# longer auto-swaps at fixed levels -- it's now a wave-clear player pick
+	# like the elemental trees, see apply_element_upgrade()'s PHYSICAL branch.
 
 
 func apply_upgrade(upgrade_id: String) -> void:
@@ -238,6 +223,17 @@ func apply_upgrade(upgrade_id: String) -> void:
 
 
 func apply_element_upgrade(upgrade: UpgradeResource) -> void:
+	if upgrade.element == UpgradeResource.ElementType.PHYSICAL:
+		physical_level += 1
+		match physical_level:
+			1: _current_skill = multishot
+			2: _current_skill = piercing_arrow
+			3: _current_skill = arrow_rain
+			4: _current_skill = trap_shot
+		_refresh_timer_cooldowns()
+		skill_unlocked.emit(_current_skill)
+		SignalBus.skill_unlocked.emit(_current_skill)
+		return
 	# tier == 0 marks the repeatable +damage/-cooldown cards (see
 	# fire_damage_boost.tres etc.) -- these must not advance tree progress or
 	# swap the active skill.
@@ -280,8 +276,8 @@ func _update_elemental_skill(element: UpgradeResource.ElementType) -> void:
 	var skill := _current_skill_for_element(element)
 	if active_element == -1:
 		# First elemental unlock of the run -- auto-activate it so the player
-		# isn't left with zero elemental damage until they manually switch.
-		_set_active_element(element)
+		# isn't left with zero elemental damage until they manually select one.
+		select_active_element(element)
 	elif element == active_element:
 		var timer := get_elemental_timer_by_element(element)
 		if timer.is_stopped():
@@ -313,18 +309,16 @@ func get_unlocked_elements() -> Array[int]:
 	return result
 
 
-func switch_active_element() -> void:
-	var unlocked := get_unlocked_elements()
-	if unlocked.size() <= 1:
-		return
-	var current_index := unlocked.find(active_element)
-	var next_element: int = unlocked[(current_index + 1) % unlocked.size()]
-	_set_active_element(next_element)
-
-
-func _set_active_element(element: int) -> void:
+func select_active_element(element: int) -> void:
+	# Called directly by the HUD when the player taps a specific unlocked
+	# element's icon -- picks that exact element rather than cycling, so
+	# there's no ambiguity about which path becomes active (a blind
+	# next-in-list cycle was confusing once 3 elements were unlocked: tapping
+	# it didn't reliably return to the path the player expected).
 	if element == active_element:
 		return
+	if _current_skill_for_element(element) == null:
+		return  # not actually unlocked yet -- ignore rather than activate a blank skill
 	var old_timer := get_elemental_timer_by_element(active_element)
 	if is_instance_valid(old_timer):
 		old_timer.stop()
@@ -395,20 +389,19 @@ func _fire_elemental_projectile(skill: SkillData, dmg_mult: float, status_rolls:
 	# projectile_count=1) and the multi-arrow tier-2 spread (Explosive Volley,
 	# projectile_count=3) -- burst_radius/chain_count (Frozen Burst, Ice Wall
 	# Nova, Chain Spark) ride along on the projectile itself, applied at hit
-	# time in Projectile._on_body_entered().
+	# time in Projectile._on_body_entered(). All shots fire as a fixed cone
+	# around one aim direction (see _spread_offset()) rather than each arrow
+	# separately retargeting its own nearest enemy.
 	var shot_count: int = skill.projectile_count
-	var targets := _get_nearest_enemies(shot_count)
+	var targets := _get_nearest_enemies(1)
 	if targets.is_empty():
 		return
 	var proj_speed: float = BASE_PROJECTILE_SPEED * projectile_speed_mult
 	var pool := get_tree().get_first_node_in_group("projectile_pool")
+	var aim_point := _predict_intercept(attack_origin.global_position, targets[0], proj_speed)
+	var base_dir := (aim_point - attack_origin.global_position).normalized()
 	for i in shot_count:
-		var target: Node2D = targets[i % targets.size()]
-		var aim_point := _predict_intercept(attack_origin.global_position, target, proj_speed)
-		var angle_offset := 0.0
-		if targets.size() < shot_count:
-			angle_offset = deg_to_rad(15.0 * (i - float(shot_count - 1) / 2.0))
-		var dir := (aim_point - attack_origin.global_position).normalized().rotated(angle_offset)
+		var dir := base_dir.rotated(_spread_offset(i, shot_count))
 		var dmg := skill.base_damage * dmg_mult * (2.0 if randf() < crit_chance else 1.0)
 		var proj = pool.acquire(skill.projectile_scene)
 		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, status_rolls, skill.burst_radius, skill.chain_count, skill.visual_scale, skill.burst_vfx_id)
@@ -439,16 +432,17 @@ func _auto_fire(skill: SkillData) -> void:
 			if not _fire_trap_shot(skill):
 				return
 		_:
+			# Fixed cone around the nearest enemy's direction, same shot
+			# count regardless of how many distinct targets are actually
+			# nearby -- previously each arrow independently retargeted its
+			# own nearest enemy, which read as erratic once the player could
+			# strafe left/right instead of staying fixed at the bottom.
 			var shot_count: int = skill.projectile_count + bonus_projectile_count
-			var targets := _get_nearest_enemies(shot_count)
+			var targets := _get_nearest_enemies(1)
 			if targets.is_empty():
 				return
 			for i in shot_count:
-				var target: Node2D = targets[i % targets.size()]
-				var angle_offset := 0.0
-				if targets.size() < shot_count:
-					angle_offset = deg_to_rad(15.0 * (i - float(shot_count - 1) / 2.0))
-				_fire_at(target, skill, angle_offset)
+				_fire_at(targets[0], skill, _spread_offset(i, shot_count))
 	_stop_idle_bob()
 	_play_recoil(_recoil_intensity_for(skill))
 	if sprite.animation != "attack":
@@ -591,6 +585,16 @@ func _fire_trap_shot(skill: SkillData) -> bool:
 	trap.activate(dmg, skill.trap_duration, skill.trap_radius, target.global_position)
 	get_tree().current_scene.add_child(trap)
 	return true
+
+
+func _spread_offset(i: int, shot_count: int) -> float:
+	# Symmetric fixed angular spread for a multi-arrow volley, e.g. 3 shots ->
+	# [-15, 0, +15] degrees. Shared by _auto_fire()'s default case and
+	# _fire_elemental_projectile() so both fire a predictable cone around one
+	# aim direction instead of each arrow chasing a different enemy.
+	if shot_count <= 1:
+		return 0.0
+	return deg_to_rad(15.0 * (i - float(shot_count - 1) / 2.0))
 
 
 func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> void:

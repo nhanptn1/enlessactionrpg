@@ -8,6 +8,11 @@ const CARD_FRAME_PATHS := {
 	UpgradeResource.ElementType.FIRE: "res://art/ui/card_frame_fire.png",
 	UpgradeResource.ElementType.FROST: "res://art/ui/card_frame_frost.png",
 	UpgradeResource.ElementType.LIGHTNING: "res://art/ui/card_frame_lightning.png",
+	# Recolored from card_frame_fire.png (hue-rotated warm red/orange -> green,
+	# same ornate frame shape reused) rather than a fresh reference-sheet
+	# extraction -- green was open hue space (Fire=red/orange, Frost=blue,
+	# Lightning=purple/gold) and fits the archer's forest-ranger theme.
+	UpgradeResource.ElementType.PHYSICAL: "res://art/ui/card_frame_physical.png",
 }
 const CARD_TEXTURE_MARGIN := 40.0  # 9-slice margin so corner flourishes don't stretch when the button isn't the source's exact size
 
@@ -50,8 +55,12 @@ func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
 	# processed in random order and an element's node(s) are only added if
 	# they entirely fit in the remaining slots, so a fork (2 slots) never gets
 	# split across waves -- at most one fork can appear alongside one other
-	# element's single node in the 3 available slots.
-	var element_order: Array = [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING]
+	# element's single node in the 3 available slots. PHYSICAL (Multishot ->
+	# Piercing Arrow -> Arrow Rain -> Trap Shot) competes for the same 3 slots
+	# as the elements -- it's a linear chain with no forks, so its "unit" is
+	# always exactly 1 card. It still has no per-skill icon art, so its cards
+	# fall back to SkillIcon's procedural glyph (see skill_icon.gd).
+	var element_order: Array = [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING, UpgradeResource.ElementType.PHYSICAL]
 	element_order.shuffle()
 	_pending_choices.clear()
 	for element in element_order:
@@ -98,7 +107,7 @@ func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Arr
 	var current_tier := _current_level_for(target_element)
 	var units: Array = []
 	var next_tier := current_tier + 1
-	if next_tier <= 3:
+	if next_tier <= _max_tier_for(target_element):
 		var tier_matches: Array[UpgradeResource] = []
 		for upgrade in upgrade_pool:
 			if upgrade.element != target_element or upgrade.tier != next_tier:
@@ -126,7 +135,17 @@ func _current_level_for(element: UpgradeResource.ElementType) -> int:
 			return player.lightning_level
 		UpgradeResource.ElementType.FROST:
 			return player.frost_level
+		UpgradeResource.ElementType.PHYSICAL:
+			return player.physical_level
 	return 0
+
+
+func _max_tier_for(element: UpgradeResource.ElementType) -> int:
+	# Physical is a 4-step linear chain (Multishot/Piercing Arrow/Arrow
+	# Rain/Trap Shot); the 3 elemental trees each cap at tier 3.
+	if element == UpgradeResource.ElementType.PHYSICAL:
+		return 4
+	return 3
 
 
 func _on_choice_selected(index: int) -> void:

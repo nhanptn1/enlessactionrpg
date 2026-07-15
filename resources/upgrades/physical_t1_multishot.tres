@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "physical_t1_multishot"
+element = 3
+title = "Multishot"
+description = "Upgrades your basic attack: fire multiple arrows spread in a fixed volley instead of one."
+stat_to_modify = ""
+modification_value = 0.0
+tier = 1
+exclusive_group = ""

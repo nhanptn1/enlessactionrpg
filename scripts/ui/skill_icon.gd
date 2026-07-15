@@ -17,6 +17,8 @@ const FROST_COLOR := Color(0.65, 0.9, 1.0, 1.0)
 const FROST_CORE := Color(1.0, 1.0, 1.0, 1.0)
 const LIGHTNING_FILL := Color(1.0, 0.92, 0.35, 1.0)
 const LIGHTNING_OUTLINE := Color(0.7, 0.42, 1.0, 1.0)
+const PHYSICAL_SHAFT := Color(0.75, 0.6, 0.42, 1.0)
+const PHYSICAL_HEAD := Color(0.85, 0.85, 0.85, 1.0)
 
 
 func _draw() -> void:
@@ -30,6 +32,8 @@ func _draw() -> void:
 			_draw_snowflake()
 		2:
 			_draw_bolt()
+		3:
+			_draw_arrow()
 
 
 func _draw_flame() -> void:
@@ -84,3 +88,21 @@ func _draw_bolt() -> void:
 	draw_colored_polygon(points, LIGHTNING_FILL)
 	for i in points.size():
 		draw_line(points[i], points[(i + 1) % points.size()], LIGHTNING_OUTLINE, 1.5)
+
+
+func _draw_arrow() -> void:
+	var w := size.x
+	var h := size.y
+	draw_line(Vector2(w * 0.2, h * 0.8), Vector2(w * 0.75, h * 0.25), PHYSICAL_SHAFT, maxf(w, h) * 0.06)
+	var head := PackedVector2Array([
+		Vector2(w * 0.75, h * 0.25),
+		Vector2(w * 0.9, h * 0.42),
+		Vector2(w * 0.58, h * 0.42),
+	])
+	draw_colored_polygon(head, PHYSICAL_HEAD)
+	var fletch := PackedVector2Array([
+		Vector2(w * 0.2, h * 0.8),
+		Vector2(w * 0.1, h * 0.62),
+		Vector2(w * 0.32, h * 0.7),
+	])
+	draw_colored_polygon(fletch, PHYSICAL_HEAD)

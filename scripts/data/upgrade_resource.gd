@@ -1,7 +1,7 @@
 extends Resource
 class_name UpgradeResource
 
-enum ElementType { FIRE, FROST, LIGHTNING }
+enum ElementType { FIRE, FROST, LIGHTNING, PHYSICAL }
 
 @export var id: String
 @export var element: ElementType = ElementType.FIRE

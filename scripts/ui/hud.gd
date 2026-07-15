@@ -12,10 +12,15 @@ class_name HUD
 @onready var boss_hp_bar_container: MarginContainer = $BossHPBarContainer
 @onready var boss_hp_bar: ProgressBar = $BossHPBarContainer/BossVBox/BossHPBar
 
+const ACTIVE_ROW_MODULATE := Color(1, 1, 1, 1)
+const INACTIVE_ROW_MODULATE := Color(1, 1, 1, 0.45)  # dim, but still tappable -- read as "unlocked, not active"
+
 var _player: Node
-# Only one elemental row now (see Player.active_element) -- {ring, label, icon}
-# once built, {} until the player's first elemental unlock.
-var _elemental_row: Dictionary = {}
+# One row per unlocked element (int -> {ring, label, icon, row}) -- each is
+# independently tappable to make that element the active one (see
+# Player.select_active_element()). The active element's row is full
+# brightness with a live cooldown ring; the others are dimmed and static.
+var _elemental_rows: Dictionary = {}
 
 
 func _ready() -> void:
@@ -56,10 +61,10 @@ func _process(_delta: float) -> void:
 	var timer: Timer = _player.attack_timer
 	if timer.wait_time > 0.0:
 		skill_cooldown.value = 1.0 - (timer.time_left / timer.wait_time)
-	if not _elemental_row.is_empty() and _player.active_element != -1:
+	if _player.active_element != -1 and _elemental_rows.has(_player.active_element):
 		var elemental_timer: Timer = _player.get_elemental_timer_by_element(_player.active_element)
 		if is_instance_valid(elemental_timer) and elemental_timer.wait_time > 0.0:
-			_elemental_row.ring.value = 1.0 - (elemental_timer.time_left / elemental_timer.wait_time)
+			_elemental_rows[_player.active_element].ring.value = 1.0 - (elemental_timer.time_left / elemental_timer.wait_time)
 
 
 func _on_pause_pressed() -> void:
@@ -92,42 +97,42 @@ func _on_skill_unlocked(skill: SkillData) -> void:
 
 
 func _on_elemental_skill_changed(element: int, skill: SkillData) -> void:
-	# Fires on every tier pick regardless of which element is active (see
-	# Player.elemental_skill_changed) -- only refresh the row if it's showing
-	# this element right now. A switch to a different element is handled by
-	# _on_active_element_switched instead.
-	if element != _player.active_element:
-		return
-	_show_elemental_skill(skill)
-
-
-func _on_active_element_switched(_element: int, skill: SkillData) -> void:
-	_show_elemental_skill(skill)
-
-
-func _show_elemental_skill(skill: SkillData) -> void:
-	if _elemental_row.is_empty():
-		_build_elemental_row(skill)
+	# Fires on every tier pick for whichever element was just picked,
+	# regardless of whether it's the active one -- all unlocked elements get
+	# their own row now, so this always refreshes that element's row content.
+	if _elemental_rows.has(element):
+		_elemental_rows[element].label.text = skill.display_name
+		_elemental_rows[element].icon.texture = skill.icon
 	else:
-		_elemental_row.label.text = skill.display_name
-		_elemental_row.icon.texture = skill.icon
+		_build_elemental_row(element, skill)
 
 
-func _build_elemental_row(skill: SkillData) -> void:
+func _on_active_element_switched(element: int, _skill: SkillData) -> void:
+	# Only the active row's own content already reflects the right skill
+	# (kept current by _on_elemental_skill_changed) -- this just re-styles
+	# every row so exactly one reads as "active."
+	for row_element in _elemental_rows:
+		_elemental_rows[row_element].row.modulate = ACTIVE_ROW_MODULATE if row_element == element else INACTIVE_ROW_MODULATE
+
+
+func _build_elemental_row(element: int, skill: SkillData) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
+	row.modulate = ACTIVE_ROW_MODULATE if element == _player.active_element else INACTIVE_ROW_MODULATE
 	# Icon and cooldown ring are stacked in the same 32x32 rect (icon behind,
 	# ring drawn on top) rather than placed side by side, matching a typical
 	# "ability icon with a cooldown sweep" UI convention. It's a flat/borderless
-	# Button (not a plain Control) so tapping it cycles the active element via
-	# switch_active_element() -- the only way to swap once >1 element is
-	# unlocked, since all 3 trees can be invested in simultaneously now.
+	# Button (not a plain Control) so tapping it makes this exact element
+	# active via select_active_element() -- direct per-icon selection, not a
+	# cycle, since a blind "switch to next unlocked element" button was
+	# confusing once 3 elements could be unlocked at once (tapping it didn't
+	# reliably return to the element the player expected).
 	var icon_stack := Button.new()
 	icon_stack.flat = true
 	icon_stack.focus_mode = Control.FOCUS_NONE
 	icon_stack.custom_minimum_size = Vector2(32, 32)
 	icon_stack.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	icon_stack.pressed.connect(func(): _player.switch_active_element())
+	icon_stack.pressed.connect(func(): _player.select_active_element(element))
 	var icon := TextureRect.new()
 	icon.texture = skill.icon
 	icon.anchor_right = 1.0
@@ -153,7 +158,7 @@ func _build_elemental_row(skill: SkillData) -> void:
 	row.add_child(icon_stack)
 	row.add_child(label)
 	elemental_rows_container.add_child(row)
-	_elemental_row = {"ring": ring, "label": label, "icon": icon}
+	_elemental_rows[element] = {"ring": ring, "label": label, "icon": icon, "row": row}
 
 
 func _on_wave_started(wave_number: int) -> void:
