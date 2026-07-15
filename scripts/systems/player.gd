@@ -16,6 +16,10 @@ const RECOIL_SCALE_PUNCH := 1.08  # extra scale-up on top of the pull-back, scal
 const MOVEMENT_SPEED := 400.0
 const MIN_X := 60.0
 const MAX_X := 660.0
+# (2026-07-16) 15.0->8.0 -- user playtest feedback: the multishot fan spread
+# too wide, especially once "+1 Arrow" stacked the shot count up (each extra
+# arrow added another full 15-degree step with no cap on the total spread).
+const SPREAD_STEP_DEGREES := 8.0
 
 # Arrow Rain / Burning Rain / Thunder Storm (SkillData.FireMode.ARROW_RAIN):
 # telegraphed area strikes, not a literal top-to-bottom falling volley -- see
@@ -50,7 +54,7 @@ const UPGRADE_POOL: Array[String] = [
 @export var frost_skills: Array[SkillData] = []
 @export var lightning_skills: Array[SkillData] = []
 
-var max_hp := 100.0  # was a const; now mutable since HP upgrades increase it
+var max_hp := 10.0  # was a const; now mutable since HP upgrades increase it. (2026-07-16) 100.0->10.0, see the "hp"/"shield" upgrade cases below and item/enemy-damage rescaling for the rest of this change.
 var current_hp := max_hp
 
 var level := 1
@@ -211,15 +215,50 @@ func apply_upgrade(upgrade_id: String) -> void:
 		"crit_chance":
 			crit_chance = minf(crit_chance + 0.05, 1.0)
 		"hp":
-			max_hp += 20.0
-			current_hp += 20.0
+			max_hp += 2.0  # (2026-07-16) 20.0->2.0, same 20%-of-base ratio against the new 10 HP baseline
+			current_hp += 2.0
 			hp_changed.emit(current_hp, max_hp)
 		"shield":
-			shield_capacity += 20.0
+			shield_capacity += 2.0  # (2026-07-16) 20.0->2.0, same ratio as the "hp" case above
 			current_shield = shield_capacity
 		"xp_gain":
 			xp_gain_mult += 0.10
 	_refresh_timer_cooldowns()
+
+
+func _apply_item_stat_boost(upgrade_id: String) -> void:
+	# (2026-07-16) World item drops apply their own increments, separate from
+	# the same-named level-up popup choice above -- items are far more
+	# frequent/passive pickups than a deliberate level-up pick, so per user
+	# request they're tuned lighter across the board: damage +2% (was
+	# +10%), cooldown -3% (was -8%), projectile_speed +5% (was +15%),
+	# crit_chance +2% (was +5%), hp/shield +2.0 (same as the level-up
+	# popup's own now-rescaled value, made explicit here rather than
+	# falling through), xp_gain +5% (was +10%). projectile_count is the
+	# only upgrade_id never called out for items, so it's the only one
+	# still falling back to the shared apply_upgrade() value.
+	match upgrade_id:
+		"damage":
+			damage_mult += 0.02
+			_refresh_timer_cooldowns()
+		"cooldown":
+			cooldown_mult = maxf(cooldown_mult - 0.03, 0.3)
+			_refresh_timer_cooldowns()
+		"projectile_speed":
+			projectile_speed_mult += 0.05
+		"crit_chance":
+			crit_chance = minf(crit_chance + 0.02, 1.0)
+		"hp":
+			max_hp += 2.0
+			current_hp += 2.0
+			hp_changed.emit(current_hp, max_hp)
+		"shield":
+			shield_capacity += 2.0
+			current_shield = shield_capacity
+		"xp_gain":
+			xp_gain_mult += 0.05
+		_:
+			apply_upgrade(upgrade_id)
 
 
 func apply_element_upgrade(upgrade: UpgradeResource) -> void:
@@ -589,18 +628,19 @@ func _fire_trap_shot(skill: SkillData) -> bool:
 
 func _spread_offset(i: int, shot_count: int) -> float:
 	# Shot 0 is always the guaranteed dead-center hit on the real target;
-	# the rest fan outward in alternating +/- 15-degree steps: [0, +15, -15,
-	# +30, -30, ...]. A purely symmetric spread (the previous approach) has
-	# no exact center shot whenever shot_count is even -- e.g. 4 shots would
-	# land at +/-7.5/+/-22.5 degrees, so every single arrow misses a
-	# stationary target dead ahead. Since bonus_projectile_count ("+1 Arrow")
-	# can turn Multishot's odd base count into an even one, this isn't an
-	# edge case; it needs to hold for every shot_count.
+	# the rest fan outward in alternating +/- SPREAD_STEP_DEGREES steps:
+	# [0, +8, -8, +16, -16, ...]. A purely symmetric spread (an earlier
+	# approach) has no exact center shot whenever shot_count is even -- e.g.
+	# 4 shots would land at +/-7.5/+/-22.5 degrees (back when the step was
+	# 15), so every single arrow misses a stationary target dead ahead.
+	# Since bonus_projectile_count ("+1 Arrow") can turn Multishot's odd base
+	# count into an even one, this isn't an edge case; it needs to hold for
+	# every shot_count.
 	if i == 0:
 		return 0.0
 	var step := (i + 1) / 2
 	var sign := 1.0 if i % 2 == 1 else -1.0
-	return deg_to_rad(15.0 * step * sign)
+	return deg_to_rad(SPREAD_STEP_DEGREES * step * sign)
 
 
 func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> void:
@@ -661,7 +701,7 @@ func apply_item(item: ItemData) -> void:
 	match item.effect_type:
 		"stat_boost":
 			for _i in item.upgrade_stacks:
-				apply_upgrade(item.upgrade_id)
+				_apply_item_stat_boost(item.upgrade_id)
 		"instant_heal":
 			current_hp = minf(current_hp + item.effect_amount, max_hp)
 			hp_changed.emit(current_hp, max_hp)

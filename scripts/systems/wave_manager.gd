@@ -19,7 +19,7 @@ const SPAWN_INTERVAL_FLOOR := 0.35
 const BOSS_HP_MULT_BASE := 75.0
 const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.2
 const BOSS_DAMAGE_MULT := 2.0
-const BOSS_XP_REWARD := 200
+const BOSS_XP_REWARD := 100  # (2026-07-16) 200->100, halved alongside every regular enemy's xp_reward
 const BOSS_VISUAL_SCALE := 1.5
 const RARITY_WEIGHTS := {"common": 0.55, "rare": 0.30, "epic": 0.15}
 # Elite rolls apply to any regular monster, including the ones that now

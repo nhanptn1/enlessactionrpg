@@ -1,7 +1,7 @@
 extends CanvasLayer
 class_name HUD
 
-@onready var hp_bar: ProgressBar = $Margin/VBox/HPBar
+@onready var heart_hp: HeartHPDisplay = $HeartHP
 @onready var xp_bar: ProgressBar = $Margin/VBox/XPBar
 @onready var level_label: Label = $Margin/VBox/LevelLabel
 @onready var wave_label: Label = $Margin/VBox/WaveLabel
@@ -33,8 +33,7 @@ func _ready() -> void:
 		_player.skill_unlocked.connect(_on_skill_unlocked)
 		_player.elemental_skill_changed.connect(_on_elemental_skill_changed)
 		_player.active_element_switched.connect(_on_active_element_switched)
-		hp_bar.max_value = _player.max_hp
-		hp_bar.value = _player.current_hp
+		heart_hp.current_hp = roundi(_player.current_hp)
 		xp_bar.max_value = _player.xp_to_next_level()
 		xp_bar.value = _player.xp
 		level_label.text = "Lv. %d" % _player.level
@@ -87,9 +86,8 @@ func _on_pause_pressed() -> void:
 	GameManager.request_pause("pause_menu")
 
 
-func _on_player_hp_changed(current: float, max_hp: float) -> void:
-	hp_bar.max_value = max_hp
-	hp_bar.value = current
+func _on_player_hp_changed(current: float, _max_hp: float) -> void:
+	heart_hp.current_hp = roundi(current)
 
 
 func _on_player_xp_changed(current: int, needed: int) -> void:

@@ -22,16 +22,20 @@ const ATTACK_PATTERNS := {
 		"phase_1": ["root_slam", "vine_whip"],
 		"phase_2": ["poison_burst", "summon_saplings"],
 		"attacks": {
+			# (2026-07-16) Damage values rescaled ~10x down alongside
+			# player.max_hp's 100->10 rebalance, rounded to whole numbers and
+			# multiplied by BOSS_DAMAGE_MULT (2.0) at the point of use --
+			# effective hits: root_slam=2, vine_whip=2, poison_burst=4.
 			"root_slam": {
-				"damage": 12.0, "telegraph_time": 0.9, "cooldown": 2.0,
+				"damage": 1.0, "telegraph_time": 0.9, "cooldown": 2.0,
 				"shape": "player_circle", "radius": 36.0, "color": Color(0.55, 0.35, 0.15, 0.5),
 			},
 			"vine_whip": {
-				"damage": 14.0, "telegraph_time": 0.9, "cooldown": 2.2,
+				"damage": 1.0, "telegraph_time": 0.9, "cooldown": 2.2,
 				"shape": "reach_line", "width": 20.0, "color": Color(0.25, 0.55, 0.2, 0.5),
 			},
 			"poison_burst": {
-				"damage": 18.0, "telegraph_time": 1.1, "cooldown": 2.4,
+				"damage": 2.0, "telegraph_time": 1.1, "cooldown": 2.4,
 				"shape": "self_circle", "radius": 100.0, "color": Color(0.5, 0.15, 0.55, 0.5),
 			},
 		},
@@ -41,7 +45,7 @@ const ATTACK_PATTERNS := {
 		"phase_2": ["arrow_rain", "shadow_step"],
 		"attacks": {
 			"aimed_shot": {
-				"damage": 16.0, "telegraph_time": 0.8, "cooldown": 1.8,
+				"damage": 2.0, "telegraph_time": 0.8, "cooldown": 1.8,
 				"shape": "reach_line", "width": 12.0, "color": Color(0.6, 0.1, 0.1, 0.55),
 			},
 		},
@@ -54,13 +58,13 @@ const INITIAL_ATTACK_DELAY := 1.5
 
 # Dark Ranger Commander's special-cased (non-generic-shape) attacks.
 const RAPID_VOLLEY_PROJECTILE := preload("res://scenes/effects/CursedBolt.tscn")
-const RAPID_VOLLEY_DAMAGE := 7.0
+const RAPID_VOLLEY_DAMAGE := 1.0  # (2026-07-16) 7.0->1.0, rescaled with player.max_hp's 100->10 rebalance (effective 2 per bolt after BOSS_DAMAGE_MULT)
 const RAPID_VOLLEY_SHOT_COUNT := 3
 const RAPID_VOLLEY_SPREAD_DEG := 18.0
 const RAPID_VOLLEY_SPEED := 260.0
 const RAPID_VOLLEY_TELEGRAPH_TIME := 0.5
 const RAPID_VOLLEY_COOLDOWN := 2.0
-const ARROW_RAIN_DAMAGE := 10.0
+const ARROW_RAIN_DAMAGE := 1.0  # (2026-07-16) 10.0->1.0, rescaled with player.max_hp's 100->10 rebalance (effective 2 per zone after BOSS_DAMAGE_MULT)
 const ARROW_RAIN_IMPACT_COUNT := 3
 const ARROW_RAIN_IMPACT_RADIUS := 42.0
 const ARROW_RAIN_TELEGRAPH_TIME := 1.0

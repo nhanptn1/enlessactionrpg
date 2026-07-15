@@ -9,4 +9,4 @@ display_name = "Small Healing Potion"
 category = "consumable"
 rarity = "common"
 effect_type = "instant_heal"
-effect_amount = 25.0
+effect_amount = 2.0
