@@ -33,6 +33,7 @@ func _assert_save_roundtrip() -> void:
 	assert(SaveManager.best_wave >= before_wave + 1)
 	assert(SaveManager.load_save())
 	_assert_meta_progression()
+	_assert_equipment_slots()
 	_assert_player_movement_clamping()
 	_assert_trap_zone_activation()
 
@@ -46,6 +47,23 @@ func _assert_meta_progression() -> void:
 	assert(SaveManager.get_meta_rank("vitality") == before_rank + 1, "purchase should increment rank")
 	assert(SaveManager.load_save(), "meta-progression state should round-trip through disk")
 	assert(SaveManager.get_meta_rank("vitality") == before_rank + 1, "rank should persist after reload")
+
+
+func _assert_equipment_slots() -> void:
+	var apprentice_bow = load("res://resources/items/apprentice_bow.tres")
+	var silver_longbow = load("res://resources/items/silver_longbow.tres")
+	var player_scene = load("res://scenes/player/Player.tscn")
+	var player = player_scene.instantiate()
+	add_child(player)
+
+	var base_damage_mult: float = player.damage_mult
+	player.apply_item(apprentice_bow)
+	assert(player.equipped["weapon"] == apprentice_bow, "weapon slot should hold the equipped item")
+	player.apply_item(silver_longbow)
+	assert(player.equipped["weapon"] == silver_longbow, "2nd weapon should replace the 1st in the same slot")
+	assert(is_equal_approx(player.damage_mult, base_damage_mult + 0.04), "replacing gear should revert the old bonus before applying the new one, got %s" % player.damage_mult)
+
+	player.queue_free()
 
 
 func _assert_player_movement_clamping() -> void:

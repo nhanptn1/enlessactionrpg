@@ -9,5 +9,5 @@ display_name = "Leather Vest"
 category = "armor"
 rarity = "common"
 effect_type = "stat_boost"
-upgrade_id = "hp"
+upgrade_id = "max_hp"
 upgrade_stacks = 1

@@ -14,6 +14,11 @@ class_name HUD
 @onready var skill_button: Button = $SkillButton
 @onready var boss_hp_bar_container: MarginContainer = $Margin/VBox/BossHPBarContainer
 @onready var boss_hp_bar: ProgressBar = $Margin/VBox/BossHPBarContainer/BossVBox/BossHPBar
+@onready var equip_slots: Dictionary = {
+	"weapon": $Margin/VBox/EquipmentRow/WeaponSlot,
+	"armor": $Margin/VBox/EquipmentRow/ArmorSlot,
+	"accessory": $Margin/VBox/EquipmentRow/AccessorySlot,
+}
 
 const ACTIVE_ROW_MODULATE := Color(1, 1, 1, 1)
 const INACTIVE_ROW_MODULATE := Color(1, 1, 1, 0.45)  # dim, but still tappable -- read as "unlocked, not active"
@@ -35,6 +40,10 @@ func _ready() -> void:
 		_player.skill_unlocked.connect(_on_skill_unlocked)
 		_player.elemental_skill_changed.connect(_on_elemental_skill_changed)
 		_player.active_element_switched.connect(_on_active_element_switched)
+		_player.equipment_changed.connect(_on_equipment_changed)
+		for slot in _player.equipped:
+			if _player.equipped[slot] != null:
+				_on_equipment_changed(slot, _player.equipped[slot])
 		heart_hp.current_hp = roundi(_player.current_hp)
 		hp_bar.max_value = _player.max_hp
 		hp_bar.value = _player.current_hp
@@ -204,3 +213,9 @@ func _on_signal_bus_wave_started(_wave_number: int, is_boss: bool) -> void:
 func _on_boss_hp_changed(current: float, max_hp: float) -> void:
 	boss_hp_bar.max_value = max_hp
 	boss_hp_bar.value = current
+
+
+func _on_equipment_changed(slot: String, item: ItemData) -> void:
+	var icon: EquipSlotIcon = equip_slots[slot]
+	icon.rarity_color = ItemPickup.RARITY_COLORS.get(item.rarity, ItemPickup.RARITY_COLORS["common"])
+	icon.tooltip_text = item.display_name

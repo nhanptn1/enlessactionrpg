@@ -152,6 +152,17 @@ signal elemental_skill_changed(element: int, skill: SkillData)
 signal active_element_switched(element: int, skill: SkillData)
 signal died
 signal item_collected(item: ItemData)
+# Fires whenever a weapon/armor/accessory slot's contents change (equip or
+# replace) -- HUD listens to keep its 3 equip-slot icons in sync. item is
+# null when a slot is cleared (never happens today -- replacement is
+# immediate -- but kept nullable so a future "unequip" action doesn't need a
+# new signal).
+signal equipment_changed(slot: String, item: ItemData)
+
+# One item per category, replaced (not stacked) by picking up another of the
+# same category -- see _equip_item(). Consumables never occupy a slot; they
+# apply their effect once and are gone, same as before this system existed.
+var equipped: Dictionary = {"weapon": null, "armor": null, "accessory": null}
 
 
 func _ready() -> void:
@@ -256,6 +267,14 @@ func apply_upgrade(upgrade_id: String) -> void:
 			hp_changed.emit(current_hp, max_hp)
 		"xp_gain":
 			xp_gain_mult += 0.05
+		"max_hp":
+			# Armor-only stat (never in UPGRADE_POOL, so it never appears as a
+			# level-up/wave-clear pick) -- a real capacity increase rather than
+			# "hp"'s one-shot heal, since gear should feel like it's worn, not
+			# consumed. See _equip_item()/_revert_equip_stat().
+			max_hp += 2.0
+			current_hp = minf(current_hp + 2.0, max_hp)
+			hp_changed.emit(current_hp, max_hp)
 	_refresh_timer_cooldowns()
 
 
@@ -743,18 +762,62 @@ func force_defeat() -> void:
 
 
 func apply_item(item: ItemData) -> void:
-	match item.effect_type:
-		"stat_boost":
-			for _i in item.upgrade_stacks:
-				apply_upgrade(item.upgrade_id)
-		"instant_heal":
-			current_hp = minf(current_hp + item.effect_amount, max_hp)
-			hp_changed.emit(current_hp, max_hp)
-		"instant_bomb":
-			for enemy in get_tree().get_nodes_in_group("enemy"):
-				if is_instance_valid(enemy) and enemy.has_method("take_damage"):
-					enemy.take_damage(item.effect_amount)
-		"instant_xp":
-			gain_xp(int(item.effect_amount))
+	if item.category in ["weapon", "armor", "accessory"]:
+		_equip_item(item)
+	else:
+		match item.effect_type:
+			"stat_boost":
+				for _i in item.upgrade_stacks:
+					apply_upgrade(item.upgrade_id)
+			"instant_heal":
+				current_hp = minf(current_hp + item.effect_amount, max_hp)
+				hp_changed.emit(current_hp, max_hp)
+			"instant_bomb":
+				for enemy in get_tree().get_nodes_in_group("enemy"):
+					if is_instance_valid(enemy) and enemy.has_method("take_damage"):
+						enemy.take_damage(item.effect_amount)
+			"instant_xp":
+				gain_xp(int(item.effect_amount))
 	item_collected.emit(item)
 	SignalBus.item_collected.emit(item.id)
+
+
+func _equip_item(item: ItemData) -> void:
+	# Real gear, not a one-shot pickup: only ever ONE item per slot at a time.
+	# Picking up a 2nd weapon replaces the 1st, reverting its stat exactly so
+	# swapping gear never silently stacks bonuses from items no longer held.
+	var slot: String = item.category
+	var previous: ItemData = equipped[slot]
+	if previous != null:
+		_revert_equip_stat(previous.upgrade_id, previous.upgrade_stacks)
+	for _i in item.upgrade_stacks:
+		apply_upgrade(item.upgrade_id)
+	equipped[slot] = item
+	equipment_changed.emit(slot, item)
+
+
+func _revert_equip_stat(upgrade_id: String, stacks: int) -> void:
+	# Exact inverse of apply_upgrade()'s per-stack deltas, applied `stacks`
+	# times in one step. Not guaranteed exact if the original apply hit a
+	# clamp (cooldown_mult's 0.3 floor, crit_chance's 1.0 ceiling) -- equipment
+	# bonuses are small enough in practice that this is not expected to come
+	# up, matching this project's general "don't over-engineer edge cases
+	# that can't happen with the current numbers" approach.
+	match upgrade_id:
+		"damage":
+			damage_mult -= 0.02 * stacks
+		"cooldown":
+			cooldown_mult = minf(cooldown_mult + 0.03 * stacks, 1.0)
+			_refresh_timer_cooldowns()
+		"projectile_count":
+			bonus_projectile_count -= stacks
+		"projectile_speed":
+			projectile_speed_mult -= 0.05 * stacks
+		"crit_chance":
+			crit_chance = maxf(crit_chance - 0.02 * stacks, 0.0)
+		"xp_gain":
+			xp_gain_mult -= 0.05 * stacks
+		"max_hp":
+			max_hp = maxf(max_hp - 2.0 * stacks, 1.0)
+			current_hp = minf(current_hp, max_hp)
+			hp_changed.emit(current_hp, max_hp)
