@@ -1,6 +1,42 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/level_up_popup.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="ChoiceStyleNormal"]
+bg_color = Color(0.16, 0.16, 0.2, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.85, 0.4, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="ChoiceStyleHover"]
+bg_color = Color(0.24, 0.24, 0.28, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.92, 0.6, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="ChoiceStylePressed"]
+bg_color = Color(0.1, 0.1, 0.12, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.8, 0.68, 0.32, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="LevelUpPopup" type="CanvasLayer"]
 process_mode = 3
@@ -43,6 +79,10 @@ theme_override_constants/separation = 10
 layout_mode = 2
 custom_minimum_size = Vector2(112, 78)
 theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("ChoiceStyleNormal")
+theme_override_styles/hover = SubResource("ChoiceStyleHover")
+theme_override_styles/pressed = SubResource("ChoiceStylePressed")
+theme_override_styles/focus = SubResource("ChoiceStyleHover")
 autowrap_mode = 2
 text = "Choice 1"
 
@@ -50,6 +90,10 @@ text = "Choice 1"
 layout_mode = 2
 custom_minimum_size = Vector2(112, 78)
 theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("ChoiceStyleNormal")
+theme_override_styles/hover = SubResource("ChoiceStyleHover")
+theme_override_styles/pressed = SubResource("ChoiceStylePressed")
+theme_override_styles/focus = SubResource("ChoiceStyleHover")
 autowrap_mode = 2
 text = "Choice 2"
 
@@ -57,5 +101,9 @@ text = "Choice 2"
 layout_mode = 2
 custom_minimum_size = Vector2(112, 78)
 theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("ChoiceStyleNormal")
+theme_override_styles/hover = SubResource("ChoiceStyleHover")
+theme_override_styles/pressed = SubResource("ChoiceStylePressed")
+theme_override_styles/focus = SubResource("ChoiceStyleHover")
 autowrap_mode = 2
 text = "Choice 3"

@@ -9,6 +9,20 @@ class_name BossBase
 const HIT_FLASH_DURATION := 0.08
 const HIT_PUNCH_SCALE := 1.06
 const DEATH_FADE_DURATION := 0.4
+# (2026-07-16) Once engaged, the sprite used to freeze completely (sprite.stop()
+# + frame 0) for the rest of the fight -- fixed the earlier "walking in place"
+# bug, but replaced it with an equally bad "the boss is a dead still image and
+# never reacts to its own attacks" problem (user: "run a bit and stop there...
+# attack seem stuck sometime... still a prototype, not real effect"). No boss
+# has dedicated attack art, so this fakes real feedback from the existing
+# idle/move frames via position/scale tweens instead: a subtle idle bob while
+# waiting (mirrors player.gd's own _start_idle_bob()), and a windup lunge
+# toward the target during every attack's telegraph window.
+const IDLE_BOB_AMPLITUDE := 3.0
+const IDLE_BOB_DURATION := 1.3
+const ATTACK_LUNGE_DISTANCE := 14.0
+const ATTACK_LUNGE_SCALE_PUNCH := 1.12
+const IMPACT_FLASH_RADIUS := 40.0
 
 # Each boss picks a named entry via @export var attack_pattern_id below --
 # one shared script serves every boss (telegraph/phase/death framework is
@@ -97,7 +111,10 @@ var _xp_override := -1
 var _attack_loop_running := false
 var _base_modulate: Color
 var _base_scale: Vector2
+var _sprite_base_position: Vector2
 var _hit_tween: Tween
+var _idle_tween: Tween
+var _lunge_tween: Tween
 var _is_dying := false
 var _pattern: Dictionary
 var _phase_1_attacks: Array
@@ -123,6 +140,7 @@ func _ready() -> void:
 	velocity = Vector2(0, data.base_speed * _speed_mult)
 	_base_modulate = sprite.modulate
 	_base_scale = sprite.scale
+	_sprite_base_position = sprite.position
 	sprite.play("move")
 	_attack_loop_running = true
 	SignalBus.boss_hp_changed.emit(current_hp, _max_hp)
@@ -142,10 +160,13 @@ func _physics_process(delta: float) -> void:
 		_engaged = true
 		# The "move" animation loops forever (matches EnemyBase's convention),
 		# which looked like the boss was perpetually trying to walk in place
-		# once stopped -- freeze on its first frame once engaged so it visibly
-		# settles into a standing pose for the fight instead.
+		# once stopped -- stand on its first frame once engaged instead of
+		# looping "move" in place. But a hard freeze (no idle bob, no attack
+		# reaction) read as the boss being dead/stuck for the whole fight, so
+		# a subtle idle bob takes over from here instead of a total freeze.
 		sprite.stop()
 		sprite.frame = 0
+		_start_idle_bob()
 
 
 func apply_status(element: String, duration: float) -> void:
@@ -182,6 +203,48 @@ func _play_hit_reaction() -> void:
 	_hit_tween.chain().tween_property(sprite, "scale", _base_scale, HIT_FLASH_DURATION * 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 
+func _start_idle_bob() -> void:
+	if _idle_tween:
+		_idle_tween.kill()
+	sprite.position = _sprite_base_position
+	_idle_tween = create_tween()
+	_idle_tween.set_loops()
+	_idle_tween.tween_property(sprite, "position:y", _sprite_base_position.y - IDLE_BOB_AMPLITUDE, IDLE_BOB_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_idle_tween.tween_property(sprite, "position:y", _sprite_base_position.y + IDLE_BOB_AMPLITUDE, IDLE_BOB_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _stop_idle_bob() -> void:
+	if _idle_tween:
+		_idle_tween.kill()
+		_idle_tween = null
+	sprite.position = _sprite_base_position
+
+
+# Every boss has only idle/move art, never a dedicated attack pose -- this
+# fakes a windup by leaning the sprite toward the target and punching its
+# scale up for the telegraph window, then settling back right as the hit
+# resolves, so an attack reads as the boss doing something instead of a
+# static image with an unrelated colored shape appearing near the player.
+func _play_attack_lunge(target_pos: Vector2, duration: float) -> void:
+	_stop_idle_bob()
+	if _lunge_tween:
+		_lunge_tween.kill()
+	sprite.position = _sprite_base_position
+	sprite.scale = _base_scale
+	var lean: Vector2 = (target_pos - global_position).normalized() * ATTACK_LUNGE_DISTANCE
+	_lunge_tween = create_tween()
+	_lunge_tween.set_parallel(true)
+	_lunge_tween.tween_property(sprite, "position", _sprite_base_position + lean, duration * 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_lunge_tween.tween_property(sprite, "scale", _base_scale * ATTACK_LUNGE_SCALE_PUNCH, duration * 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_lunge_tween.chain().set_parallel(true)
+	_lunge_tween.tween_property(sprite, "position", _sprite_base_position, duration * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	_lunge_tween.tween_property(sprite, "scale", _base_scale, duration * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	_lunge_tween.chain().tween_callback(func():
+		if is_instance_valid(self) and _engaged:
+			_start_idle_bob()
+	)
+
+
 func _die() -> void:
 	if _is_dying:
 		return
@@ -192,6 +255,11 @@ func _die() -> void:
 	died.emit(xp_reward, data.drop_chance, global_position)
 	SignalBus.enemy_died.emit()
 	set_physics_process(false)
+	if _idle_tween:
+		_idle_tween.kill()
+	if _lunge_tween:
+		_lunge_tween.kill()
+	sprite.position = _sprite_base_position
 	var death_tween := create_tween()
 	death_tween.set_parallel(true)
 	death_tween.tween_property(sprite, "scale", Vector2.ZERO, DEATH_FADE_DURATION).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
@@ -238,6 +306,7 @@ func _execute_attack(attack_id: String) -> void:
 		target_pos = player.global_position
 		
 	_show_telegraph(info, target_pos)
+	_play_attack_lunge(target_pos, info["telegraph_time"])
 	await get_tree().create_timer(info["telegraph_time"], false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
@@ -249,20 +318,30 @@ func _apply_attack_damage(info: Dictionary, target_pos: Vector2) -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	if not is_instance_valid(player) or not player.has_method("take_damage"):
 		return
-		
+
 	var hit := false
+	var flash_pos := target_pos
+	var flash_radius: float = IMPACT_FLASH_RADIUS
 	match info["shape"]:
 		"player_circle":
+			flash_radius = info["radius"]
 			if player.global_position.distance_to(target_pos) <= info["radius"]:
 				hit = true
 		"self_circle":
+			flash_pos = global_position
+			flash_radius = info["radius"]
 			if player.global_position.distance_to(global_position) <= info["radius"]:
 				hit = true
 		"reach_line":
+			flash_pos = (global_position + target_pos) / 2.0
 			var poly := _rect_polygon(global_position, target_pos, info["width"])
 			if Geometry2D.is_point_in_polygon(player.global_position, poly):
 				hit = true
-				
+	# A real flash where the telegraph resolves, instead of the warning shape
+	# just silently vanishing -- reuses the same ImpactVFX the player's own
+	# skills already use, so boss attacks land with a comparable "real effect".
+	var flash_color: Color = info["color"]
+	ImpactVFX.flash_burst(flash_pos, flash_radius, Color(flash_color.r, flash_color.g, flash_color.b, 1.0), self)
 	if hit:
 		player.take_damage(info["damage"] * _damage_mult)
 
@@ -310,6 +389,8 @@ func _summon_saplings() -> void:
 func _rapid_volley() -> void:
 	SignalBus.boss_attack_telegraph.emit()
 	var player := get_tree().get_first_node_in_group("player")
+	if is_instance_valid(player):
+		_play_attack_lunge(player.global_position, RAPID_VOLLEY_TELEGRAPH_TIME)
 	await get_tree().create_timer(RAPID_VOLLEY_TELEGRAPH_TIME, false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running or not is_instance_valid(player):
 		await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN, false).timeout
@@ -337,9 +418,12 @@ func _arrow_rain() -> void:
 		points.append(center + Vector2(randf_range(-90.0, 90.0), randf_range(-60.0, 60.0)))
 	for p in points:
 		_show_circle_telegraph(p, ARROW_RAIN_IMPACT_RADIUS, ARROW_RAIN_COLOR, ARROW_RAIN_TELEGRAPH_TIME)
+	_play_attack_lunge(center, ARROW_RAIN_TELEGRAPH_TIME)
 	await get_tree().create_timer(ARROW_RAIN_TELEGRAPH_TIME, false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
+	for p in points:
+		ImpactVFX.flash_burst(p, ARROW_RAIN_IMPACT_RADIUS, Color(ARROW_RAIN_COLOR.r, ARROW_RAIN_COLOR.g, ARROW_RAIN_COLOR.b, 1.0), self)
 	if is_instance_valid(player):
 		for p in points:
 			if player.global_position.distance_to(p) <= ARROW_RAIN_IMPACT_RADIUS:

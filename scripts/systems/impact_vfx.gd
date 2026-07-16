@@ -54,7 +54,7 @@ const LIGHTNING_STRIKE_FRAME_PATHS := [
 ]
 const SPARK_BURST_SPEED := 16.0        # 4 frames read as one quick electric discharge (~0.25s)
 const LIGHTNING_STRIKE_SPEED := 18.0   # fast crackle while the strike telegraph builds in
-const LIGHTNING_STRIKE_HEIGHT := 480.0 # tall enough to visibly reach off the top of the 720x1280 screen
+const LIGHTNING_STRIKE_HEIGHT := 300.0 # (2026-07-16) was 480 -- user feedback that Thunder Storm's cast visual read as too big, especially with 3 zones on screen at once
 const CHAIN_SPARK_BURST_RADIUS := 32.0 # Chain Spark has no burst_radius stat -- fixed visual size for its per-node punch
 
 const ARROW_RAIN_FALL_FRAME_PATHS := [
@@ -67,7 +67,7 @@ const ARROW_RAIN_IMPACT_FRAME_PATHS := [
 ]
 const ARROW_RAIN_IMPACT_SPEED := 3.5    # 1 frame, held briefly as a quick impact flash (~0.28s)
 const ARROW_RAIN_FALL_SPEED := 5.0      # 3 frames span 0.6s, matching arrow_rain.tres's telegraph_time
-const ARROW_RAIN_FALL_HEIGHT := 420.0   # ground marker to full barrage height, matches the screen's scale
+const ARROW_RAIN_FALL_HEIGHT := 280.0   # (2026-07-16) was 420 -- user feedback that Arrow Rain's cast visual read as too big, especially with 3 zones on screen at once
 
 static var _meteor_frames: SpriteFrames = null
 static var _ice_burst_frames: SpriteFrames = null

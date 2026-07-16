@@ -129,6 +129,7 @@ func _start_next_wave() -> void:
 
 
 const PROCEDURAL_TYPES_PER_WAVE := 3  # (2026-07-16) was 1 -- a single random type per wave meant any wave that happened to roll the pool's one ranged species (Cursed Wraith) became 100% ranged monsters; picking several distinct types every wave mixes melee/ranged naturally without needing to hand-classify each species.
+const BOSS_WAVE_MONSTER_MULT := 0.5  # (2026-07-16) regular monsters still spawn alongside the boss (see _start_next_wave()), but the normal per-wave count formula was never discounted for that -- wave 10 got the boss AND a full, further-scaled swarm of regular enemies at the same time, which read as much harder than every other wave. Halves the regular spawn count specifically on boss waves.
 
 
 func _generate_wave(wave_number: int) -> WaveData:
@@ -141,9 +142,11 @@ func _generate_wave(wave_number: int) -> WaveData:
 
 	var extra_waves := wave_number - waves.size()
 	var count: int = _last_authored_count() + COUNT_SCALING_PER_WAVE * extra_waves
+	wave.is_boss_wave = wave_number % BOSS_WAVE_INTERVAL == 0
+	if wave.is_boss_wave:
+		count = roundi(count * BOSS_WAVE_MONSTER_MULT)
 	wave.spawn_counts = _split_count(count, wave.enemy_pool.size())
 	wave.spawn_interval = maxf(SPAWN_INTERVAL_FLOOR, _last_authored_interval() - SPAWN_INTERVAL_DECAY * extra_waves)
-	wave.is_boss_wave = wave_number % BOSS_WAVE_INTERVAL == 0
 
 	# (2026-07-16) Scaled off extra_waves (wave 6 = extra_waves 1), not
 	# wave_number directly -- wave 6 used to jump straight from waves 1-5's
