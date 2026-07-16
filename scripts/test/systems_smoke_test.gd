@@ -34,6 +34,7 @@ func _assert_save_roundtrip() -> void:
 	assert(SaveManager.load_save())
 	_assert_meta_progression()
 	_assert_equipment_slots()
+	_assert_audio_depth()
 	_assert_player_movement_clamping()
 	_assert_trap_zone_activation()
 
@@ -63,6 +64,23 @@ func _assert_equipment_slots() -> void:
 	assert(player.equipped["weapon"] == silver_longbow, "2nd weapon should replace the 1st in the same slot")
 	assert(is_equal_approx(player.damage_mult, base_damage_mult + 0.04), "replacing gear should revert the old bonus before applying the new one, got %s" % player.damage_mult)
 
+	player.queue_free()
+
+
+func _assert_audio_depth() -> void:
+	for id in ["heal", "elite_spawn", "enemy_shot", "item_pickup_rare"]:
+		assert(AudioManager._streams.has(id), "AudioManager missing stream '%s'" % id)
+
+	var player_scene = load("res://scenes/player/Player.tscn")
+	var player = player_scene.instantiate()
+	add_child(player)
+	var healed := [false]
+	var conn := func(_amount): healed[0] = true
+	SignalBus.player_healed.connect(conn)
+	player.current_hp = 1.0
+	player.apply_upgrade("hp")
+	assert(healed[0], "a real heal should emit SignalBus.player_healed")
+	SignalBus.player_healed.disconnect(conn)
 	player.queue_free()
 
 

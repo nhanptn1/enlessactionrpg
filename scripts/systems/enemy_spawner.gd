@@ -23,6 +23,7 @@ func spawn(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0,
 		enemy.scale = Vector2(final_scale, final_scale)
 	if is_elite:
 		enemy.modulate = ELITE_TINT
+		SignalBus.elite_spawned.emit()
 	get_tree().current_scene.add_child(enemy)
 	var wm := get_tree().get_first_node_in_group("wave_manager")
 	if is_instance_valid(wm):

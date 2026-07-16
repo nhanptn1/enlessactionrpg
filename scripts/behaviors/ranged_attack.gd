@@ -28,3 +28,4 @@ func on_attack_timer_timeout(enemy: EnemyBase) -> void:
 	var proj = pool.acquire(enemy.data.projectile_scene)
 	proj.activate(dir, enemy.data.projectile_speed, dmg, enemy.global_position, 0, "player", ENEMY_SHOT_MAX_RANGE)
 	enemy._play_attack_lunge()
+	SignalBus.enemy_ranged_attack.emit()

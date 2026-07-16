@@ -5,7 +5,10 @@ signal player_shot
 signal player_damaged(amount: float)
 signal enemy_hit
 signal enemy_died
-signal item_collected(item_id: String)
+signal item_collected(item_id: String, rarity: String)
+signal player_healed(amount: float)
+signal elite_spawned
+signal enemy_ranged_attack
 signal wave_started(wave_number: int, is_boss: bool)
 signal wave_cleared(wave_number: int, was_boss: bool)
 signal level_up(level: int)

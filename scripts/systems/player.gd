@@ -263,8 +263,11 @@ func apply_upgrade(upgrade_id: String) -> void:
 			# (2026-07-16) Restores HP instead of raising max_hp -- per user
 			# request, a straight heal reads better than a permanent capacity
 			# bump, and naturally does nothing once already at full HP via minf().
+			var before_hp := current_hp
 			current_hp = minf(current_hp + 2.0, max_hp)
 			hp_changed.emit(current_hp, max_hp)
+			if current_hp > before_hp:
+				SignalBus.player_healed.emit(current_hp - before_hp)
 		"xp_gain":
 			xp_gain_mult += 0.05
 		"max_hp":
@@ -275,6 +278,7 @@ func apply_upgrade(upgrade_id: String) -> void:
 			max_hp += 2.0
 			current_hp = minf(current_hp + 2.0, max_hp)
 			hp_changed.emit(current_hp, max_hp)
+			SignalBus.player_healed.emit(2.0)
 	_refresh_timer_cooldowns()
 
 
@@ -770,8 +774,11 @@ func apply_item(item: ItemData) -> void:
 				for _i in item.upgrade_stacks:
 					apply_upgrade(item.upgrade_id)
 			"instant_heal":
+				var before_hp := current_hp
 				current_hp = minf(current_hp + item.effect_amount, max_hp)
 				hp_changed.emit(current_hp, max_hp)
+				if current_hp > before_hp:
+					SignalBus.player_healed.emit(current_hp - before_hp)
 			"instant_bomb":
 				for enemy in get_tree().get_nodes_in_group("enemy"):
 					if is_instance_valid(enemy) and enemy.has_method("take_damage"):
@@ -779,7 +786,7 @@ func apply_item(item: ItemData) -> void:
 			"instant_xp":
 				gain_xp(int(item.effect_amount))
 	item_collected.emit(item)
-	SignalBus.item_collected.emit(item.id)
+	SignalBus.item_collected.emit(item.id, item.rarity)
 
 
 func _equip_item(item: ItemData) -> void:

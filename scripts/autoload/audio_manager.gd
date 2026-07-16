@@ -35,7 +35,10 @@ func _connect_signals() -> void:
 	SignalBus.player_damaged.connect(func(_amount): play_sfx("damage_taken"))
 	SignalBus.level_up.connect(func(_level): play_sfx("level_up"))
 	SignalBus.skill_unlocked.connect(func(_skill): play_sfx("skill_cast", 1.05))
-	SignalBus.item_collected.connect(func(_id): play_sfx("item_pickup", 0.95))
+	SignalBus.item_collected.connect(_on_item_collected)
+	SignalBus.player_healed.connect(func(_amount): play_sfx("heal", 1.0))
+	SignalBus.elite_spawned.connect(func(): play_sfx("elite_spawn", 1.0))
+	SignalBus.enemy_ranged_attack.connect(func(): play_sfx("enemy_shot", 0.9))
 	SignalBus.player_died.connect(_on_player_died)
 	SignalBus.wave_started.connect(_on_wave_started)
 	SignalBus.wave_cleared.connect(_on_wave_cleared)
@@ -89,6 +92,12 @@ func play_ui(sfx_id: String) -> void:
 	_ui_player.play()
 
 
+func _on_item_collected(_item_id: String, rarity: String) -> void:
+	# Rare/epic drops get a brighter, more layered chime -- a plain common
+	# pickup and a rare weapon shouldn't read as the same moment.
+	play_sfx("item_pickup_rare" if rarity in ["rare", "epic"] else "item_pickup", 0.95)
+
+
 func _on_wave_started(wave_number: int, is_boss: bool) -> void:
 	if is_boss:
 		play_sfx("boss_roar", 1.0)
@@ -137,6 +146,10 @@ func _build_streams() -> void:
 	_streams["level_up"] = _make_arpeggio([523.0, 659.0, 784.0, 1047.0], 0.08, 0.25)
 	_streams["skill_cast"] = _make_arpeggio([440.0, 554.0, 659.0], 0.1, 0.28)
 	_streams["item_pickup"] = _make_tone(988.0, 0.09, 0.24)
+	_streams["item_pickup_rare"] = _make_arpeggio([988.0, 1245.0], 0.06, 0.26)
+	_streams["heal"] = _make_arpeggio([523.0, 659.0], 0.09, 0.22)
+	_streams["elite_spawn"] = _make_tone(600.0, 0.18, 0.28, "square", true)
+	_streams["enemy_shot"] = _make_tone(520.0, 0.05, 0.2, "square")
 	_streams["boss_roar"] = _make_tone(70.0, 0.45, 0.4, "saw")
 	_streams["boss_warning"] = _make_tone(180.0, 0.2, 0.3, "square")
 	_streams["boss_phase"] = _make_arpeggio([220.0, 277.0, 330.0, 415.0], 0.12, 0.32)
