@@ -573,11 +573,16 @@ func _summon_saplings() -> void:
 	var wm := get_tree().get_first_node_in_group("wave_manager")
 	for _i in SAPLING_COUNT:
 		var enemy = sapling_data.scene.instantiate()
-		enemy.setup(sapling_data)  # BEFORE add_child — _ready() reads data synchronously
+		enemy.setup(sapling_data)  # BEFORE add_child, per the existing contract
 		enemy._is_wave_tracked = false  # a boss add, not part of the wave's own spawn queue -- must never affect wave-clear
 		enemy.global_position = global_position + Vector2(randf_range(-60.0, 60.0), 30.0 + randf_range(0.0, 20.0))
 		enemy.modulate = Color(0.4, 0.8, 0.4, 1.0)
 		get_tree().current_scene.add_child(enemy)
+		# (2026-07-17) activate() now does the per-life init _ready() used to
+		# do automatically (current_hp, movement/attack behavior on_ready(),
+		# sprite playback) -- see enemy_base.gd. Must be called explicitly
+		# here since minions never go through EnemySpawner.spawn().
+		enemy.activate()
 		if is_instance_valid(wm):
 			enemy.died.connect(wm._on_minion_died)
 

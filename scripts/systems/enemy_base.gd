@@ -14,6 +14,7 @@ const LEAK_DAMAGE := 1.0  # HP cost when an enemy reaches the bottom of the scre
 @onready var contact_timer: Timer = $ContactDamageTimer
 @onready var screen_check: VisibleOnScreenNotifier2D = $ScreenCheck
 @onready var attack_timer: Timer = $AttackTimer
+@onready var collision: CollisionShape2D = $Collision
 
 var data: EnemyData
 var current_hp: float
@@ -24,6 +25,11 @@ var _damage_mult := 1.0
 var _xp_override := -1  # -1 sentinel = "use data.xp_reward unmodified"
 var _time_alive := 0.0
 var _is_wave_tracked := true  # false for boss-summoned minions -- must never affect wave-clear accounting
+# (2026-07-17) Set true only by EnemySpawner when this instance came from a
+# real EnemyPool -- gates whether _finish_life() returns it to the pool or
+# frees it outright. Boss-summoned minions (instantiated directly, never
+# through the spawner) stay false and always free normally.
+var _pooled := false
 
 var _base_modulate: Color
 var _base_scale: Vector2
@@ -45,11 +51,11 @@ func setup(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0,
 
 
 func _ready() -> void:
+	# One-time setup only -- pooled instances are reused across many lives
+	# without _ready() running again (same convention as projectile.gd's own
+	# pooling), so anything that depends on `data` or needs resetting per
+	# life belongs in activate(), not here.
 	add_to_group("enemy")
-	current_hp = data.base_hp * _hp_mult
-	if data.movement_behavior:
-		data.movement_behavior.on_ready(self)
-	_base_velocity = velocity
 	hurtbox.body_entered.connect(_on_hurtbox_body_entered)
 	hurtbox.body_exited.connect(_on_hurtbox_body_exited)
 	contact_timer.wait_time = CONTACT_DAMAGE_INTERVAL
@@ -57,6 +63,29 @@ func _ready() -> void:
 	screen_check.screen_exited.connect(_on_screen_exited)
 	_base_modulate = sprite.modulate
 	_base_scale = sprite.scale
+
+
+func activate() -> void:
+	# Re-primes every per-life state -- called once for a brand new spawn and
+	# again every time a pooled instance is reused. `data`/the multiplier
+	# vars must already be set via setup() before this runs.
+	current_hp = data.base_hp * _hp_mult
+	_is_dying = false
+	_time_alive = 0.0
+	status.clear()
+	_player_in_contact = null
+	contact_timer.stop()
+	attack_timer.stop()
+	collision.disabled = false
+	hurtbox.set_deferred("monitoring", true)
+	sprite.modulate = _base_modulate
+	sprite.scale = _base_scale
+	sprite.position = Vector2.ZERO
+	visible = true
+	set_physics_process(true)
+	if data.movement_behavior:
+		data.movement_behavior.on_ready(self)
+	_base_velocity = velocity
 	sprite.play("move")
 	if data.attack_behavior:
 		data.attack_behavior.on_ready(self)
@@ -145,6 +174,15 @@ func _on_attack_timer_timeout() -> void:
 
 
 func _on_screen_exited() -> void:
+	# _is_dying doubles as a general "this life is already over" guard here --
+	# a pooled instance gets hidden (visible = false) when it returns to the
+	# pool, and VisibleOnScreenNotifier2D can fire screen_exited again purely
+	# from that visibility change, not just from actually falling off-screen.
+	# Without this guard a just-died enemy could double-report to WaveManager
+	# and double-hit the player for leak damage on its own death.
+	if _is_dying:
+		return
+	_is_dying = true
 	# An enemy that falls past the player without dying still needs to count
 	# against the wave's alive tally, or a single escapee permanently blocks
 	# notify_enemy_died()'s "_alive_count <= 0" wave-clear check — no XP/drop,
@@ -155,14 +193,14 @@ func _on_screen_exited() -> void:
 	if _is_wave_tracked:
 		var wm := get_tree().get_first_node_in_group("wave_manager")
 		if is_instance_valid(wm):
-			wm.notify_enemy_died()
+			wm.notify_enemy_left_screen()
 	# (2026-07-16) Letting an enemy through unpunished made "don't kill
 	# everything" a free option -- costs 1 HP regardless of wave-tracking, so
 	# even a boss-summoned sapling that slips past still means something.
 	var player := get_tree().get_first_node_in_group("player")
 	if is_instance_valid(player) and player.has_method("take_damage"):
 		player.take_damage(LEAK_DAMAGE)
-	queue_free()
+	_finish_life()
 
 
 func _die() -> void:
@@ -179,9 +217,26 @@ func _die() -> void:
 	contact_timer.stop()
 	attack_timer.stop()
 	hurtbox.set_deferred("monitoring", false)
+	collision.disabled = true
 	set_physics_process(false)
 	var death_tween := create_tween()
 	death_tween.set_parallel(true)
 	death_tween.tween_property(sprite, "scale", Vector2.ZERO, DEATH_FADE_DURATION).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	death_tween.tween_property(sprite, "modulate:a", 0.0, DEATH_FADE_DURATION)
-	death_tween.chain().tween_callback(queue_free)
+	death_tween.chain().tween_callback(_finish_life)
+
+
+func _finish_life() -> void:
+	# Disconnect died unconditionally (harmless even for a non-pooled/never-
+	# reused instance) -- EnemySpawner.spawn() reconnects it fresh on every
+	# acquire, so a stale connection surviving into a pooled instance's next
+	# life would double-fire wave-clear/XP rewards on its next death.
+	for connection in died.get_connections():
+		died.disconnect(connection["callable"])
+	visible = false
+	if _pooled:
+		var pool := get_tree().get_first_node_in_group("enemy_pool")
+		if is_instance_valid(pool):
+			pool.release(self)
+			return
+	queue_free()

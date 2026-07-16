@@ -1,4 +1,4 @@
-[gd_scene load_steps=85 format=3]
+[gd_scene load_steps=86 format=3]
 
 [ext_resource type="Texture2D" path="res://art/backgrounds/background_arena.png" id="80"]
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
@@ -54,6 +54,7 @@
 [ext_resource type="Resource" path="res://resources/enemies/demon_beast.tres" id="104"]
 [ext_resource type="Resource" path="res://resources/enemies/armored_brute.tres" id="105"]
 [ext_resource type="Resource" path="res://resources/enemies/stone_golem.tres" id="106"]
+[ext_resource type="Script" path="res://scripts/systems/enemy_pool.gd" id="107"]
 [ext_resource type="Script" path="res://scripts/systems/danger_indicator.gd" id="50"]
 [ext_resource type="PackedScene" path="res://scenes/ui/WaveUpgradePopup.tscn" id="51"]
 [ext_resource type="Resource" path="res://resources/upgrades/fire_t1_searing_shot.tres" id="55"]
@@ -106,6 +107,9 @@ environment = SubResource("Environment1")
 
 [node name="ProjectilePool" type="Node2D" parent="."]
 script = ExtResource("45")
+
+[node name="EnemyPool" type="Node2D" parent="."]
+script = ExtResource("107")
 
 [node name="Player" parent="." instance=ExtResource("1")]
 position = Vector2(360, 1150)

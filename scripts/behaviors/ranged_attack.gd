@@ -14,7 +14,11 @@ const ENEMY_SHOT_MAX_RANGE := 1400.0
 
 func on_ready(enemy: EnemyBase) -> void:
 	enemy.attack_timer.wait_time = enemy.data.attack_interval
-	enemy.attack_timer.timeout.connect(enemy._on_attack_timer_timeout)
+	# Pooled enemies call on_ready() again on every reused life -- guard
+	# against connecting a 2nd (3rd, ...) time, which would fire this enemy's
+	# ranged attack multiple times per timer tick on later lives.
+	if not enemy.attack_timer.timeout.is_connected(enemy._on_attack_timer_timeout):
+		enemy.attack_timer.timeout.connect(enemy._on_attack_timer_timeout)
 	enemy.attack_timer.start()
 
 

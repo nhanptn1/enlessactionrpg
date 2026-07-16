@@ -35,19 +35,24 @@ func _assert_save_roundtrip() -> void:
 	_assert_meta_progression()
 	_assert_equipment_slots()
 	_assert_audio_depth()
+	_assert_wave_scale()
 	_assert_player_movement_clamping()
 	_assert_trap_zone_activation()
 
 
 func _assert_meta_progression() -> void:
+	# Reset vitality to rank 0 first -- repeated runs of this same smoke test
+	# (e.g. during dev iteration) would otherwise accumulate rank across runs
+	# until it hits max_rank, after which a fresh purchase correctly fails
+	# and this assertion would flake.
+	SaveManager.meta_upgrades["vitality"] = 0
 	var before_essence := SaveManager.essence
-	var before_rank := SaveManager.get_meta_rank("vitality")
 	SaveManager.add_essence(1000)
 	assert(SaveManager.essence == before_essence + 1000, "add_essence should increase essence")
 	assert(SaveManager.purchase_meta_upgrade("vitality"), "purchase should succeed with enough essence")
-	assert(SaveManager.get_meta_rank("vitality") == before_rank + 1, "purchase should increment rank")
+	assert(SaveManager.get_meta_rank("vitality") == 1, "purchase should increment rank")
 	assert(SaveManager.load_save(), "meta-progression state should round-trip through disk")
-	assert(SaveManager.get_meta_rank("vitality") == before_rank + 1, "rank should persist after reload")
+	assert(SaveManager.get_meta_rank("vitality") == 1, "rank should persist after reload")
 
 
 func _assert_equipment_slots() -> void:
@@ -82,6 +87,34 @@ func _assert_audio_depth() -> void:
 	assert(healed[0], "a real heal should emit SignalBus.player_healed")
 	SignalBus.player_healed.disconnect(conn)
 	player.queue_free()
+
+
+func _assert_wave_scale() -> void:
+	var wm := WaveManager.new()
+	wm.waves = [
+		load("res://resources/waves/wave_01.tres"), load("res://resources/waves/wave_02.tres"),
+		load("res://resources/waves/wave_03.tres"), load("res://resources/waves/wave_04.tres"),
+		load("res://resources/waves/wave_05.tres"),
+	]
+	wm.procedural_enemy_pool = [load("res://resources/enemies/slime_scout.tres")]
+
+	var wave6: WaveData = wm._generate_wave(6)
+	var wave6_total := 0
+	for c in wave6.spawn_counts:
+		wave6_total += c
+	assert(wave6_total == 50, "wave 6 should total 50 monsters per the plan's ramp, got %d" % wave6_total)
+
+	var boss_wave: WaveData = wm._generate_wave(10)
+	var boss_total := 0
+	for c in boss_wave.spawn_counts:
+		boss_total += c
+	assert(boss_total >= 10 and boss_total <= 25, "boss wave support count should stay 10-25, got %d" % boss_total)
+
+	var late_wave: WaveData = wm._generate_wave(40)
+	var late_total := 0
+	for c in late_wave.spawn_counts:
+		late_total += c
+	assert(late_total <= 100, "late-game wave total should stay capped at 100, got %d" % late_total)
 
 
 func _assert_player_movement_clamping() -> void:

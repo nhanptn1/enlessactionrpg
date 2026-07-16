@@ -8,6 +8,7 @@
 script = ExtResource("1")
 wave_number = 1
 enemy_pool = [ExtResource("2"), ExtResource("3")]
-spawn_counts = Array[int]([5, 2])
+spawn_counts = Array[int]([14, 6])
 spawn_interval = 1.2
 is_boss_wave = false
+max_active = 5

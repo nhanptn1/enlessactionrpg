@@ -12,9 +12,35 @@ const BOSS_WAVE_INTERVAL := 10
 const HP_SCALING_PER_WAVE := 0.25
 const HP_MULT_CEILING := 12.0
 const SPEED_SCALING_PER_WAVE := 0.03
-const COUNT_SCALING_PER_WAVE := 1
+# (2026-07-17) 1->10, plus a MAX_WAVE_MONSTER_COUNT ceiling -- Phase 2 pillar 6
+# ("bigger wave scale", plan/monster-waves-progression.txt) targets 50-100
+# total monsters by mid/late waves, not the previous ~1-per-wave crawl. Hand-
+# authored waves 1-5 were retuned to the plan's own 20/25/30/35/40 totals (see
+# those .tres files); this formula continues the same ramp from wave 6 on:
+# 40 (wave 5's new total) + 10*extra_waves hits the plan's wave 6-9 targets
+# (50/60/70/80) exactly, then the ceiling below caps further growth at the
+# plan's stated "late game: 100 monsters maximum."
+const COUNT_SCALING_PER_WAVE := 10
+const MAX_WAVE_MONSTER_COUNT := 100
 const SPAWN_INTERVAL_DECAY := 0.03
 const SPAWN_INTERVAL_FLOOR := 0.35
+# (2026-07-17) Active-on-screen cap for generated waves -- plan's own table
+# ramps 9/10/12/12-15 across waves 6-9, then holds at "10 to 15 active"
+# indefinitely. 8+extra_waves clamped to 15 tracks that closely without
+# needing a literal per-wave lookup (hand-authored waves 1-5 set their own
+# max_active directly in their .tres, matching the plan's 5/6/6/7/8 table).
+const MAX_ACTIVE_CEILING := 15
+const MAX_ACTIVE_BASE := 8
+# (2026-07-17) 0.5->0.2 (regular-monster share) plus a direct clamp -- the
+# plan's own target is "boss + 10 to 25 support monsters" regardless of how
+# late the boss cycle is, but the generated count formula above keeps growing
+# every wave (including boss waves), so a fixed fraction alone would drift
+# well past 25 by later cycles. The clamp is what actually keeps this
+# in-range long-term; the fraction just keeps early cycles from jumping
+# straight to the clamp's ceiling.
+const BOSS_WAVE_MONSTER_MULT := 0.2
+const BOSS_WAVE_MONSTER_MIN := 10
+const BOSS_WAVE_MONSTER_MAX := 25
 # (2026-07-16) 15.0->75.0 (x5) per direct user request.
 const BOSS_HP_MULT_BASE := 75.0
 const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.2
@@ -55,6 +81,12 @@ var _current_xp_override := -1
 var _current_visual_scale := 1.0
 var _is_boss_wave := false
 var _alive_count := 0
+# Subset of _alive_count that's actually been spawned and is still alive on
+# screen (as opposed to still sitting in _spawn_queue) -- see
+# WaveData.max_active / _on_spawn_tick(). Never touched by boss spawns/deaths
+# (bosses go through _spawn_boss(), not _spawn_one(), and are never meant to
+# count against the regular-monster active cap).
+var _active_on_screen := 0
 var _spawn_queue: Array[EnemyData] = []
 var _spawn_timer: Timer
 var _pending_boss: EnemyData = null  # set on boss waves, spawned once _spawn_queue empties -- see _spawn_boss()
@@ -124,12 +156,12 @@ func _start_next_wave() -> void:
 	# could read as cleared the moment the last regular monster dies, before
 	# the boss has even appeared. See _spawn_boss()/notify_enemy_died().
 	_alive_count = _spawn_queue.size() + (1 if _is_boss_wave else 0)
+	_active_on_screen = 0
 	_spawn_timer.wait_time = _current_wave.spawn_interval
 	_spawn_timer.start()
 
 
 const PROCEDURAL_TYPES_PER_WAVE := 3  # (2026-07-16) was 1 -- a single random type per wave meant any wave that happened to roll the pool's one ranged species (Cursed Wraith) became 100% ranged monsters; picking several distinct types every wave mixes melee/ranged naturally without needing to hand-classify each species.
-const BOSS_WAVE_MONSTER_MULT := 0.5  # (2026-07-16) regular monsters still spawn alongside the boss (see _start_next_wave()), but the normal per-wave count formula was never discounted for that -- wave 10 got the boss AND a full, further-scaled swarm of regular enemies at the same time, which read as much harder than every other wave. Halves the regular spawn count specifically on boss waves.
 
 
 func _generate_wave(wave_number: int) -> WaveData:
@@ -141,12 +173,13 @@ func _generate_wave(wave_number: int) -> WaveData:
 	wave.enemy_pool = pool.slice(0, type_count)
 
 	var extra_waves := wave_number - waves.size()
-	var count: int = _last_authored_count() + COUNT_SCALING_PER_WAVE * extra_waves
+	var count: int = mini(_last_authored_count() + COUNT_SCALING_PER_WAVE * extra_waves, MAX_WAVE_MONSTER_COUNT)
 	wave.is_boss_wave = wave_number % BOSS_WAVE_INTERVAL == 0
 	if wave.is_boss_wave:
-		count = roundi(count * BOSS_WAVE_MONSTER_MULT)
+		count = clampi(roundi(count * BOSS_WAVE_MONSTER_MULT), BOSS_WAVE_MONSTER_MIN, BOSS_WAVE_MONSTER_MAX)
 	wave.spawn_counts = _split_count(count, wave.enemy_pool.size())
 	wave.spawn_interval = maxf(SPAWN_INTERVAL_FLOOR, _last_authored_interval() - SPAWN_INTERVAL_DECAY * extra_waves)
+	wave.max_active = mini(MAX_ACTIVE_CEILING, MAX_ACTIVE_BASE + extra_waves)
 
 	# (2026-07-16) Scaled off extra_waves (wave 6 = extra_waves 1), not
 	# wave_number directly -- wave 6 used to jump straight from waves 1-5's
@@ -213,6 +246,8 @@ func _on_spawn_tick() -> void:
 		if _pending_boss != null:
 			_spawn_boss()
 		return
+	if _active_on_screen >= _current_wave.max_active:
+		return  # at the active cap -- wait for a slot to open (a death/leak), try again next tick
 	var enemy_data: EnemyData = _spawn_queue.pop_back()
 	var cluster_size: int = maxi(enemy_data.cluster_size, 1)
 	if cluster_size == 1:
@@ -233,12 +268,13 @@ func _spawn_one(enemy_data: EnemyData, x_override: float) -> void:
 	var damage_mult := _current_damage_mult * (ELITE_DAMAGE_MULT if is_elite else 1.0)
 	var xp_override := roundi(enemy_data.xp_reward * ELITE_XP_MULT) if is_elite else _current_xp_override
 	spawner.spawn(enemy_data, hp_mult, speed_mult, damage_mult, xp_override, _current_visual_scale, x_override, is_elite)
+	_active_on_screen += 1
 
 
 func _spawn_boss() -> void:
 	var boss_data := _pending_boss
 	_pending_boss = null
-	spawner.spawn(boss_data, _pending_boss_hp_mult, 1.0, BOSS_DAMAGE_MULT, BOSS_XP_REWARD, BOSS_VISUAL_SCALE, -1.0, false)
+	spawner.spawn(boss_data, _pending_boss_hp_mult, 1.0, BOSS_DAMAGE_MULT, BOSS_XP_REWARD, BOSS_VISUAL_SCALE, -1.0, false, true)
 
 
 func notify_enemy_died() -> void:
@@ -251,6 +287,25 @@ func notify_enemy_died() -> void:
 
 
 func _on_enemy_died(xp_reward: int, drop_chance: float, death_position: Vector2) -> void:
+	_grant_death_rewards(xp_reward, drop_chance, death_position)
+	_active_on_screen = maxi(_active_on_screen - 1, 0)
+	notify_enemy_died()
+
+
+func notify_enemy_left_screen() -> void:
+	# A regular enemy that leaked off the bottom without dying (enemy_base.gd's
+	# _on_screen_exited()) still frees up its active-on-screen slot, same as
+	# an actual kill -- only ever called for _is_wave_tracked regular
+	# enemies, so this can never apply to a boss (which has no leak mechanic
+	# at all) or a boss-summoned minion (never wave-tracked).
+	_active_on_screen = maxi(_active_on_screen - 1, 0)
+	notify_enemy_died()
+
+
+func _on_boss_died(xp_reward: int, drop_chance: float, death_position: Vector2) -> void:
+	# Deliberately separate from _on_enemy_died() -- the boss is spawned via
+	# _spawn_boss(), never _spawn_one(), so it was never counted into
+	# _active_on_screen in the first place and must not decrement it either.
 	_grant_death_rewards(xp_reward, drop_chance, death_position)
 	notify_enemy_died()
 
