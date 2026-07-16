@@ -203,22 +203,32 @@ static func fire_meteor_fall(target_pos: Vector2, duration: float, host: Node) -
 
 
 static func ice_burst(pos: Vector2, radius: float, host: Node) -> void:
-	# Frozen Burst: a real 4-frame radiating ice-spike burst (from the supplied
+	# Frozen Burst: a real 4-frame ice-spike burst (from the supplied
 	# "ice brust.png" reference sheet) instead of flash_burst()+ice_shards(),
 	# scaled to the hit's burst radius -- same treatment Fire's Explosive
-	# Volley got via fire_explosion().
-	_play_burst_animation(_get_ice_burst_frames(), pos, radius, host)
+	# Volley got via fire_explosion(). (2026-07-16) Unlike fire_explosion()/
+	# ice_wall_nova_burst()'s art, this reference sheet turned out to be a
+	# directional spike FAN (all spikes thrust rightward, not radiating in
+	# every direction) rather than a true radial burst -- confirmed by
+	# comparing directly against the other two, which are genuinely
+	# omnidirectional. Left unrotated it always read as "heading left to
+	# right" no matter where the hit landed (user report). Rotated -90° so
+	# the fan erupts upward from the impact point instead, which reads as
+	# intentional in this vertical shooter (enemies are always above) rather
+	# than a random sideways smear.
+	_play_burst_animation(_get_ice_burst_frames(), pos, radius, host, -PI / 2.0)
 
 
 static func ice_wall_nova_burst(pos: Vector2, radius: float, host: Node) -> void:
 	# Ice Wall Nova: a bigger 5-frame swirl-to-shatter animation (from the
 	# supplied "ice wall nova.png" reference sheet), distinct from Frozen
 	# Burst's own art -- matches this skill's much larger burst_radius and
-	# tier-3 weight with a more elaborate payoff.
+	# tier-3 weight with a more elaborate payoff. Genuinely radially
+	# symmetric (confirmed visually), so no rotation correction needed.
 	_play_burst_animation(_get_ice_wall_nova_frames(), pos, radius, host)
 
 
-static func _play_burst_animation(frames: SpriteFrames, pos: Vector2, radius: float, host: Node) -> void:
+static func _play_burst_animation(frames: SpriteFrames, pos: Vector2, radius: float, host: Node, rotation: float = 0.0) -> void:
 	if not is_instance_valid(host):
 		return
 	var sprite := AnimatedSprite2D.new()
@@ -227,6 +237,7 @@ static func _play_burst_animation(frames: SpriteFrames, pos: Vector2, radius: fl
 	var first_tex: Texture2D = frames.get_frame_texture(&"burst", 0)
 	sprite.scale = Vector2.ONE * (radius * BURST_TARGET_DIAMETER_MULT) / first_tex.get_width()
 	sprite.global_position = pos
+	sprite.rotation = rotation
 	host.get_tree().current_scene.add_child(sprite)
 	sprite.play()
 	sprite.animation_finished.connect(sprite.queue_free)
@@ -374,3 +385,98 @@ static func _circle_polygon(radius: float, segments: int = 20) -> PackedVector2A
 		var angle := TAU * i / segments
 		pts.append(Vector2(cos(angle), sin(angle)) * radius)
 	return pts
+
+
+# (2026-07-16) Boss attacks below -- every generic-shape boss attack
+# (root_slam/vine_whip/poison_burst/aimed_shot) used to share one identical
+# flash_burst() ring regardless of what the attack actually was, which read
+# as "the same colored circle every time" -- user: "boss attack still not
+# real attack, still prototype." No dedicated boss attack art exists (same
+# constraint as everything else in this file), so these are each a distinct
+# procedural shape matching the attack's own identity instead of one shared
+# template.
+
+static func ground_spikes(pos: Vector2, radius: float, host: Node) -> void:
+	# Root Slam: a handful of jagged brown spikes erupt from the ground within
+	# the hit radius and settle back down, instead of a flat colored ring.
+	if not is_instance_valid(host):
+		return
+	var count := 6
+	for i in count:
+		var angle: float = TAU * i / count + randf_range(-0.25, 0.25)
+		var dist: float = radius * randf_range(0.25, 0.85)
+		var spike_pos: Vector2 = pos + Vector2(cos(angle), sin(angle)) * dist
+		var spike_height: float = randf_range(16.0, 26.0)
+		var spike := Polygon2D.new()
+		spike.color = Color(0.42, 0.3, 0.16, 1.0)
+		spike.polygon = PackedVector2Array([Vector2(-4, 0), Vector2(4, 0), Vector2(0, -spike_height)])
+		spike.global_position = spike_pos
+		spike.scale = Vector2(1.0, 0.05)
+		host.get_tree().current_scene.add_child(spike)
+		var tween := spike.create_tween()
+		tween.tween_property(spike, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tween.tween_interval(0.18)
+		tween.tween_property(spike, "modulate:a", 0.0, 0.22)
+		tween.tween_callback(spike.queue_free)
+
+
+static func whip_lash(from_pos: Vector2, to_pos: Vector2, host: Node) -> void:
+	# Vine Whip: an actual curved lash line from the boss to the target
+	# (a shallow bow, not a straight bar) that snaps thin and fades, instead
+	# of a static translucent rectangle just appearing and vanishing.
+	if not is_instance_valid(host):
+		return
+	var dir: Vector2 = (to_pos - from_pos).normalized()
+	var normal: Vector2 = Vector2(-dir.y, dir.x) * (18.0 if randf() < 0.5 else -18.0)
+	var mid: Vector2 = from_pos.lerp(to_pos, 0.5) + normal
+	var line := Line2D.new()
+	line.width = 10.0
+	line.default_color = Color(0.3, 0.7, 0.25, 0.9)
+	line.points = PackedVector2Array([from_pos, mid, to_pos])
+	host.get_tree().current_scene.add_child(line)
+	var tween := line.create_tween()
+	tween.tween_property(line, "width", 3.0, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(line, "modulate:a", 0.0, 0.22)
+	tween.tween_callback(line.queue_free)
+
+
+static func poison_cloud(pos: Vector2, radius: float, host: Node) -> void:
+	# Poison Burst: several small purple/green bubbles drift upward and fade
+	# within the hit radius, reading as a toxic gas puff instead of one flat
+	# purple ring.
+	if not is_instance_valid(host):
+		return
+	var count := 8
+	for i in count:
+		var angle: float = randf_range(0.0, TAU)
+		var dist: float = radius * randf_range(0.1, 0.8)
+		var bubble_pos: Vector2 = pos + Vector2(cos(angle), sin(angle)) * dist
+		var bubble_radius: float = randf_range(5.0, 11.0)
+		var bubble := Polygon2D.new()
+		bubble.color = Color(0.55, 0.2, 0.6, 0.75) if i % 2 == 0 else Color(0.35, 0.55, 0.25, 0.7)
+		bubble.polygon = _circle_polygon(bubble_radius, 10)
+		bubble.global_position = bubble_pos
+		host.get_tree().current_scene.add_child(bubble)
+		var rise: Vector2 = Vector2(randf_range(-10.0, 10.0), -randf_range(22.0, 40.0))
+		var tween := bubble.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(bubble, "global_position", bubble_pos + rise, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tween.tween_property(bubble, "modulate:a", 0.0, 0.5)
+		tween.chain().tween_callback(bubble.queue_free)
+
+
+static func arrow_shot(from_pos: Vector2, to_pos: Vector2, host: Node) -> void:
+	# Dark Ranger's Aimed Shot: a real arrow-shaped polygon streaks from the
+	# boss to the target right as the hit resolves, instead of an instant
+	# translucent rectangle standing in for "an arrow was fired."
+	if not is_instance_valid(host):
+		return
+	var arrow := Polygon2D.new()
+	arrow.color = Color(0.6, 0.1, 0.1, 0.95)
+	arrow.polygon = PackedVector2Array([Vector2(-14, -3), Vector2(6, -3), Vector2(6, -7), Vector2(16, 0), Vector2(6, 7), Vector2(6, 3), Vector2(-14, 3)])
+	arrow.global_position = from_pos
+	arrow.rotation = (to_pos - from_pos).angle()
+	host.get_tree().current_scene.add_child(arrow)
+	var tween := arrow.create_tween()
+	tween.tween_property(arrow, "global_position", to_pos, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_callback(arrow.queue_free)

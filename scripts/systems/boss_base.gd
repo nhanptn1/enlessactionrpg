@@ -393,12 +393,12 @@ func _execute_attack(attack_id: String) -> void:
 	await get_tree().create_timer(info["telegraph_time"], false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
-	_apply_attack_damage(info, target_pos)
+	_apply_attack_damage(attack_id, info, target_pos)
 	_resume_walk_for_cooldown()
 	await get_tree().create_timer(info["cooldown"], false).timeout
 
 
-func _apply_attack_damage(info: Dictionary, target_pos: Vector2) -> void:
+func _apply_attack_damage(attack_id: String, info: Dictionary, target_pos: Vector2) -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	if not is_instance_valid(player) or not player.has_method("take_damage"):
 		return
@@ -421,11 +421,24 @@ func _apply_attack_damage(info: Dictionary, target_pos: Vector2) -> void:
 			var poly := _rect_polygon(global_position, target_pos, info["width"])
 			if Geometry2D.is_point_in_polygon(player.global_position, poly):
 				hit = true
-	# A real flash where the telegraph resolves, instead of the warning shape
-	# just silently vanishing -- reuses the same ImpactVFX the player's own
-	# skills already use, so boss attacks land with a comparable "real effect".
+	# A real effect where the telegraph resolves, instead of the warning shape
+	# just silently vanishing. (2026-07-16) Every attack used to share the
+	# exact same flash_burst() ring regardless of what it actually was --
+	# each one now gets its own distinct procedural shape matching its
+	# identity (see the "Boss attacks" section of impact_vfx.gd); flash_burst
+	# stays as the fallback for anything not special-cased below.
 	var flash_color: Color = info["color"]
-	ImpactVFX.flash_burst(flash_pos, flash_radius, Color(flash_color.r, flash_color.g, flash_color.b, 1.0), self)
+	match attack_id:
+		"root_slam":
+			ImpactVFX.ground_spikes(flash_pos, flash_radius, self)
+		"vine_whip":
+			ImpactVFX.whip_lash(global_position, target_pos, self)
+		"poison_burst":
+			ImpactVFX.poison_cloud(flash_pos, flash_radius, self)
+		"aimed_shot":
+			ImpactVFX.arrow_shot(global_position, target_pos, self)
+		_:
+			ImpactVFX.flash_burst(flash_pos, flash_radius, Color(flash_color.r, flash_color.g, flash_color.b, 1.0), self)
 	if hit:
 		player.take_damage(info["damage"] * _damage_mult)
 
