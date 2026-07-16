@@ -156,6 +156,7 @@ signal item_collected(item: ItemData)
 
 func _ready() -> void:
 	add_to_group("player")
+	_apply_meta_upgrades()
 	_current_skill = basic_shot
 	attack_timer.wait_time = _current_skill.cooldown
 	attack_timer.timeout.connect(_on_attack_timeout)
@@ -167,6 +168,18 @@ func _ready() -> void:
 	_sprite_base_scale = sprite.scale
 	sprite.play("idle")
 	_start_idle_bob()
+
+
+func _apply_meta_upgrades() -> void:
+	# Permanent, essence-purchased bonuses from SaveManager -- applied once at
+	# spawn, on top of whatever a fresh run already starts with. Same stat
+	# vocabulary as apply_upgrade()'s in-run picks, just sourced from
+	# meta-progression instead of a level-up/wave-clear choice.
+	max_hp += SaveManager.get_meta_bonus("vitality")
+	current_hp = max_hp
+	damage_mult += SaveManager.get_meta_bonus("power")
+	cooldown_mult = maxf(cooldown_mult - SaveManager.get_meta_bonus("quickdraw"), 0.3)
+	xp_gain_mult += SaveManager.get_meta_bonus("insight")
 
 
 func _physics_process(delta: float) -> void:

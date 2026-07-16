@@ -32,8 +32,20 @@ func _assert_save_roundtrip() -> void:
 	SaveManager.record_run(before_wave + 1, SaveManager.best_level + 1)
 	assert(SaveManager.best_wave >= before_wave + 1)
 	assert(SaveManager.load_save())
+	_assert_meta_progression()
 	_assert_player_movement_clamping()
 	_assert_trap_zone_activation()
+
+
+func _assert_meta_progression() -> void:
+	var before_essence := SaveManager.essence
+	var before_rank := SaveManager.get_meta_rank("vitality")
+	SaveManager.add_essence(1000)
+	assert(SaveManager.essence == before_essence + 1000, "add_essence should increase essence")
+	assert(SaveManager.purchase_meta_upgrade("vitality"), "purchase should succeed with enough essence")
+	assert(SaveManager.get_meta_rank("vitality") == before_rank + 1, "purchase should increment rank")
+	assert(SaveManager.load_save(), "meta-progression state should round-trip through disk")
+	assert(SaveManager.get_meta_rank("vitality") == before_rank + 1, "rank should persist after reload")
 
 
 func _assert_player_movement_clamping() -> void:
