@@ -76,7 +76,8 @@ func _assert_trap_detonation() -> void:
 	# fires exactly once even if triggered twice (kill + expiry racing).
 	var trap_scene = load("res://scenes/effects/TrapZone.tscn")
 	var trap = trap_scene.instantiate()
-	trap.activate(10.0, 3.0, 50.0, Vector2(100.0, 100.0), [], 0.8)
+	var no_status_rolls: Array[Dictionary] = []
+	trap.activate(10.0, 3.0, 50.0, Vector2(100.0, 100.0), no_status_rolls, 0.8)
 	add_child(trap)
 	assert(trap.detonate_mult == 0.8, "TrapZone detonate_mult not set from activate()")
 	trap._detonate()

@@ -620,7 +620,13 @@ func _fire_trap_shot(skill: SkillData) -> bool:
 	var target: Node2D = targets[0]
 	var trap = skill.trap_scene.instantiate()
 	var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
-	trap.activate(dmg, skill.trap_duration, skill.trap_radius, target.global_position, [], physical_trap_detonate_mult)
+	# A bare `[]` literal here fails TrapZone.activate()'s typed Array[Dictionary]
+	# param at the call boundary (confirmed via a headless repro -- GDScript
+	# doesn't coerce an untyped empty-array literal across a typed-array
+	# parameter the way it does for the function's own default value) -- must
+	# be a real typed local instead.
+	var no_status_rolls: Array[Dictionary] = []
+	trap.activate(dmg, skill.trap_duration, skill.trap_radius, target.global_position, no_status_rolls, physical_trap_detonate_mult)
 	get_tree().current_scene.add_child(trap)
 	return true
 
