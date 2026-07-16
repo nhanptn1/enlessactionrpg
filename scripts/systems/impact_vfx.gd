@@ -66,7 +66,7 @@ const ARROW_RAIN_IMPACT_FRAME_PATHS := [
 	"res://art/vfx/arrow_rain_impact.png",
 ]
 const ARROW_RAIN_IMPACT_SPEED := 3.5    # 1 frame, held briefly as a quick impact flash (~0.28s)
-const ARROW_RAIN_FALL_SPEED := 5.0      # 3 frames span 0.6s, matching arrow_rain.tres's telegraph_time
+const ARROW_RAIN_FALL_SPEED := 5.0      # 3 frames span 0.6s, matching this fire mode's typical telegraph_time (e.g. burning_rain.tres/thunder_storm.tres)
 const ARROW_RAIN_FALL_HEIGHT := 280.0   # (2026-07-16) was 420 -- user feedback that Arrow Rain's cast visual read as too big, especially with 3 zones on screen at once
 
 static var _meteor_frames: SpriteFrames = null

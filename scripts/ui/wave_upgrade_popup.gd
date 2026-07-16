@@ -57,10 +57,10 @@ func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
 	# they entirely fit in the remaining slots, so a fork (2 slots) never gets
 	# split across waves -- at most one fork can appear alongside one other
 	# element's single node in the 3 available slots. PHYSICAL (Multishot ->
-	# Piercing Arrow -> Arrow Rain -> Trap Shot) competes for the same 3 slots
-	# as the elements -- it's a linear chain with no forks, so its "unit" is
-	# always exactly 1 card. It still has no per-skill icon art, so its cards
-	# fall back to SkillIcon's procedural glyph (see skill_icon.gd).
+	# Piercing Arrow -> Trap Shot -> Trap Mastery) competes for the same 3
+	# slots as the elements -- it's a linear chain with no forks, so its "unit"
+	# is always exactly 1 card. It still has no per-skill icon art, so its
+	# cards fall back to SkillIcon's procedural glyph (see skill_icon.gd).
 	var element_order: Array = [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING, UpgradeResource.ElementType.PHYSICAL]
 	element_order.shuffle()
 	_pending_choices.clear()

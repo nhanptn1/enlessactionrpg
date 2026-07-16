@@ -49,7 +49,6 @@ const UPGRADE_POOL: Array[String] = [
 @export var basic_shot: SkillData
 @export var multishot: SkillData
 @export var piercing_arrow: SkillData
-@export var arrow_rain: SkillData
 @export var trap_shot: SkillData
 # Index 0/1/2/3 = tier 1/2/3/4 -- e.g. fire_skills = [Fire Arrow, Explosive
 # Volley, Burning Rain, Wildfire Storm]. fire_level (1-4) indexes straight
@@ -77,11 +76,14 @@ var fire_level := 0  # highest tier reached (0-3), not a pick count
 var lightning_level := 0
 var frost_level := 0
 # Physical line's tier (0-4): 0 = Basic Shot (starting default, no pick
-# needed), 1-4 = Multishot/Piercing Arrow/Arrow Rain/Trap Shot, picked one at
-# a time via the wave-clear popup like the elemental trees -- see
+# needed), 1-3 = Multishot/Piercing Arrow/Trap Shot (each swaps the active
+# skill wholesale), 4 = Trap Mastery, a stat-only upgrade that extends Trap
+# Shot's damage/behavior rather than swapping in a new skill -- see
 # apply_element_upgrade()'s PHYSICAL branch. Unlike elementals, physical has
 # no "active selection": whichever tier is reached is always what
 # attack_timer fires, since there's only ever one physical line.
+# (2026-07-16) Arrow Rain (formerly tier 3) removed -- Trap Shot moved up to
+# tier 3, freeing tier 4 for the Trap Mastery extension above.
 var physical_level := 0
 
 # Only one elemental skill auto-fires at a time -- players can still invest
@@ -113,6 +115,7 @@ var lightning_slow_bonus := 0.0
 var lightning_dps := 0.0
 var lightning_spread_chance := 0.0
 var lightning_combo_bonus_mult := 0.0
+var physical_trap_detonate_mult := 0.0  # 0 = off; Trap Mastery: trap deals bonus damage (base_damage * this) in a wider blast on a kill or on expiry
 
 var is_dead := false
 var _current_skill: SkillData  # the single active attack; upgrades wholesale at fixed levels
@@ -201,7 +204,7 @@ func gain_xp(amount: int) -> void:
 func _on_level_up(new_level: int) -> void:
 	level_up.emit(new_level)
 	SignalBus.level_up.emit(new_level)
-	# The physical line (Multishot/Piercing Arrow/Arrow Rain/Trap Shot) no
+	# The physical line (Multishot/Piercing Arrow/Trap Shot/Trap Mastery) no
 	# longer auto-swaps at fixed levels -- it's now a wave-clear player pick
 	# like the elemental trees, see apply_element_upgrade()'s PHYSICAL branch.
 
@@ -241,8 +244,11 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 		match physical_level:
 			1: _current_skill = multishot
 			2: _current_skill = piercing_arrow
-			3: _current_skill = arrow_rain
-			4: _current_skill = trap_shot
+			3: _current_skill = trap_shot
+			# 4 has no case: Trap Mastery is a stat-only upgrade (see
+			# physical_trap_detonate_mult) that extends tier 3's Trap Shot
+			# rather than swapping in a new skill, so _current_skill just
+			# stays whatever tier 3 already set.
 		_refresh_timer_cooldowns()
 		skill_unlocked.emit(_current_skill)
 		SignalBus.skill_unlocked.emit(_current_skill)
@@ -614,7 +620,7 @@ func _fire_trap_shot(skill: SkillData) -> bool:
 	var target: Node2D = targets[0]
 	var trap = skill.trap_scene.instantiate()
 	var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
-	trap.activate(dmg, skill.trap_duration, skill.trap_radius, target.global_position)
+	trap.activate(dmg, skill.trap_duration, skill.trap_radius, target.global_position, [], physical_trap_detonate_mult)
 	get_tree().current_scene.add_child(trap)
 	return true
 

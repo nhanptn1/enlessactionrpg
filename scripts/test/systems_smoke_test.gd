@@ -21,11 +21,8 @@ func _assert_autoloads() -> void:
 
 
 func _assert_skill_resources() -> void:
-	var arrow_rain = load("res://resources/skills/arrow_rain.tres")
 	var trap_shot = load("res://resources/skills/trap_shot.tres")
-	assert(arrow_rain != null, "arrow_rain.tres failed to load")
 	assert(trap_shot != null, "trap_shot.tres failed to load")
-	assert(arrow_rain.fire_mode == SkillData.FireMode.ARROW_RAIN)
 	assert(trap_shot.fire_mode == SkillData.FireMode.TRAP_SHOT)
 	assert(load(MAIN_SCENE) != null, "Main.tscn failed to load")
 
@@ -61,13 +58,28 @@ func _assert_trap_zone_activation() -> void:
 	var trap_scene = load("res://scenes/effects/TrapZone.tscn")
 	assert(trap_scene != null, "TrapZone.tscn failed to load")
 	var trap = trap_scene.instantiate()
-	
+
 	# Replicates the player.gd setup: calling activate() before add_child()
 	trap.activate(10.0, 3.0, 50.0, Vector2(100.0, 100.0))
 	add_child(trap)
-	
+
 	assert(trap.visual != null, "TrapZone visual node is Nil")
 	assert(trap.collision != null, "TrapZone collision node is Nil")
 	assert(trap.collision.shape != null, "TrapZone collision shape is Nil")
-	
+
+	trap.queue_free()
+	_assert_trap_detonation()
+
+
+func _assert_trap_detonation() -> void:
+	# Trap Mastery: detonate_mult flows through activate() and _detonate()
+	# fires exactly once even if triggered twice (kill + expiry racing).
+	var trap_scene = load("res://scenes/effects/TrapZone.tscn")
+	var trap = trap_scene.instantiate()
+	trap.activate(10.0, 3.0, 50.0, Vector2(100.0, 100.0), [], 0.8)
+	add_child(trap)
+	assert(trap.detonate_mult == 0.8, "TrapZone detonate_mult not set from activate()")
+	trap._detonate()
+	assert(trap._detonated, "TrapZone did not mark itself detonated")
+	trap._detonate()  # second call must be a no-op, not a double-trigger
 	trap.queue_free()
