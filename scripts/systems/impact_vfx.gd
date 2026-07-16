@@ -480,3 +480,91 @@ static func arrow_shot(from_pos: Vector2, to_pos: Vector2, host: Node) -> void:
 	var tween := arrow.create_tween()
 	tween.tween_property(arrow, "global_position", to_pos, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.tween_callback(arrow.queue_free)
+
+
+# (2026-07-16) Fallen Knight (3rd boss) below -- same "each attack gets its
+# own distinct procedural shape" convention as the section above.
+
+static func sword_slash(pos: Vector2, direction: Vector2, host: Node) -> void:
+	# Sword Slash, and Charge's landing hit: a bright crescent slash arc
+	# oriented toward the strike direction, instead of a flat colored ring.
+	if not is_instance_valid(host):
+		return
+	var slash := Polygon2D.new()
+	slash.color = Color(0.85, 0.9, 0.95, 0.95)
+	var arc_radius := 34.0
+	var arc_span := deg_to_rad(70.0)
+	var segments := 10
+	var pts := PackedVector2Array()
+	for i in segments + 1:
+		var a: float = -arc_span / 2.0 + arc_span * i / segments
+		pts.append(Vector2(cos(a), sin(a)) * arc_radius)
+	for i in segments + 1:
+		var a: float = arc_span / 2.0 - arc_span * i / segments
+		pts.append(Vector2(cos(a), sin(a)) * (arc_radius * 0.55))
+	slash.polygon = pts
+	slash.global_position = pos
+	slash.rotation = direction.angle()
+	host.get_tree().current_scene.add_child(slash)
+	var tween := slash.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(slash, "scale", Vector2.ONE * 1.3, 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(slash, "modulate:a", 0.0, 0.2)
+	tween.chain().tween_callback(slash.queue_free)
+
+
+static func ground_shockwave(pos: Vector2, radius: float, host: Node) -> void:
+	# Shockwave: a jagged cracked-ground burst that punches outward and
+	# fades, distinct from flash_burst()'s smooth ring or ground_spikes()'s
+	# vertical spikes.
+	if not is_instance_valid(host):
+		return
+	var ring := Polygon2D.new()
+	ring.color = Color(0.55, 0.5, 0.42, 0.85)
+	var segments := 16
+	var pts := PackedVector2Array()
+	for i in segments:
+		var a: float = TAU * i / segments
+		var r: float = radius * (0.85 if i % 2 == 0 else 1.0)
+		pts.append(Vector2(cos(a), sin(a)) * r)
+	ring.polygon = pts
+	ring.global_position = pos
+	ring.scale = Vector2(0.3, 0.3)
+	host.get_tree().current_scene.add_child(ring)
+	var tween := ring.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(ring, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(ring, "modulate:a", 0.0, 0.3)
+	tween.chain().tween_callback(ring.queue_free)
+
+
+static func shield_flash(pos: Vector2, radius: float, host: Node) -> void:
+	# Shield Burst: a bright hexagonal "shield" flash plus a few spark shards
+	# radiating outward, reading as a metallic defensive burst rather than a
+	# flat colored ring.
+	if not is_instance_valid(host):
+		return
+	var burst := Polygon2D.new()
+	burst.color = Color(0.75, 0.85, 1.0, 0.9)
+	burst.polygon = _circle_polygon(radius * 0.5, 6)
+	burst.global_position = pos
+	host.get_tree().current_scene.add_child(burst)
+	var burst_tween := burst.create_tween()
+	burst_tween.set_parallel(true)
+	burst_tween.tween_property(burst, "scale", Vector2.ONE * 1.6, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	burst_tween.tween_property(burst, "modulate:a", 0.0, 0.26)
+	burst_tween.chain().tween_callback(burst.queue_free)
+	var shard_count := 6
+	for i in shard_count:
+		var angle: float = TAU * i / shard_count
+		var shard := Polygon2D.new()
+		shard.color = Color(0.85, 0.92, 1.0, 0.9)
+		shard.polygon = PackedVector2Array([Vector2(-3, 0), Vector2(3, 0), Vector2(0, -14)])
+		shard.global_position = pos
+		shard.rotation = angle
+		host.get_tree().current_scene.add_child(shard)
+		var shard_tween := shard.create_tween()
+		shard_tween.set_parallel(true)
+		shard_tween.tween_property(shard, "global_position", pos + Vector2(cos(angle), sin(angle)) * radius * 0.6, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		shard_tween.tween_property(shard, "modulate:a", 0.0, 0.22)
+		shard_tween.chain().tween_callback(shard.queue_free)

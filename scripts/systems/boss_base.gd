@@ -29,12 +29,17 @@ const IMPACT_FLASH_RADIUS := 40.0
 # no longer stop permanently once engaged -- they keep slowly walking toward
 # LOSE_LINE_Y between attacks (paused only for each attack's own
 # telegraph+strike window), and reaching it is a real loss condition, not
-# just a damage race. Speed is deliberately slow and untested against actual
-# player DPS (no way to playtest live in this environment -- see the
-# tooling-limitation entry above), so treat as a first pass that may need
-# tuning once someone actually plays it. (2026-07-16) 10.0->6.0 per direct
-# user request to slow every boss's advance further.
-const POST_ENGAGE_WALK_SPEED := 6.0
+# just a damage race. (2026-07-16) 10.0->6.0 per direct user request to slow
+# every boss's advance further -- but a throwaway headless test (real boss,
+# real timers, sampled position over 15s) measured this as only ~4.2px/s
+# *effective* (attack telegraphs pause movement ~28% of the time for the
+# golem's attack pool), i.e. ~131s to cross the full 550px from engage_y to
+# LOSE_LINE_Y -- imperceptibly slow next to the boss's own +/-3px idle bob.
+# (2026-07-16) 6.0->26.0 per direct user request to bring that down to ~30s:
+# 550px / 30s = ~18.3px/s effective needed; at ~72% move-uptime that's
+# 18.3/0.72 ~= 25.4px/s raw, rounded up slightly. Re-measured after the
+# change with the same throwaway-test methodology -- see PROJECT_SUMMARY.md.
+const POST_ENGAGE_WALK_SPEED := 26.0
 const LOSE_LINE_Y := 950.0  # player sits at y=1150 (Main.tscn) -- this leaves a real buffer, not literal contact
 const PRE_ENGAGE_SPEED_MULT := 0.6  # applied to EnemyData.base_speed for the initial walk-in, see _ready()
 
@@ -89,6 +94,30 @@ const ATTACK_PATTERNS := {
 			},
 		},
 	},
+	# (2026-07-16) 3rd boss -- "Fallen Knight" from docs/boss_design_attack_
+	# pattern_plan.txt's Boss Concept C, built now that the golem/ranger both
+	# exist. Aggressive melee identity (vs. the golem's slow tank and the
+	# ranger's ranged/teleport kit): Sword Slash reuses the generic reach_line
+	# system, Charge is a genuinely new special-cased dash (see _charge()) --
+	# the one real new mechanic this boss adds.
+	"fallen_knight": {
+		"phase_1": ["sword_slash", "charge"],
+		"phase_2": ["shockwave", "shield_burst"],
+		"attacks": {
+			"sword_slash": {
+				"damage": 1.0, "telegraph_time": 0.7, "cooldown": 1.6,
+				"shape": "reach_line", "width": 22.0, "color": Color(0.6, 0.63, 0.68, 0.55),
+			},
+			"shockwave": {
+				"damage": 1.0, "telegraph_time": 1.0, "cooldown": 2.4,
+				"shape": "self_circle", "radius": 90.0, "color": Color(0.5, 0.45, 0.35, 0.5),
+			},
+			"shield_burst": {
+				"damage": 1.0, "telegraph_time": 0.9, "cooldown": 2.2,
+				"shape": "self_circle", "radius": 70.0, "color": Color(0.65, 0.75, 0.9, 0.5),
+			},
+		},
+	},
 }
 const PHASE2_HP_RATIO := 0.5
 const SUMMON_COOLDOWN := 5.0
@@ -115,6 +144,19 @@ const SHADOW_STEP_COOLDOWN := 1.2
 const SHADOW_STEP_RANGE := 160.0
 const SHADOW_STEP_MIN_X := 80.0
 const SHADOW_STEP_MAX_X := 640.0
+
+# Fallen Knight's special-cased Charge -- deliberately horizontal-only (never
+# touches global_position.y) so it can never interact with the post-engage
+# advance-to-lose-line creep; a knight "rushing forward" reads fine as a
+# quick horizontal reposition without needing to literally arrive at the
+# player's exact position (which sits at a very different y).
+const CHARGE_TELEGRAPH_TIME := 0.6
+const CHARGE_DASH_TIME := 0.25
+const CHARGE_DISTANCE := 140.0
+const CHARGE_HIT_RADIUS := 44.0
+const CHARGE_DAMAGE := 1.0  # effective 2 after BOSS_DAMAGE_MULT, matching this boss's other attacks
+const CHARGE_COOLDOWN := 2.2
+const CHARGE_COLOR := Color(0.65, 0.7, 0.78, 0.5)
 
 @export var engage_y: float = 400.0
 @export var sapling_data: EnemyData
@@ -379,6 +421,9 @@ func _execute_attack(attack_id: String) -> void:
 		"throw_rock":
 			await _throw_rock()
 			return
+		"charge":
+			await _charge()
+			return
 	var info: Dictionary = _pattern["attacks"][attack_id]
 	SignalBus.boss_attack_telegraph.emit()
 
@@ -437,6 +482,12 @@ func _apply_attack_damage(attack_id: String, info: Dictionary, target_pos: Vecto
 			ImpactVFX.poison_cloud(flash_pos, flash_radius, self)
 		"aimed_shot":
 			ImpactVFX.arrow_shot(global_position, target_pos, self)
+		"sword_slash":
+			ImpactVFX.sword_slash(flash_pos, (target_pos - global_position).normalized(), self)
+		"shockwave":
+			ImpactVFX.ground_shockwave(flash_pos, flash_radius, self)
+		"shield_burst":
+			ImpactVFX.shield_flash(flash_pos, flash_radius, self)
 		_:
 			ImpactVFX.flash_burst(flash_pos, flash_radius, Color(flash_color.r, flash_color.g, flash_color.b, 1.0), self)
 	if hit:
@@ -603,11 +654,55 @@ func _shadow_step() -> void:
 	await get_tree().create_timer(SHADOW_STEP_COOLDOWN, false).timeout
 
 
+# Fallen Knight -- a short horizontal dash toward the player, ending in a
+# sword strike (reuses ImpactVFX.sword_slash() for the landing hit). Unlike
+# every other special-cased attack, this one actually moves the boss node
+# itself (a tween on global_position), not just a static hitbox -- capped to
+# CHARGE_DISTANCE and horizontal-only so it can never overshoot into (or
+# interact with) the post-engage advance-to-lose-line creep.
+func _charge() -> void:
+	SignalBus.boss_attack_telegraph.emit()
+	var player := get_tree().get_first_node_in_group("player")
+	var dir_x := 1.0
+	if is_instance_valid(player) and player.global_position.x < global_position.x:
+		dir_x = -1.0
+	var charge_origin := global_position
+	var charge_end := Vector2(clampf(charge_origin.x + dir_x * CHARGE_DISTANCE, SHADOW_STEP_MIN_X, SHADOW_STEP_MAX_X), charge_origin.y)
+	_pause_walk_for_attack()
+	_show_line_telegraph(charge_origin, charge_end, CHARGE_HIT_RADIUS, Color(CHARGE_COLOR.r, CHARGE_COLOR.g, CHARGE_COLOR.b, 0.5), CHARGE_TELEGRAPH_TIME)
+	_play_attack_lunge(charge_end, CHARGE_TELEGRAPH_TIME)
+	await get_tree().create_timer(CHARGE_TELEGRAPH_TIME, false).timeout
+	if not is_instance_valid(self) or not _attack_loop_running:
+		return
+	var dash_tween := create_tween()
+	dash_tween.tween_property(self, "global_position", charge_end, CHARGE_DASH_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await dash_tween.finished
+	if not is_instance_valid(self) or not _attack_loop_running:
+		return
+	player = get_tree().get_first_node_in_group("player")
+	if is_instance_valid(player) and player.has_method("take_damage") and player.global_position.distance_to(global_position) <= CHARGE_HIT_RADIUS:
+		player.take_damage(CHARGE_DAMAGE * _damage_mult)
+	ImpactVFX.sword_slash(global_position, Vector2(dir_x, 0.0), self)
+	_resume_walk_for_cooldown()
+	await get_tree().create_timer(CHARGE_COOLDOWN, false).timeout
+
+
 func _show_circle_telegraph(pos: Vector2, radius: float, color: Color, duration: float) -> void:
 	var shape := Polygon2D.new()
 	shape.color = color
 	shape.polygon = _circle_polygon(radius)
 	shape.global_position = pos
+	get_tree().current_scene.add_child(shape)
+	get_tree().create_timer(duration, false).timeout.connect(func():
+		if is_instance_valid(shape):
+			shape.queue_free()
+	)
+
+
+func _show_line_telegraph(from_pos: Vector2, to_pos: Vector2, width: float, color: Color, duration: float) -> void:
+	var shape := Polygon2D.new()
+	shape.color = color
+	shape.polygon = _rect_polygon(from_pos, to_pos, width)
 	get_tree().current_scene.add_child(shape)
 	get_tree().create_timer(duration, false).timeout.connect(func():
 		if is_instance_valid(shape):
