@@ -680,6 +680,21 @@ func take_damage(amount: float) -> void:
 		SignalBus.player_died.emit()
 
 
+# (2026-07-16) A loss condition that isn't damage-based -- an advancing boss
+# (Corrupted Forest Guardian) reaching its lose line calls this directly
+# instead of dealing lethal damage, so GameOverScreen (which only listens for
+# the `died` signal) doesn't need its own separate "boss reached the bottom"
+# path.
+func force_defeat() -> void:
+	if is_dead:
+		return
+	current_hp = 0.0
+	hp_changed.emit(current_hp, max_hp)
+	is_dead = true
+	died.emit()
+	SignalBus.player_died.emit()
+
+
 func apply_item(item: ItemData) -> void:
 	match item.effect_type:
 		"stat_boost":

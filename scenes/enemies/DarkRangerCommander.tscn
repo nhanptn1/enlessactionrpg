@@ -26,6 +26,7 @@ collision_layer = 2
 collision_mask = 1
 script = ExtResource("1")
 attack_pattern_id = "dark_ranger_commander"
+advances_to_lose_line = true
 modulate = Color(0.6, 0.15, 0.15, 1)
 
 [node name="Sprite" type="AnimatedSprite2D" parent="."]

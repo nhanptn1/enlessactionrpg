@@ -24,6 +24,31 @@ const ATTACK_LUNGE_DISTANCE := 14.0
 const ATTACK_LUNGE_SCALE_PUNCH := 1.12
 const IMPACT_FLASH_RADIUS := 40.0
 
+# (2026-07-16) "advancing" bosses -- now both Corrupted Forest Guardian and
+# Dark Ranger Commander (see each scene's advances_to_lose_line override) --
+# no longer stop permanently once engaged -- they keep slowly walking toward
+# LOSE_LINE_Y between attacks (paused only for each attack's own
+# telegraph+strike window), and reaching it is a real loss condition, not
+# just a damage race. Speed is deliberately slow and untested against actual
+# player DPS (no way to playtest live in this environment -- see the
+# tooling-limitation entry above), so treat as a first pass that may need
+# tuning once someone actually plays it. (2026-07-16) 10.0->6.0 per direct
+# user request to slow every boss's advance further.
+const POST_ENGAGE_WALK_SPEED := 6.0
+const LOSE_LINE_Y := 950.0  # player sits at y=1150 (Main.tscn) -- this leaves a real buffer, not literal contact
+const PRE_ENGAGE_SPEED_MULT := 0.6  # applied to EnemyData.base_speed for the initial walk-in, see _ready()
+
+# Golem's ranged attack -- a thrown rock, procedural (no rock art exists),
+# arcs from the boss to the target over two chained tween segments (rise then
+# fall) rather than a straight line, so it reads as thrown rather than teleporting.
+const THROW_ROCK_DAMAGE := 1.0  # effective 2 after BOSS_DAMAGE_MULT, matching root_slam/vine_whip
+const THROW_ROCK_TELEGRAPH_TIME := 0.7
+const THROW_ROCK_FLIGHT_TIME := 0.45
+const THROW_ROCK_ARC_HEIGHT := 40.0
+const THROW_ROCK_IMPACT_RADIUS := 34.0
+const THROW_ROCK_COOLDOWN := 2.2
+const THROW_ROCK_COLOR := Color(0.45, 0.38, 0.32, 1.0)
+
 # Each boss picks a named entry via @export var attack_pattern_id below --
 # one shared script serves every boss (telegraph/phase/death framework is
 # 100% generic), only the attack kit itself differs per boss. Attacks not
@@ -33,8 +58,8 @@ const IMPACT_FLASH_RADIUS := 40.0
 # "summon_saplings" always used, just no longer the only one.
 const ATTACK_PATTERNS := {
 	"forest_guardian": {
-		"phase_1": ["root_slam", "vine_whip"],
-		"phase_2": ["poison_burst", "summon_saplings"],
+		"phase_1": ["root_slam", "vine_whip", "throw_rock"],
+		"phase_2": ["poison_burst", "summon_saplings", "throw_rock"],
 		"attacks": {
 			# (2026-07-16) Damage values rescaled ~10x down alongside
 			# player.max_hp's 100->10 rebalance, rounded to whole numbers and
@@ -94,6 +119,7 @@ const SHADOW_STEP_MAX_X := 640.0
 @export var engage_y: float = 400.0
 @export var sapling_data: EnemyData
 @export var attack_pattern_id: String = "forest_guardian"
+@export var advances_to_lose_line: bool = false  # see LOSE_LINE_Y above -- only Corrupted Forest Guardian sets this true
 
 @onready var sprite: AnimatedSprite2D = $Sprite
 
@@ -104,6 +130,7 @@ var current_hp: float
 var _max_hp: float
 var current_phase := 1
 var _engaged := false
+var _walk_paused := false  # true while an attack's telegraph+strike is in progress (advancing bosses only)
 var _hp_mult := 1.0
 var _speed_mult := 1.0
 var _damage_mult := 1.0
@@ -137,7 +164,11 @@ func _ready() -> void:
 	_phase_2_attacks = _pattern.get("phase_2", [])
 	_max_hp = data.base_hp * _hp_mult
 	current_hp = _max_hp
-	velocity = Vector2(0, data.base_speed * _speed_mult)
+	# (2026-07-16) Bosses used to walk in at the same speed as a basic Slime
+	# Scout (EnemyData.base_speed=90) -- slowed per user feedback that every
+	# boss should move slower in general, not just during the post-engage
+	# creep toward the lose line.
+	velocity = Vector2(0, data.base_speed * PRE_ENGAGE_SPEED_MULT * _speed_mult)
 	_base_modulate = sprite.modulate
 	_base_scale = sprite.scale
 	_sprite_base_position = sprite.position
@@ -151,22 +182,34 @@ func _physics_process(delta: float) -> void:
 	StatusEffects.tick(self, delta)
 	if not is_instance_valid(self):
 		return  # a Fire DOT tick can kill the boss mid-frame
-	if _engaged:
+	if not _engaged:
+		move_and_slide()
+		if global_position.y >= engage_y:
+			global_position.y = engage_y
+			velocity = Vector2.ZERO
+			_engaged = true
+			# The "move" animation loops forever (matches EnemyBase's convention),
+			# which looked like the boss was perpetually trying to walk in place
+			# once stopped -- stand on its first frame once engaged instead of
+			# looping "move" in place. But a hard freeze (no idle bob, no attack
+			# reaction) read as the boss being dead/stuck for the whole fight, so
+			# a subtle idle bob takes over from here instead of a total freeze.
+			sprite.stop()
+			sprite.frame = 0
+			_start_idle_bob()
 		return
+	if not advances_to_lose_line or _walk_paused or _is_dying:
+		return
+	# Between attacks (see _pause_walk_for_attack()/_resume_walk_for_cooldown()),
+	# an advancing boss keeps creeping toward the lose line instead of staying
+	# put forever -- reaching it is a real loss condition, checked every frame
+	# rather than only at attack boundaries so it can't be skipped by a long
+	# cooldown carrying it past LOSE_LINE_Y unnoticed.
+	velocity = Vector2(0, POST_ENGAGE_WALK_SPEED)
 	move_and_slide()
-	if global_position.y >= engage_y:
-		global_position.y = engage_y
-		velocity = Vector2.ZERO
-		_engaged = true
-		# The "move" animation loops forever (matches EnemyBase's convention),
-		# which looked like the boss was perpetually trying to walk in place
-		# once stopped -- stand on its first frame once engaged instead of
-		# looping "move" in place. But a hard freeze (no idle bob, no attack
-		# reaction) read as the boss being dead/stuck for the whole fight, so
-		# a subtle idle bob takes over from here instead of a total freeze.
-		sprite.stop()
-		sprite.frame = 0
-		_start_idle_bob()
+	if global_position.y >= LOSE_LINE_Y:
+		global_position.y = LOSE_LINE_Y
+		_trigger_lose()
 
 
 func apply_status(element: String, duration: float) -> void:
@@ -239,10 +282,46 @@ func _play_attack_lunge(target_pos: Vector2, duration: float) -> void:
 	_lunge_tween.chain().set_parallel(true)
 	_lunge_tween.tween_property(sprite, "position", _sprite_base_position, duration * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	_lunge_tween.tween_property(sprite, "scale", _base_scale, duration * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	_lunge_tween.chain().tween_callback(func():
-		if is_instance_valid(self) and _engaged:
-			_start_idle_bob()
-	)
+	# No auto-restart of idle bob here (unlike the first version of this fix) --
+	# an advancing boss needs to switch to its walk animation instead once the
+	# attack resolves, not idle bob, so the caller decides via
+	# _resume_walk_for_cooldown() right after applying damage.
+
+
+# Attacks pause the boss's own advance toward the lose line for their
+# telegraph+strike window (walking and winding up to strike at the same time
+# would look wrong), freezing on a standing frame -- _play_attack_lunge()
+# then takes over the sprite's position/scale for that same window.
+func _pause_walk_for_attack() -> void:
+	_walk_paused = true
+	velocity = Vector2.ZERO
+	if _idle_tween:
+		_idle_tween.kill()
+	sprite.stop()
+	sprite.frame = 0
+
+
+# Called right after an attack's damage resolves -- an advancing boss resumes
+# its walk animation and starts creeping toward the lose line again for the
+# cooldown gap until the next attack; a non-advancing boss (or one that's
+# mid-death) just goes back to idle-bobbing in place, matching the original
+# post-engage behavior exactly.
+func _resume_walk_for_cooldown() -> void:
+	_walk_paused = false
+	if not is_instance_valid(self) or _is_dying:
+		return
+	if advances_to_lose_line:
+		sprite.play("move")
+	else:
+		_start_idle_bob()
+
+
+func _trigger_lose() -> void:
+	_attack_loop_running = false
+	set_physics_process(false)
+	var player := get_tree().get_first_node_in_group("player")
+	if is_instance_valid(player) and player.has_method("force_defeat"):
+		player.force_defeat()
 
 
 func _die() -> void:
@@ -297,20 +376,25 @@ func _execute_attack(attack_id: String) -> void:
 		"shadow_step":
 			await _shadow_step()
 			return
+		"throw_rock":
+			await _throw_rock()
+			return
 	var info: Dictionary = _pattern["attacks"][attack_id]
 	SignalBus.boss_attack_telegraph.emit()
-	
+
 	var player := get_tree().get_first_node_in_group("player")
 	var target_pos := Vector2.ZERO
 	if is_instance_valid(player):
 		target_pos = player.global_position
-		
+
+	_pause_walk_for_attack()
 	_show_telegraph(info, target_pos)
 	_play_attack_lunge(target_pos, info["telegraph_time"])
 	await get_tree().create_timer(info["telegraph_time"], false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
 	_apply_attack_damage(info, target_pos)
+	_resume_walk_for_cooldown()
 	await get_tree().create_timer(info["cooldown"], false).timeout
 
 
@@ -381,6 +465,58 @@ func _summon_saplings() -> void:
 			enemy.died.connect(wm._on_minion_died)
 
 
+# Corrupted Forest Guardian's ranged option -- a real thrown rock (procedural
+# Polygon2D, no rock art exists anywhere in the project) rather than another
+# static telegraphed zone, so the golem has a threat that works even before
+# it's close enough for root_slam/vine_whip's melee-range shapes to matter.
+func _throw_rock() -> void:
+	SignalBus.boss_attack_telegraph.emit()
+	var player := get_tree().get_first_node_in_group("player")
+	var target_pos: Vector2 = player.global_position if is_instance_valid(player) else global_position
+	_pause_walk_for_attack()
+	_show_circle_telegraph(target_pos, THROW_ROCK_IMPACT_RADIUS, Color(THROW_ROCK_COLOR.r, THROW_ROCK_COLOR.g, THROW_ROCK_COLOR.b, 0.5), THROW_ROCK_TELEGRAPH_TIME)
+	_play_attack_lunge(target_pos, THROW_ROCK_TELEGRAPH_TIME)
+	var throw_origin := global_position
+	await get_tree().create_timer(THROW_ROCK_TELEGRAPH_TIME, false).timeout
+	if not is_instance_valid(self) or not _attack_loop_running:
+		return
+	await _fly_rock(throw_origin, target_pos)
+	if not is_instance_valid(self) or not _attack_loop_running:
+		return
+	player = get_tree().get_first_node_in_group("player")
+	if is_instance_valid(player) and player.has_method("take_damage") and player.global_position.distance_to(target_pos) <= THROW_ROCK_IMPACT_RADIUS:
+		player.take_damage(THROW_ROCK_DAMAGE * _damage_mult)
+	ImpactVFX.flash_burst(target_pos, THROW_ROCK_IMPACT_RADIUS, Color(THROW_ROCK_COLOR.r, THROW_ROCK_COLOR.g, THROW_ROCK_COLOR.b, 1.0), self)
+	_resume_walk_for_cooldown()
+	await get_tree().create_timer(THROW_ROCK_COOLDOWN, false).timeout
+
+
+# Arcs the rock up then down across two chained tween segments (a rough
+# parabola) instead of a straight line to the target, so it reads as thrown
+# rather than sliding/teleporting diagonally.
+func _fly_rock(from_pos: Vector2, to_pos: Vector2) -> void:
+	var rock := Polygon2D.new()
+	rock.color = THROW_ROCK_COLOR
+	rock.polygon = _rock_polygon()
+	rock.global_position = from_pos
+	get_tree().current_scene.add_child(rock)
+	var peak_pos: Vector2 = from_pos.lerp(to_pos, 0.5) + Vector2(0, -THROW_ROCK_ARC_HEIGHT)
+	var tween := rock.create_tween()
+	tween.tween_property(rock, "global_position", peak_pos, THROW_ROCK_FLIGHT_TIME * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(rock, "global_position", to_pos, THROW_ROCK_FLIGHT_TIME * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.parallel().tween_property(rock, "rotation", TAU * 1.2, THROW_ROCK_FLIGHT_TIME)
+	await tween.finished
+	if is_instance_valid(rock):
+		rock.queue_free()
+
+
+func _rock_polygon() -> PackedVector2Array:
+	return PackedVector2Array([
+		Vector2(-8, -6), Vector2(4, -9), Vector2(9, -2),
+		Vector2(7, 6), Vector2(-3, 9), Vector2(-9, 3),
+	])
+
+
 # Dark Ranger Commander -- fires a fan of real (pooled) projectiles rather
 # than a static telegraphed zone, since an archer boss should visibly shoot
 # arrows. Reuses CursedBolt.tscn (already collision-configured to hit the
@@ -389,10 +525,12 @@ func _summon_saplings() -> void:
 func _rapid_volley() -> void:
 	SignalBus.boss_attack_telegraph.emit()
 	var player := get_tree().get_first_node_in_group("player")
+	_pause_walk_for_attack()
 	if is_instance_valid(player):
 		_play_attack_lunge(player.global_position, RAPID_VOLLEY_TELEGRAPH_TIME)
 	await get_tree().create_timer(RAPID_VOLLEY_TELEGRAPH_TIME, false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running or not is_instance_valid(player):
+		_resume_walk_for_cooldown()
 		await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN, false).timeout
 		return
 	var base_dir: Vector2 = (player.global_position - global_position).normalized()
@@ -403,6 +541,7 @@ func _rapid_volley() -> void:
 			var dir := base_dir.rotated(angle_offset)
 			var proj = pool.acquire(RAPID_VOLLEY_PROJECTILE)
 			proj.activate(dir, RAPID_VOLLEY_SPEED, RAPID_VOLLEY_DAMAGE * _damage_mult, global_position, 0, "player", RAPID_VOLLEY_MAX_RANGE)
+	_resume_walk_for_cooldown()
 	await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN, false).timeout
 
 
@@ -418,6 +557,7 @@ func _arrow_rain() -> void:
 		points.append(center + Vector2(randf_range(-90.0, 90.0), randf_range(-60.0, 60.0)))
 	for p in points:
 		_show_circle_telegraph(p, ARROW_RAIN_IMPACT_RADIUS, ARROW_RAIN_COLOR, ARROW_RAIN_TELEGRAPH_TIME)
+	_pause_walk_for_attack()
 	_play_attack_lunge(center, ARROW_RAIN_TELEGRAPH_TIME)
 	await get_tree().create_timer(ARROW_RAIN_TELEGRAPH_TIME, false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running:
@@ -428,6 +568,7 @@ func _arrow_rain() -> void:
 		for p in points:
 			if player.global_position.distance_to(p) <= ARROW_RAIN_IMPACT_RADIUS:
 				player.take_damage(ARROW_RAIN_DAMAGE * _damage_mult)
+	_resume_walk_for_cooldown()
 	await get_tree().create_timer(ARROW_RAIN_COOLDOWN, false).timeout
 
 

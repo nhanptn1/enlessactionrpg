@@ -24,4 +24,4 @@ modulate = Color(0.55, 0.75, 1.0, 1)
 [node name="Sprite" parent="." index="0"]
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"move"
-scale = Vector2(0.22, 0.22)
+scale = Vector2(0.34, 0.34)

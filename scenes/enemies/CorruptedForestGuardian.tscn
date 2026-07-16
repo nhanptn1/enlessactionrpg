@@ -27,6 +27,7 @@ collision_layer = 2
 collision_mask = 1
 script = ExtResource("1")
 sapling_data = ExtResource("3")
+advances_to_lose_line = true
 
 [node name="Sprite" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames1")
