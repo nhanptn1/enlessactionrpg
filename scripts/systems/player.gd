@@ -8,6 +8,11 @@ const BASE_PROJECTILE_SPEED := 1000.0
 # every shot aimed at a still-distant "nearest enemy" (common right after a
 # wave starts) expired mid-flight without ever landing.
 const PLAYER_SHOT_MAX_RANGE := 1300.0
+# (2026-07-16) Caps how far into the future _predict_intercept() trusts a
+# zigzag enemy's instantaneous velocity.x (a sine wave, not a straight line) --
+# see that function for the full reasoning. Comfortably under a quarter-period
+# of the fastest zigzag_frequency currently used (Goblin Runner, 1.2Hz -> ~0.21s).
+const MAX_X_LEAD_TIME := 0.25
 const IDLE_BOB_AMPLITUDE := 2.5
 const IDLE_BOB_DURATION := 1.1
 const RECOIL_OFFSET := 12.0
@@ -75,15 +80,18 @@ var xp_gain_mult := 1.0
 var fire_level := 0  # highest tier reached (0-3), not a pick count
 var lightning_level := 0
 var frost_level := 0
-# Physical line's tier (0-4): 0 = Basic Shot (starting default, no pick
+# Physical line's tier (0-6): 0 = Basic Shot (starting default, no pick
 # needed), 1-3 = Multishot/Piercing Arrow/Trap Shot (each swaps the active
-# skill wholesale), 4 = Trap Mastery, a stat-only upgrade that extends Trap
-# Shot's damage/behavior rather than swapping in a new skill -- see
-# apply_element_upgrade()'s PHYSICAL branch. Unlike elementals, physical has
-# no "active selection": whichever tier is reached is always what
-# attack_timer fires, since there's only ever one physical line.
+# skill wholesale), 4-6 = Rigged Trap/Volatile Trap/Trap Mastery, 3 stat-only
+# upgrades that each extend Trap Shot's detonation a bit further rather than
+# swapping in a new skill -- see apply_element_upgrade()'s PHYSICAL branch.
+# Unlike elementals, physical has no "active selection": whichever tier is
+# reached is always what attack_timer fires, since there's only ever one
+# physical line.
 # (2026-07-16) Arrow Rain (formerly tier 3) removed -- Trap Shot moved up to
-# tier 3, freeing tier 4 for the Trap Mastery extension above.
+# tier 3. (2026-07-16) The single tier-4 "Trap Mastery" stat jump split into 3
+# progressive tiers (4-6) instead of one lump sum, per user request -- see
+# physical_trap_detonate_mult below.
 var physical_level := 0
 
 # Only one elemental skill auto-fires at a time -- players can still invest
@@ -115,7 +123,7 @@ var lightning_slow_bonus := 0.0
 var lightning_dps := 0.0
 var lightning_spread_chance := 0.0
 var lightning_combo_bonus_mult := 0.0
-var physical_trap_detonate_mult := 0.0  # 0 = off; Trap Mastery: trap deals bonus damage (base_damage * this) in a wider blast on a kill or on expiry
+var physical_trap_detonate_mult := 0.0  # 0 = off; accumulates across tiers 4-6 (Rigged Trap/Volatile Trap/Trap Mastery, +0.3/+0.3/+0.4); trap deals bonus damage (base_damage * this) in a wider blast on a kill or on expiry
 
 var is_dead := false
 var _current_skill: SkillData  # the single active attack; upgrades wholesale at fixed levels
@@ -245,10 +253,10 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 			1: _current_skill = multishot
 			2: _current_skill = piercing_arrow
 			3: _current_skill = trap_shot
-			# 4 has no case: Trap Mastery is a stat-only upgrade (see
-			# physical_trap_detonate_mult) that extends tier 3's Trap Shot
-			# rather than swapping in a new skill, so _current_skill just
-			# stays whatever tier 3 already set.
+			# 4-6 have no case: Rigged Trap/Volatile Trap/Trap Mastery are all
+			# stat-only upgrades (see physical_trap_detonate_mult) that each
+			# extend tier 3's Trap Shot a bit further rather than swapping in
+			# a new skill, so _current_skill just stays whatever tier 3 set.
 		_refresh_timer_cooldowns()
 		skill_unlocked.emit(_current_skill)
 		SignalBus.skill_unlocked.emit(_current_skill)
@@ -669,7 +677,21 @@ func _predict_intercept(from: Vector2, target: Node2D, proj_speed: float) -> Vec
 	var predicted := target.global_position
 	for _i in 4:
 		var travel_time := from.distance_to(predicted) / proj_speed
-		predicted = target.global_position + target_vel * travel_time
+		# Vertical velocity is constant for an enemy's whole lifetime (see
+		# straight/dive/zigzag movement behaviors -- only zigzag ever touches
+		# velocity.x, every frame), so a full linear lead is accurate no
+		# matter how long the shot is in flight. Horizontal velocity is only
+		# ever non-zero for zigzag movement, which OSCILLATES (a sine wave)
+		# rather than moving in a straight line -- extrapolating an
+		# instantaneous zigzag velocity.x linearly across a long flight time
+		# (freshly-spawned enemies can be ~1100px away, ~1.1s of flight)
+		# overshoots wildly once the real enemy has curved back the other
+		# way. Capping how far into the future the X lead is trusted fixed a
+		# measured hit-rate collapse (32%, in a throwaway headless test
+		# against a realistic zigzag enemy at spawn range) without changing
+		# the already-accurate close-range case at all.
+		var x_lead_time := minf(travel_time, MAX_X_LEAD_TIME)
+		predicted = target.global_position + Vector2(target_vel.x * x_lead_time, target_vel.y * travel_time)
 	return predicted
 
 

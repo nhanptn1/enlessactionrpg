@@ -172,7 +172,12 @@ func _deactivate() -> void:
 	_active = false
 	visible = false
 	set_physics_process(false)
-	monitoring = false
+	# _deactivate() runs synchronously inside _on_body_entered() (a body_entered
+	# signal callback) on every confirmed hit -- Godot rejects a direct
+	# `monitoring = false` from inside that callback ("Function blocked during
+	# in/out signal"), throwing a real engine error on every single hit in the
+	# game. Must go through set_deferred() instead.
+	set_deferred("monitoring", false)
 	var pool := get_tree().get_first_node_in_group("projectile_pool")
 	if is_instance_valid(pool):
 		pool.release(self)

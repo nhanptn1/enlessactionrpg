@@ -57,10 +57,11 @@ func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
 	# they entirely fit in the remaining slots, so a fork (2 slots) never gets
 	# split across waves -- at most one fork can appear alongside one other
 	# element's single node in the 3 available slots. PHYSICAL (Multishot ->
-	# Piercing Arrow -> Trap Shot -> Trap Mastery) competes for the same 3
-	# slots as the elements -- it's a linear chain with no forks, so its "unit"
-	# is always exactly 1 card. It still has no per-skill icon art, so its
-	# cards fall back to SkillIcon's procedural glyph (see skill_icon.gd).
+	# Piercing Arrow -> Trap Shot -> Rigged Trap -> Volatile Trap -> Trap
+	# Mastery, 6 tiers) competes for the same 3 slots as the elements -- it's
+	# a linear chain with no forks, so its "unit" is always exactly 1 card.
+	# It still has no per-skill icon art, so its cards fall back to SkillIcon's
+	# procedural glyph (see skill_icon.gd).
 	var element_order: Array = [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING, UpgradeResource.ElementType.PHYSICAL]
 	element_order.shuffle()
 	_pending_choices.clear()
@@ -107,9 +108,10 @@ func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Arr
 	# element contributing at most one offer per wave, same as before the
 	# repeatable cards existed.
 	var current_tier := _current_level_for(target_element)
+	var max_tier := _max_tier_for(target_element)
 	var units: Array = []
 	var next_tier := current_tier + 1
-	if next_tier <= _max_tier_for(target_element):
+	if next_tier <= max_tier:
 		var tier_matches: Array[UpgradeResource] = []
 		for upgrade in upgrade_pool:
 			if upgrade.element != target_element or upgrade.tier != next_tier:
@@ -117,7 +119,11 @@ func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Arr
 			tier_matches.append(upgrade)
 		if not tier_matches.is_empty():
 			units.append(tier_matches)
-	if current_tier >= 1:
+	# (2026-07-16) Also gated on not-yet-maxed -- these repeatable cards used
+	# to keep being offered forever even once current_tier reached max_tier,
+	# a genuinely dead choice with nothing left to scale into. See the level-up
+	# popup's own "+1 Arrow" fix in the same pass for the matching basic-line issue.
+	if current_tier >= 1 and current_tier < max_tier:
 		for upgrade in upgrade_pool:
 			if upgrade.element == target_element and upgrade.tier == 0:
 				var single: Array[UpgradeResource] = [upgrade]
@@ -140,11 +146,16 @@ func _current_level_for(element: UpgradeResource.ElementType) -> int:
 	return 0
 
 
-func _max_tier_for(_element: UpgradeResource.ElementType) -> int:
-	# (2026-07-16) All 4 lines are now a direct 4-tier linear chain -- Physical
-	# was always this shape (Multishot/Piercing Arrow/Arrow Rain/Trap Shot);
-	# Fire/Frost/Lightning's former 2-option forks at tier 2/3/4 were merged
-	# into single direct upgrades (see player.gd's apply_element_upgrade()).
+func _max_tier_for(element: UpgradeResource.ElementType) -> int:
+	# (2026-07-16) All 4 lines are a direct linear chain -- Physical was always
+	# this shape (Multishot/Piercing Arrow/Arrow Rain/Trap Shot); Fire/Frost/
+	# Lightning's former 2-option forks at tier 2/3/4 were merged into single
+	# direct upgrades (see player.gd's apply_element_upgrade()). (2026-07-16)
+	# Physical grew from 4 to 6 -- Trap Shot's former single-card "Trap Mastery"
+	# capstone split into 3 progressive tiers (bare trap -> low explosion ->
+	# bigger explosion -> max explosion) instead of one lump stat jump.
+	if element == UpgradeResource.ElementType.PHYSICAL:
+		return 6
 	return 4
 
 

@@ -2,8 +2,11 @@ extends Control
 class_name SkillTreeView
 ## Draws all 4 skill lines (Physical/Fire/Frost/Lightning) as 4 side-by-side
 ## columns, each a single straight vertical chain of nodes -- matches the
-## user-supplied reference image (image/skills/skill-trees.png) exactly: one
-## line per column, no branching, 4 tiers each. (2026-07-16) Now the top half
+## user-supplied reference image (image/skills/skill-trees.png): one line per
+## column, no branching. Originally 4 tiers each; Physical since grew to 6
+## (Trap Shot's capstone split into 3 progressive tiers), so column height is
+## driven by however many tiers that column's own data actually has, not a
+## shared constant. (2026-07-16) Now the top half
 ## of one merged Skills panel (was its own separate "Skill Tree" screen) --
 ## the always-visible per-line detail list below it already covers "what do
 ## I have right now" in full sentence form, so tap-to-inspect on individual
@@ -30,7 +33,9 @@ const COLOR_LOCKED := Color(0.3, 0.3, 0.32, 1.0)
 # user feedback was that the ring looked bad (and read as confusingly close
 # to COLOR_AVAILABLE's own gold), so this is now just a size bump plus a
 # subtle brightness lift on the node's own state color, no separate ring.
-const CAPSTONE_TIER := 4
+# (2026-07-16) No longer a fixed tier number -- Physical grew to 6 tiers while
+# Fire/Frost/Lightning stayed at 4, so "capstone" is now whichever tier is
+# highest for that specific column (see show_all()), not a shared constant.
 const CAPSTONE_NODE_SIZE := 74.0
 const CAPSTONE_CONTRAST_LIFT := 0.22  # lerp the node's state color toward white by this much
 
@@ -84,13 +89,14 @@ func show_all() -> void:
 		max_row_count = maxi(max_row_count, upgrades.size())
 		_build_header(element, center_x)
 		var current_tier: int = _current_tier_for(element)
+		var column_max_tier: int = upgrades[-1].tier if not upgrades.is_empty() else 0
 		var prev_center: Vector2 = Vector2.ZERO
 		var has_prev := false
 		for upgrade in upgrades:
 			var y: float = TOP_PADDING + HEADER_HEIGHT + (upgrade.tier - 1) * ROW_HEIGHT
 			var center := Vector2(center_x, y)
 			var state := _classify(upgrade, current_tier)
-			_build_node(upgrade, state, center)
+			_build_node(upgrade, state, center, upgrade.tier == column_max_tier)
 			if has_prev:
 				_line_segments.append([prev_center, center])
 			prev_center = center
@@ -134,8 +140,7 @@ func _classify(upgrade: UpgradeResource, current_tier: int) -> String:
 	return "locked"
 
 
-func _build_node(upgrade: UpgradeResource, state: String, center: Vector2) -> void:
-	var is_capstone: bool = upgrade.tier == CAPSTONE_TIER
+func _build_node(upgrade: UpgradeResource, state: String, center: Vector2, is_capstone: bool) -> void:
 	var node_size: float = CAPSTONE_NODE_SIZE if is_capstone else NODE_SIZE
 	var node_bg := Panel.new()
 	node_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE

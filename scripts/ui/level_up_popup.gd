@@ -30,6 +30,13 @@ func _ready() -> void:
 
 func _on_level_up(_new_level: int) -> void:
 	_pending_ids = player.UPGRADE_POOL.duplicate()
+	# "+1 Arrow" (bonus_projectile_count) only affects skills that fire a
+	# multi-shot cone -- Trap Shot ignores it entirely (see
+	# player.gd::_fire_trap_shot()), so offering it once Trap Shot is the
+	# active physical skill would be a genuinely dead choice.
+	var skill: SkillData = player.get_current_physical_skill()
+	if skill != null and skill.fire_mode == SkillData.FireMode.TRAP_SHOT:
+		_pending_ids.erase("projectile_count")
 	_pending_ids.shuffle()
 	_pending_ids = _pending_ids.slice(0, 3)
 	for i in 3:

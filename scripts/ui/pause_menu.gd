@@ -9,7 +9,7 @@ const ELEMENT_NAMES := {
 	UpgradeResource.ElementType.FROST: "Frost",
 	UpgradeResource.ElementType.LIGHTNING: "Lightning",
 }
-const PHYSICAL_TIER_MAX := 4
+const PHYSICAL_TIER_MAX := 6  # Trap Shot's capstone split into 3 progressive tiers -- see wave_upgrade_popup.gd::_max_tier_for()
 const ELEMENT_TIER_MAX := 4
 const ROW_NAME_FONT_SIZE := 26
 const ROW_STAT_FONT_SIZE := 20
