@@ -1,4 +1,4 @@
-[gd_scene load_steps=83 format=3]
+[gd_scene load_steps=85 format=3]
 
 [ext_resource type="Texture2D" path="res://art/backgrounds/background_arena.png" id="80"]
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
@@ -52,6 +52,8 @@
 [ext_resource type="Resource" path="res://resources/enemies/armored_gargoyle.tres" id="49"]
 [ext_resource type="Resource" path="res://resources/enemies/fallen_knight.tres" id="103"]
 [ext_resource type="Resource" path="res://resources/enemies/demon_beast.tres" id="104"]
+[ext_resource type="Resource" path="res://resources/enemies/armored_brute.tres" id="105"]
+[ext_resource type="Resource" path="res://resources/enemies/stone_golem.tres" id="106"]
 [ext_resource type="Script" path="res://scripts/systems/danger_indicator.gd" id="50"]
 [ext_resource type="PackedScene" path="res://scenes/ui/WaveUpgradePopup.tscn" id="51"]
 [ext_resource type="Resource" path="res://resources/upgrades/fire_t1_searing_shot.tres" id="55"]
@@ -120,7 +122,7 @@ script = ExtResource("50")
 [node name="WaveManager" type="Node" parent="."]
 script = ExtResource("3")
 waves = [ExtResource("5"), ExtResource("6"), ExtResource("7"), ExtResource("11"), ExtResource("14")]
-procedural_enemy_pool = [ExtResource("8"), ExtResource("12"), ExtResource("13"), ExtResource("15"), ExtResource("16"), ExtResource("42"), ExtResource("43"), ExtResource("47"), ExtResource("49")]
+procedural_enemy_pool = [ExtResource("8"), ExtResource("12"), ExtResource("13"), ExtResource("15"), ExtResource("16"), ExtResource("42"), ExtResource("43"), ExtResource("47"), ExtResource("49"), ExtResource("105"), ExtResource("106")]
 boss_pool = [ExtResource("10"), ExtResource("48"), ExtResource("103"), ExtResource("104")]
 item_pool = [ExtResource("18"), ExtResource("19"), ExtResource("20"), ExtResource("21"), ExtResource("22"), ExtResource("23"), ExtResource("24"), ExtResource("25"), ExtResource("26"), ExtResource("27"), ExtResource("28"), ExtResource("29"), ExtResource("30"), ExtResource("31"), ExtResource("32"), ExtResource("33"), ExtResource("34"), ExtResource("35"), ExtResource("36"), ExtResource("37"), ExtResource("38"), ExtResource("39"), ExtResource("40"), ExtResource("41")]
 
