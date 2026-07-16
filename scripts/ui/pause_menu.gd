@@ -11,9 +11,9 @@ const ELEMENT_NAMES := {
 }
 const PHYSICAL_TIER_MAX := 4
 const ELEMENT_TIER_MAX := 4
-const ROW_NAME_FONT_SIZE := 22
-const ROW_STAT_FONT_SIZE := 17
-const ROW_ICON_SIZE := 38
+const ROW_NAME_FONT_SIZE := 26
+const ROW_STAT_FONT_SIZE := 20
+const ROW_ICON_SIZE := 42
 
 @onready var panel: Control = $Panel
 @onready var resume_button: Button = $Panel/VBox/ResumeButton

@@ -162,7 +162,7 @@ func _build_elemental_row(element: int, skill: SkillData) -> void:
 	var icon_stack := Button.new()
 	icon_stack.flat = true
 	icon_stack.focus_mode = Control.FOCUS_NONE
-	icon_stack.custom_minimum_size = Vector2(32, 32)
+	icon_stack.custom_minimum_size = Vector2(38, 38)
 	icon_stack.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	icon_stack.pressed.connect(func(): _player.select_active_element(element))
 	var icon := TextureRect.new()
@@ -185,7 +185,7 @@ func _build_elemental_row(element: int, skill: SkillData) -> void:
 	var label := Label.new()
 	label.text = skill.display_name
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_font_size_override("font_size", 18)
 	label.add_theme_color_override("font_color", Color(1, 0.85, 0.4, 1))
 	row.add_child(icon_stack)
 	row.add_child(label)

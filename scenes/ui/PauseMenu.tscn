@@ -25,47 +25,50 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -150.0
-offset_top = -110.0
+offset_top = -170.0
 offset_right = 150.0
-offset_bottom = 110.0
+offset_bottom = 170.0
 theme_override_constants/separation = 14
 
 [node name="Title" type="Label" parent="Panel/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 34
 horizontal_alignment = 1
 text = "Paused"
 
 [node name="BestLabel" type="Label" parent="Panel/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 text = "Best: Wave 0 — Level 0"
 
 [node name="ResumeButton" type="Button" parent="Panel/VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(160, 44)
+custom_minimum_size = Vector2(170, 48)
 size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 20
 text = "Resume"
 
 [node name="RestartButton" type="Button" parent="Panel/VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(160, 44)
+custom_minimum_size = Vector2(170, 48)
 size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 20
 text = "Restart"
 
 [node name="SkillsButton" type="Button" parent="Panel/VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(160, 44)
+custom_minimum_size = Vector2(170, 48)
 size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 20
 text = "Skills"
 
 [node name="Hint" type="Label" parent="Panel/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 18
 horizontal_alignment = 1
 text = "Esc to resume"
 
@@ -99,7 +102,7 @@ theme_override_constants/separation = 12
 [node name="Title" type="Label" parent="SkillPanel/Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 36
 horizontal_alignment = 1
 text = "Skills"
 
@@ -124,6 +127,7 @@ theme_override_constants/separation = 14
 
 [node name="BackButton" type="Button" parent="SkillPanel/Margin/VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(160, 48)
+custom_minimum_size = Vector2(170, 50)
 size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 20
 text = "Back"

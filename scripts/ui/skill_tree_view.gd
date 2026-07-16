@@ -112,7 +112,7 @@ func _tier_sorted_upgrades(element: int) -> Array[UpgradeResource]:
 func _build_header(element: int, center_x: float) -> void:
 	var label := Label.new()
 	label.text = COLUMN_NAMES[element]
-	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_font_size_override("font_size", 22)
 	label.add_theme_color_override("font_color", COLUMN_COLORS[element])
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.position = Vector2(center_x - 70.0, TOP_PADDING - HEADER_HEIGHT)
