@@ -118,6 +118,28 @@ const ATTACK_PATTERNS := {
 			},
 		},
 	},
+	# (2026-07-16) 4th boss -- "Demon Beast" from docs/enemy_boss_item_design.txt
+	# and boss_design_attack_pattern_plan.txt's Boss Concept D, the last of the
+	# 4 originally-planned bosses still unbuilt. Claw Swipe and Fire Breath both
+	# reuse the generic reach_line system (Fire Breath just wider, reading as a
+	# breath cone without needing real cone-shape math); Leap Smash and Summon
+	# Flames are both special-cased -- Leap Smash mirrors Fallen Knight's Charge
+	# (the boss repositions) but lands as an AoE circle instead of a corridor;
+	# Summon Flames mirrors Dark Ranger's Arrow Rain exactly, just fire-themed.
+	"demon_beast": {
+		"phase_1": ["claw_swipe", "fire_breath"],
+		"phase_2": ["leap_smash", "summon_flames"],
+		"attacks": {
+			"claw_swipe": {
+				"damage": 1.0, "telegraph_time": 0.6, "cooldown": 1.5,
+				"shape": "reach_line", "width": 20.0, "color": Color(0.65, 0.15, 0.05, 0.55),
+			},
+			"fire_breath": {
+				"damage": 1.0, "telegraph_time": 0.9, "cooldown": 2.0,
+				"shape": "reach_line", "width": 50.0, "color": Color(0.85, 0.35, 0.1, 0.5),
+			},
+		},
+	},
 }
 const PHASE2_HP_RATIO := 0.5
 const SUMMON_COOLDOWN := 5.0
@@ -157,6 +179,27 @@ const CHARGE_HIT_WIDTH := 44.0  # corridor width for both the telegraph and the 
 const CHARGE_DAMAGE := 1.0  # effective 2 after BOSS_DAMAGE_MULT, matching this boss's other attacks
 const CHARGE_COOLDOWN := 2.2
 const CHARGE_COLOR := Color(0.65, 0.7, 0.78, 0.5)
+
+# Demon Beast's special-cased Leap Smash -- same horizontal-only, bounded
+# reposition as Charge above, but lands as an AoE circle instead of a
+# corridor (telegraph and hit-check are the same circle at the same point,
+# so there's no telegraph/hitbox mismatch to worry about here).
+const LEAP_SMASH_TELEGRAPH_TIME := 0.7
+const LEAP_SMASH_JUMP_TIME := 0.3
+const LEAP_SMASH_DISTANCE := 130.0
+const LEAP_SMASH_RADIUS := 60.0
+const LEAP_SMASH_DAMAGE := 1.0
+const LEAP_SMASH_COOLDOWN := 2.4
+const LEAP_SMASH_COLOR := Color(0.7, 0.3, 0.1, 0.5)
+
+# Demon Beast's special-cased Summon Flames -- mirrors _arrow_rain() exactly
+# (scattered telegraphed zones, one resolve moment), fire-themed.
+const SUMMON_FLAMES_ZONE_COUNT := 3
+const SUMMON_FLAMES_ZONE_RADIUS := 40.0
+const SUMMON_FLAMES_TELEGRAPH_TIME := 1.1
+const SUMMON_FLAMES_COOLDOWN := 2.8
+const SUMMON_FLAMES_DAMAGE := 1.0
+const SUMMON_FLAMES_COLOR := Color(0.85, 0.3, 0.05, 0.5)
 
 @export var engage_y: float = 400.0
 @export var sapling_data: EnemyData
@@ -424,6 +467,12 @@ func _execute_attack(attack_id: String) -> void:
 		"charge":
 			await _charge()
 			return
+		"leap_smash":
+			await _leap_smash()
+			return
+		"summon_flames":
+			await _summon_flames()
+			return
 	var info: Dictionary = _pattern["attacks"][attack_id]
 	SignalBus.boss_attack_telegraph.emit()
 
@@ -488,6 +537,10 @@ func _apply_attack_damage(attack_id: String, info: Dictionary, target_pos: Vecto
 			ImpactVFX.ground_shockwave(flash_pos, flash_radius, self)
 		"shield_burst":
 			ImpactVFX.shield_flash(flash_pos, flash_radius, self)
+		"claw_swipe":
+			ImpactVFX.claw_swipe(flash_pos, (target_pos - global_position).normalized(), self)
+		"fire_breath":
+			ImpactVFX.fire_explosion(flash_pos, flash_radius, self)
 		_:
 			ImpactVFX.flash_burst(flash_pos, flash_radius, Color(flash_color.r, flash_color.g, flash_color.b, 1.0), self)
 	if hit:
@@ -692,6 +745,65 @@ func _charge() -> void:
 	ImpactVFX.sword_slash(global_position, Vector2(dir_x, 0.0), self)
 	_resume_walk_for_cooldown()
 	await get_tree().create_timer(CHARGE_COOLDOWN, false).timeout
+
+
+# Demon Beast -- "jumps to a target area": leaps horizontally (same bounded,
+# horizontal-only reposition as _charge(), same reasoning) and lands as an
+# AoE circle instead of a corridor. Telegraph and hit-check are both the
+# same circle centered on the landing point, so unlike the original Charge
+# implementation there's no shape mismatch to introduce here.
+func _leap_smash() -> void:
+	SignalBus.boss_attack_telegraph.emit()
+	var player := get_tree().get_first_node_in_group("player")
+	var dir_x := 1.0
+	if is_instance_valid(player) and player.global_position.x < global_position.x:
+		dir_x = -1.0
+	var jump_origin := global_position
+	var jump_end := Vector2(clampf(jump_origin.x + dir_x * LEAP_SMASH_DISTANCE, SHADOW_STEP_MIN_X, SHADOW_STEP_MAX_X), jump_origin.y)
+	_pause_walk_for_attack()
+	_show_circle_telegraph(jump_end, LEAP_SMASH_RADIUS, Color(LEAP_SMASH_COLOR.r, LEAP_SMASH_COLOR.g, LEAP_SMASH_COLOR.b, 0.5), LEAP_SMASH_TELEGRAPH_TIME)
+	_play_attack_lunge(jump_end, LEAP_SMASH_TELEGRAPH_TIME)
+	await get_tree().create_timer(LEAP_SMASH_TELEGRAPH_TIME, false).timeout
+	if not is_instance_valid(self) or not _attack_loop_running:
+		return
+	var jump_tween := create_tween()
+	jump_tween.tween_property(self, "global_position", jump_end, LEAP_SMASH_JUMP_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await jump_tween.finished
+	if not is_instance_valid(self) or not _attack_loop_running:
+		return
+	player = get_tree().get_first_node_in_group("player")
+	if is_instance_valid(player) and player.has_method("take_damage") and player.global_position.distance_to(global_position) <= LEAP_SMASH_RADIUS:
+		player.take_damage(LEAP_SMASH_DAMAGE * _damage_mult)
+	ImpactVFX.ground_shockwave(global_position, LEAP_SMASH_RADIUS, self)
+	_resume_walk_for_cooldown()
+	await get_tree().create_timer(LEAP_SMASH_COOLDOWN, false).timeout
+
+
+# Demon Beast -- several telegraphed fire zones scattered around the player's
+# position (landing together), same shape as Dark Ranger's _arrow_rain(),
+# just fire-themed (reuses ImpactVFX.fire_explosion(), no new VFX needed).
+func _summon_flames() -> void:
+	SignalBus.boss_attack_telegraph.emit()
+	var player := get_tree().get_first_node_in_group("player")
+	var center: Vector2 = player.global_position if is_instance_valid(player) else global_position
+	var points: Array[Vector2] = []
+	for _i in SUMMON_FLAMES_ZONE_COUNT:
+		points.append(center + Vector2(randf_range(-90.0, 90.0), randf_range(-60.0, 60.0)))
+	for p in points:
+		_show_circle_telegraph(p, SUMMON_FLAMES_ZONE_RADIUS, SUMMON_FLAMES_COLOR, SUMMON_FLAMES_TELEGRAPH_TIME)
+	_pause_walk_for_attack()
+	_play_attack_lunge(center, SUMMON_FLAMES_TELEGRAPH_TIME)
+	await get_tree().create_timer(SUMMON_FLAMES_TELEGRAPH_TIME, false).timeout
+	if not is_instance_valid(self) or not _attack_loop_running:
+		return
+	for p in points:
+		ImpactVFX.fire_explosion(p, SUMMON_FLAMES_ZONE_RADIUS, self)
+	if is_instance_valid(player):
+		for p in points:
+			if player.global_position.distance_to(p) <= SUMMON_FLAMES_ZONE_RADIUS:
+				player.take_damage(SUMMON_FLAMES_DAMAGE * _damage_mult)
+	_resume_walk_for_cooldown()
+	await get_tree().create_timer(SUMMON_FLAMES_COOLDOWN, false).timeout
 
 
 func _show_circle_telegraph(pos: Vector2, radius: float, color: Color, duration: float) -> void:

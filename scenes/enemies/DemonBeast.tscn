@@ -1,0 +1,46 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/boss_base.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/wolf_move_01.png" id="2"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/wolf_move_02.png" id="3"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/wolf_move_03.png" id="4"]
+[ext_resource type="Texture2D" path="res://art/enemies/normal/wolf_move_04.png" id="5"]
+
+[sub_resource type="CircleShape2D" id="CircleShape1"]
+radius = 16.0
+
+[sub_resource type="SpriteFrames" id="SpriteFrames1"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5")
+}],
+"loop": true,
+"name": &"move",
+"speed": 8.0
+}]
+
+[node name="DemonBeast" type="CharacterBody2D"]
+collision_layer = 2
+collision_mask = 1
+script = ExtResource("1")
+attack_pattern_id = "demon_beast"
+advances_to_lose_line = true
+modulate = Color(0.55, 0.22, 0.1, 1)
+
+[node name="Sprite" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames1")
+animation = &"move"
+scale = Vector2(0.17, 0.17)
+
+[node name="Collision" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape1")

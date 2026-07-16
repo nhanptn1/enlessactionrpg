@@ -568,3 +568,35 @@ static func shield_flash(pos: Vector2, radius: float, host: Node) -> void:
 		shard_tween.tween_property(shard, "global_position", pos + Vector2(cos(angle), sin(angle)) * radius * 0.6, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		shard_tween.tween_property(shard, "modulate:a", 0.0, 0.22)
 		shard_tween.chain().tween_callback(shard.queue_free)
+
+
+# (2026-07-16) Demon Beast (4th boss) below.
+
+static func claw_swipe(pos: Vector2, direction: Vector2, host: Node) -> void:
+	# Claw Swipe: 3 parallel curved rake marks oriented toward the strike
+	# direction, instead of Sword Slash's single crescent blade arc -- reads
+	# as claws, not a weapon.
+	if not is_instance_valid(host):
+		return
+	var offsets := [-10.0, 0.0, 10.0]
+	for offset in offsets:
+		var claw := Polygon2D.new()
+		claw.color = Color(0.95, 0.85, 0.8, 0.95)
+		var length := 30.0
+		var curve := 6.0
+		claw.polygon = PackedVector2Array([
+			Vector2(-length * 0.5, offset - 2.0),
+			Vector2(0.0, offset - 2.0 - curve),
+			Vector2(length * 0.5, offset - 1.5),
+			Vector2(length * 0.5, offset + 1.5),
+			Vector2(0.0, offset + 2.0 + curve),
+			Vector2(-length * 0.5, offset + 2.0),
+		])
+		claw.global_position = pos
+		claw.rotation = direction.angle()
+		host.get_tree().current_scene.add_child(claw)
+		var tween := claw.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(claw, "scale", Vector2.ONE * 1.25, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(claw, "modulate:a", 0.0, 0.18)
+		tween.chain().tween_callback(claw.queue_free)
