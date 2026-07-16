@@ -1,4 +1,4 @@
-[gd_scene load_steps=76 format=3]
+[gd_scene load_steps=79 format=3]
 
 [ext_resource type="Texture2D" path="res://art/backgrounds/background_arena.png" id="80"]
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
@@ -74,6 +74,9 @@
 [ext_resource type="Resource" path="res://resources/upgrades/lightning_t2_static_storm.tres" id="95"]
 [ext_resource type="Resource" path="res://resources/upgrades/lightning_t3_resonant_chain.tres" id="96"]
 [ext_resource type="Resource" path="res://resources/upgrades/lightning_t4_storm_mastery.tres" id="97"]
+[ext_resource type="Resource" path="res://resources/upgrades/fire_duration_boost.tres" id="98"]
+[ext_resource type="Resource" path="res://resources/upgrades/frost_combo_boost.tres" id="99"]
+[ext_resource type="Resource" path="res://resources/upgrades/lightning_combo_boost.tres" id="100"]
 
 [sub_resource type="Environment" id="Environment1"]
 background_mode = 3
@@ -122,7 +125,7 @@ item_pool = [ExtResource("18"), ExtResource("19"), ExtResource("20"), ExtResourc
 [node name="LevelUpPopup" parent="." instance=ExtResource("9")]
 
 [node name="WaveUpgradePopup" parent="." instance=ExtResource("51")]
-upgrade_pool = [ExtResource("55"), ExtResource("60"), ExtResource("65"), ExtResource("70"), ExtResource("71"), ExtResource("72"), ExtResource("73"), ExtResource("74"), ExtResource("75"), ExtResource("76"), ExtResource("77"), ExtResource("78"), ExtResource("79"), ExtResource("89"), ExtResource("90"), ExtResource("91"), ExtResource("92"), ExtResource("93"), ExtResource("94"), ExtResource("95"), ExtResource("96"), ExtResource("97")]
+upgrade_pool = [ExtResource("55"), ExtResource("60"), ExtResource("65"), ExtResource("70"), ExtResource("71"), ExtResource("72"), ExtResource("73"), ExtResource("74"), ExtResource("75"), ExtResource("76"), ExtResource("77"), ExtResource("78"), ExtResource("79"), ExtResource("89"), ExtResource("90"), ExtResource("91"), ExtResource("92"), ExtResource("93"), ExtResource("94"), ExtResource("95"), ExtResource("96"), ExtResource("97"), ExtResource("98"), ExtResource("99"), ExtResource("100")]
 
 [node name="GameOverScreen" parent="." instance=ExtResource("17")]
 

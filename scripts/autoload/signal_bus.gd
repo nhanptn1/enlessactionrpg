@@ -16,5 +16,3 @@ signal game_unpaused(source: String)
 signal boss_phase_changed(phase: int)
 signal boss_attack_telegraph
 signal boss_hp_changed(current: float, max_hp: float)
-signal status_applied(target: Node, element: String)
-signal status_combo_triggered(combo_name: String, target: Node)

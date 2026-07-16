@@ -28,22 +28,6 @@ animations = [{
 "loop": true,
 "name": &"move",
 "speed": 10.0
-}, {
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("4")
-}],
-"loop": true,
-"name": &"idle",
-"speed": 5.0
-}, {
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("4")
-}],
-"loop": false,
-"name": &"attack",
-"speed": 5.0
 }]
 
 [node name="StingerWasp" instance=ExtResource("1")]

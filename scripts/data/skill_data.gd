@@ -8,7 +8,6 @@ enum FireMode { PROJECTILE, ARROW_RAIN, TRAP_SHOT }
 @export var icon: Texture2D
 @export var base_damage: float = 5.0
 @export var cooldown: float = 0.8
-@export var mana_cost: float = 0.0
 @export var projectile_scene: PackedScene
 @export var pierce_count: int = 0
 @export var projectile_count: int = 1

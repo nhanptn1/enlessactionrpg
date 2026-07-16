@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_explosive_volley.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "fire_duration_boost"
+element = 0
+icon = ExtResource("2")
+title = "Lingering Embers"
+description = "Burn lasts 0.4s longer."
+stat_to_modify = "fire_duration_bonus"
+modification_value = 0.4
+tier = 0
+exclusive_group = ""

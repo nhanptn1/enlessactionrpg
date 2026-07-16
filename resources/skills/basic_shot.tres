@@ -11,5 +11,4 @@ display_name = "Basic Shot"
 icon = ExtResource("3")
 base_damage = 8.0
 cooldown = 0.8
-mana_cost = 0.0
 projectile_scene = ExtResource("2")

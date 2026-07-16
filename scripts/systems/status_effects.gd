@@ -52,7 +52,6 @@ static func apply(target: Node, element: String, duration: float, allow_spread: 
 		return
 	target.status[element] = duration
 	_refresh_tint(target)
-	SignalBus.status_applied.emit(target, element)
 	_evaluate_combos(target)
 	if allow_spread:
 		_try_spread(target, element, duration)
@@ -172,7 +171,6 @@ static func _evaluate_combos(target: Node) -> void:
 	if target.status.has(FIRE) and target.status.has(FROST):
 		var frost_mult: float = 1.0 + (player.frost_combo_bonus_mult if is_instance_valid(player) else 0.0)
 		target.take_damage(FROSTFIRE_DAMAGE * frost_mult)
-		SignalBus.status_combo_triggered.emit("frostfire_shatter", target)
 		var cam := target.get_viewport().get_camera_2d()
 		if is_instance_valid(cam) and cam.has_method("shake"):
 			cam.shake(FROSTFIRE_SHAKE_INTENSITY, FROSTFIRE_SHAKE_DURATION)
@@ -182,7 +180,6 @@ static func _evaluate_combos(target: Node) -> void:
 		if is_instance_valid(player):
 			combo_mult += player.frost_combo_bonus_mult + player.lightning_combo_bonus_mult
 		target.take_damage(SUPERCONDUCTOR_DAMAGE * combo_mult)
-		SignalBus.status_combo_triggered.emit("superconductor_surge", target)
 		_splash_nearby(target)
 		_clear_all(target)
 

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_chain_spark.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "lightning_combo_boost"
+element = 2
+icon = ExtResource("2")
+title = "Resonant Storm"
+description = "Superconductor Surge deals 15% more damage."
+stat_to_modify = "lightning_combo_bonus_mult"
+modification_value = 0.15
+tier = 0
+exclusive_group = ""

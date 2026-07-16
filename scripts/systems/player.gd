@@ -318,17 +318,6 @@ func _current_skill_for_element(element: int) -> SkillData:
 	return null
 
 
-func get_unlocked_elements() -> Array[int]:
-	var result: Array[int] = []
-	if fire_level > 0:
-		result.append(UpgradeResource.ElementType.FIRE)
-	if frost_level > 0:
-		result.append(UpgradeResource.ElementType.FROST)
-	if lightning_level > 0:
-		result.append(UpgradeResource.ElementType.LIGHTNING)
-	return result
-
-
 func get_physical_tier() -> int:
 	return physical_level
 

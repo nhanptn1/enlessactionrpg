@@ -1,11 +1,10 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/enemies/EnemyBase.tscn" id="1"]
 [ext_resource type="Texture2D" path="res://art/enemies/normal/bat_fly_01.png" id="2"]
 [ext_resource type="Texture2D" path="res://art/enemies/normal/bat_fly_02.png" id="3"]
 [ext_resource type="Texture2D" path="res://art/enemies/normal/bat_fly_03.png" id="4"]
 [ext_resource type="Texture2D" path="res://art/enemies/normal/bat_fly_04.png" id="5"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/bat_idle_01.png" id="6"]
 
 [sub_resource type="SpriteFrames" id="SpriteFrames1"]
 animations = [{
@@ -25,22 +24,6 @@ animations = [{
 "loop": true,
 "name": &"move",
 "speed": 8.0
-}, {
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("6")
-}],
-"loop": true,
-"name": &"idle",
-"speed": 5.0
-}, {
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("6")
-}],
-"loop": false,
-"name": &"attack",
-"speed": 5.0
 }]
 
 [sub_resource type="CircleShape2D" id="CircleShape1"]
