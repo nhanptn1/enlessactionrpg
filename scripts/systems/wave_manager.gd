@@ -79,13 +79,22 @@ func _start_next_wave() -> void:
 	var wave_number := current_wave_index + 1
 	_is_boss_wave = wave_number % BOSS_WAVE_INTERVAL == 0
 
+	# (2026-07-16) HP/speed scaling now applies uniformly from wave 1, not just
+	# to procedurally-generated waves 6+. It used to reset to a flat 1.0 for
+	# every hand-authored wave (1-5) and only _generate_wave() applied the
+	# per-wave formula -- since wave 6 is the first procedural wave, that made
+	# enemy HP jump straight from 1.0x to 2.25x in a single step with zero
+	# ramp, landing as a difficulty wall right after wave 5. Computing it here
+	# unconditionally makes waves 2-5 ramp up gradually toward that same wave-6
+	# value instead of a cliff.
+	_current_hp_mult = minf(1.0 + HP_SCALING_PER_WAVE * (wave_number - 1), HP_MULT_CEILING)
+	_current_speed_mult = 1.0 + SPEED_SCALING_PER_WAVE * (wave_number - 1)
+	_current_damage_mult = 1.0
+	_current_xp_override = -1
+	_current_visual_scale = 1.0
+
 	if current_wave_index < waves.size():
 		_current_wave = waves[current_wave_index]
-		_current_hp_mult = 1.0
-		_current_speed_mult = 1.0
-		_current_damage_mult = 1.0
-		_current_xp_override = -1
-		_current_visual_scale = 1.0
 	else:
 		_current_wave = _generate_wave(wave_number)
 
@@ -137,12 +146,8 @@ func _generate_wave(wave_number: int) -> WaveData:
 	wave.spawn_counts = _split_count(count, wave.enemy_pool.size())
 	wave.spawn_interval = maxf(SPAWN_INTERVAL_FLOOR, _last_authored_interval() - SPAWN_INTERVAL_DECAY * extra_waves)
 	wave.is_boss_wave = wave_number % BOSS_WAVE_INTERVAL == 0
-
-	_current_hp_mult = minf(1.0 + HP_SCALING_PER_WAVE * (wave_number - 1), HP_MULT_CEILING)
-	_current_speed_mult = 1.0 + SPEED_SCALING_PER_WAVE * (wave_number - 1)
-	_current_damage_mult = 1.0
-	_current_xp_override = -1
-	_current_visual_scale = 1.0
+	# hp/speed/damage/xp/visual-scale mults are already set by _start_next_wave()
+	# before this is called -- see the comment there.
 	return wave
 
 

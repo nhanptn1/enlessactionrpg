@@ -1,7 +1,6 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/enemies/EnemyBase.tscn" id="1"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/bee_fly_01.png" id="2"]
 [ext_resource type="Texture2D" path="res://art/enemies/normal/bee_fly_02.png" id="3"]
 [ext_resource type="Texture2D" path="res://art/enemies/normal/bee_fly_03.png" id="4"]
 [ext_resource type="Texture2D" path="res://art/enemies/normal/bee_fly_04.png" id="5"]
@@ -10,9 +9,6 @@
 [sub_resource type="SpriteFrames" id="SpriteFrames1"]
 animations = [{
 "frames": [{
-"duration": 1.0,
-"texture": ExtResource("2")
-}, {
 "duration": 1.0,
 "texture": ExtResource("3")
 }, {
@@ -31,7 +27,7 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("2")
+"texture": ExtResource("4")
 }],
 "loop": true,
 "name": &"idle",
@@ -39,7 +35,7 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("2")
+"texture": ExtResource("4")
 }],
 "loop": false,
 "name": &"attack",
@@ -51,4 +47,4 @@ animations = [{
 [node name="Sprite" parent="." index="0"]
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"move"
-scale = Vector2(0.82, 0.82)
+scale = Vector2(0.65, 0.65)

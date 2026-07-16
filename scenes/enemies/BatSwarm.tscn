@@ -44,17 +44,17 @@ animations = [{
 }]
 
 [sub_resource type="CircleShape2D" id="CircleShape1"]
-radius = 16.0
+radius = 13.0
 
 [sub_resource type="CircleShape2D" id="CircleShape2"]
-radius = 20.0
+radius = 16.0
 
 [node name="BatSwarm" instance=ExtResource("1")]
 
 [node name="Sprite" parent="." index="0"]
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"move"
-scale = Vector2(0.82, 0.82)
+scale = Vector2(0.65, 0.65)
 
 [node name="Collision" parent="." index="1"]
 shape = SubResource("CircleShape1")
