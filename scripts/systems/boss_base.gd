@@ -153,7 +153,7 @@ const SHADOW_STEP_MAX_X := 640.0
 const CHARGE_TELEGRAPH_TIME := 0.6
 const CHARGE_DASH_TIME := 0.25
 const CHARGE_DISTANCE := 140.0
-const CHARGE_HIT_RADIUS := 44.0
+const CHARGE_HIT_WIDTH := 44.0  # corridor width for both the telegraph and the hit-check -- see _charge()
 const CHARGE_DAMAGE := 1.0  # effective 2 after BOSS_DAMAGE_MULT, matching this boss's other attacks
 const CHARGE_COOLDOWN := 2.2
 const CHARGE_COLOR := Color(0.65, 0.7, 0.78, 0.5)
@@ -669,7 +669,7 @@ func _charge() -> void:
 	var charge_origin := global_position
 	var charge_end := Vector2(clampf(charge_origin.x + dir_x * CHARGE_DISTANCE, SHADOW_STEP_MIN_X, SHADOW_STEP_MAX_X), charge_origin.y)
 	_pause_walk_for_attack()
-	_show_line_telegraph(charge_origin, charge_end, CHARGE_HIT_RADIUS, Color(CHARGE_COLOR.r, CHARGE_COLOR.g, CHARGE_COLOR.b, 0.5), CHARGE_TELEGRAPH_TIME)
+	_show_line_telegraph(charge_origin, charge_end, CHARGE_HIT_WIDTH, Color(CHARGE_COLOR.r, CHARGE_COLOR.g, CHARGE_COLOR.b, 0.5), CHARGE_TELEGRAPH_TIME)
 	_play_attack_lunge(charge_end, CHARGE_TELEGRAPH_TIME)
 	await get_tree().create_timer(CHARGE_TELEGRAPH_TIME, false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running:
@@ -680,7 +680,14 @@ func _charge() -> void:
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
 	player = get_tree().get_first_node_in_group("player")
-	if is_instance_valid(player) and player.has_method("take_damage") and player.global_position.distance_to(global_position) <= CHARGE_HIT_RADIUS:
+	# Reuses the exact same corridor polygon as the telegraph -- matching
+	# every other reach_line attack's own telegraph-equals-hitbox convention
+	# (see _apply_attack_damage()'s "reach_line" branch) -- instead of a
+	# separate endpoint-only circle, which let a player standing outside the
+	# telegraphed corridor near charge_end still take a hidden hit, while a
+	# player standing inside the telegraphed corridor's middle took none.
+	var charge_poly := _rect_polygon(charge_origin, charge_end, CHARGE_HIT_WIDTH)
+	if is_instance_valid(player) and player.has_method("take_damage") and Geometry2D.is_point_in_polygon(player.global_position, charge_poly):
 		player.take_damage(CHARGE_DAMAGE * _damage_mult)
 	ImpactVFX.sword_slash(global_position, Vector2(dir_x, 0.0), self)
 	_resume_walk_for_cooldown()
