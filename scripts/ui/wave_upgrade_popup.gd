@@ -103,10 +103,11 @@ func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Arr
 	# from whichever units currently exist: the next tier's single direct
 	# upgrade (2026-07-16: no more forks -- every tier is exactly 1 resource
 	# now) while the tree isn't maxed, plus -- once the element is unlocked
-	# (tier >= 1) -- the 2 repeatable tier=0 +damage/-cooldown cards, each its
-	# own single-resource unit. Picking one unit (not all of them) keeps this
-	# element contributing at most one offer per wave, same as before the
-	# repeatable cards existed.
+	# (tier >= 1) -- its repeatable tier=0 cards (damage/cooldown, plus a
+	# 3rd flavor card per element -- duration for Fire, combo bonus for
+	# Frost/Lightning), each its own single-resource unit. Picking one unit
+	# (not all of them) keeps this element contributing at most one offer per
+	# wave, same as before the repeatable cards existed.
 	var current_tier := _current_level_for(target_element)
 	var max_tier := _max_tier_for(target_element)
 	var units: Array = []
@@ -119,11 +120,19 @@ func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Arr
 			tier_matches.append(upgrade)
 		if not tier_matches.is_empty():
 			units.append(tier_matches)
-	# (2026-07-16) Also gated on not-yet-maxed -- these repeatable cards used
-	# to keep being offered forever even once current_tier reached max_tier,
-	# a genuinely dead choice with nothing left to scale into. See the level-up
-	# popup's own "+1 Arrow" fix in the same pass for the matching basic-line issue.
-	if current_tier >= 1 and current_tier < max_tier:
+	# (2026-07-17) Deliberately NOT gated on current_tier < max_tier -- an
+	# earlier pass cut these off once an element hit max_tier, on the mistaken
+	# assumption they'd become "a genuinely dead choice with nothing left to
+	# scale into" (true for the level-up popup's own separate "+1 Arrow while
+	# Trap Shot is active" case, since projectile_count truly has zero effect
+	# there -- but NOT true here). fire_skill_dmg_mult/_cd_mult/etc. are read
+	# by _fire_elemental_skill() on every single cast regardless of tier, so
+	# they stay just as meaningful against tier-4's Wildfire Storm/Eternal
+	# Frost/Storm Overload as they were at tier 1 -- a maxed element has no
+	# more *tiers* to unlock, but its damage/cooldown/duration/combo power
+	# still has real room to grow. Without this, a maxed element simply went
+	# silent for the rest of the run once its tree was full.
+	if current_tier >= 1:
 		for upgrade in upgrade_pool:
 			if upgrade.element == target_element and upgrade.tier == 0:
 				var single: Array[UpgradeResource] = [upgrade]

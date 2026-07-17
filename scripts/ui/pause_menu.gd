@@ -167,7 +167,7 @@ func _element_stat_lines(player: Node, element: int) -> Array[String]:
 	match element:
 		UpgradeResource.ElementType.FIRE:
 			lines.append("Skill Damage: +%d%%" % roundi((player.fire_skill_dmg_mult - 1.0) * 100.0))
-			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - player.fire_skill_cd_mult) * 100.0))
+			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - maxf(player.fire_skill_cd_mult, 0.3)) * 100.0))
 			if player.fire_spread_chance > 0.0:
 				lines.append("Spread Chance: %d%%" % roundi(player.fire_spread_chance * 100.0))
 			if player.fire_dps_mult > 1.0:
@@ -178,7 +178,7 @@ func _element_stat_lines(player: Node, element: int) -> Array[String]:
 				lines.append("Burn Duration: +%.1fs" % player.fire_duration_bonus)
 		UpgradeResource.ElementType.FROST:
 			lines.append("Skill Damage: +%d%%" % roundi((player.frost_skill_dmg_mult - 1.0) * 100.0))
-			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - player.frost_skill_cd_mult) * 100.0))
+			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - maxf(player.frost_skill_cd_mult, 0.3)) * 100.0))
 			if player.frost_duration_bonus > 0.0:
 				lines.append("Slow Duration: +%.1fs" % player.frost_duration_bonus)
 			if player.frost_damage_amp > 0.0:
@@ -189,7 +189,7 @@ func _element_stat_lines(player: Node, element: int) -> Array[String]:
 				lines.append("Combo Bonus: +%d%%" % roundi(player.frost_combo_bonus_mult * 100.0))
 		UpgradeResource.ElementType.LIGHTNING:
 			lines.append("Skill Damage: +%d%%" % roundi((player.lightning_skill_dmg_mult - 1.0) * 100.0))
-			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - player.lightning_skill_cd_mult) * 100.0))
+			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - maxf(player.lightning_skill_cd_mult, 0.3)) * 100.0))
 			if player.lightning_slow_bonus > 0.0:
 				lines.append("Slow Bonus: +%d%%" % roundi(player.lightning_slow_bonus * 100.0))
 			if player.lightning_dps > 0.0:

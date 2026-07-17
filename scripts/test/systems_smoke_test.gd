@@ -44,6 +44,7 @@ func _assert_save_roundtrip() -> void:
 	_assert_trap_zone_activation()
 	await _assert_stats_panel_renders()
 	await _assert_elemental_homing_never_misses()
+	await _assert_maxed_element_still_offers_repeatable_cards()
 
 
 func _assert_meta_progression() -> void:
@@ -372,3 +373,39 @@ func _assert_elemental_homing_never_misses() -> void:
 	spawner.queue_free()
 	enemy_pool.queue_free()
 	pool.queue_free()
+
+
+func _assert_maxed_element_still_offers_repeatable_cards() -> void:
+	# (2026-07-17) User asked for elemental cooldown/damage boosts to still be
+	# obtainable after an element is fully maxed. Found the pool already had
+	# repeatable damage/cooldown/duration/combo cards for this exact purpose
+	# (fire_damage_boost.tres etc.) -- an earlier pass had cut them off once
+	# current_tier reached max_tier on the mistaken assumption they'd become a
+	# dead choice, when the stats they modify (fire_skill_dmg_mult etc.) stay
+	# in active use by _fire_elemental_skill() at every tier, maxed or not.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var player: Player = get_tree().get_first_node_in_group("player")
+	var popup: WaveUpgradePopup = get_tree().get_first_node_in_group("wave_upgrade_popup")
+	assert(is_instance_valid(player) and is_instance_valid(popup), "real Main.tscn should have a player + wave_upgrade_popup")
+
+	for tier in [1, 2, 3, 4]:
+		var upgrade: UpgradeResource = null
+		for candidate in popup.upgrade_pool:
+			if candidate.element == UpgradeResource.ElementType.FIRE and candidate.tier == tier:
+				upgrade = candidate
+				break
+		assert(upgrade != null, "missing a real fire tier-%d upgrade resource in the wired pool" % tier)
+		player.apply_element_upgrade(upgrade)
+	assert(player.fire_level == 4, "fire should be fully maxed, got tier %d" % player.fire_level)
+
+	var offer := popup._get_offerable_upgrades(UpgradeResource.ElementType.FIRE)
+	assert(not offer.is_empty(), "a maxed Fire should still offer its repeatable boost cards, not go silent for the rest of the run")
+	assert(offer[0].tier == 0, "a maxed element should only ever offer tier=0 repeatable cards now, got tier %d" % offer[0].tier)
+
+	main.queue_free()
