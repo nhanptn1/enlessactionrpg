@@ -18,3 +18,9 @@ class_name EnemyData
 @export var attack_interval: float = 2.0  # ranged attack cooldown, seconds -- read by RangedAttack
 @export var projectile_speed: float = 220.0
 @export var drop_chance: float = 0.0      # chance to drop an item on death
+# "basic" | "fast" | "swarm" | "tank" -- read by WaveManager._generate_wave()
+# to keep procedural waves 6+ from rolling multiple high-HP tank species at
+# once (plan/monster-waves-progression.txt's "10% tank" mix rule). Only
+# matters for entries in WaveManager.procedural_enemy_pool; irrelevant for
+# hand-authored waves, bosses, or minions.
+@export var role: String = "basic"

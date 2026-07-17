@@ -18,3 +18,4 @@ tier = 3
 movement_behavior = ExtResource("3")
 attack_behavior = ExtResource("4")
 drop_chance = 0.3
+role = "tank"

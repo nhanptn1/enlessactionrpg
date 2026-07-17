@@ -162,22 +162,31 @@ func _start_next_wave() -> void:
 
 
 const PROCEDURAL_TYPES_PER_WAVE := 3  # (2026-07-16) was 1 -- a single random type per wave meant any wave that happened to roll the pool's one ranged species (Cursed Wraith) became 100% ranged monsters; picking several distinct types every wave mixes melee/ranged naturally without needing to hand-classify each species.
+# (2026-07-17) 4 of the 11 procedural species (EnemyData.role == "tank") are
+# meaningfully tougher than everything else in the pool -- with the old
+# uniform-random 3-species draw and an even count split, a wave could roll
+# 2-3 tank species and end up almost entirely made of high-HP monsters,
+# exactly the "wave 6+ has too many tanks, can't clear it" report this fixes.
+# Caps species SELECTION to at most 1 tank per wave (structural -- see
+# _pick_procedural_species()), and caps that tank species' POPULATION share
+# once selected -- implementing plan/monster-waves-progression.txt section
+# 6's "10% tank" mix rule, which was never actually wired up until now.
+const TANK_SPECIES_CHANCE := 0.35  # odds a generated wave includes a tank species at all
+const TANK_COUNT_SHARE := 0.15  # that species' population share of the wave, when it appears
 
 
 func _generate_wave(wave_number: int) -> WaveData:
 	var wave := WaveData.new()
 	wave.wave_number = wave_number
-	var pool := procedural_enemy_pool.duplicate()
-	pool.shuffle()
-	var type_count: int = mini(PROCEDURAL_TYPES_PER_WAVE, pool.size())
-	wave.enemy_pool = pool.slice(0, type_count)
+	var type_count: int = mini(PROCEDURAL_TYPES_PER_WAVE, procedural_enemy_pool.size())
+	wave.enemy_pool = _pick_procedural_species(type_count)
 
 	var extra_waves := wave_number - waves.size()
 	var count: int = mini(_last_authored_count() + COUNT_SCALING_PER_WAVE * extra_waves, MAX_WAVE_MONSTER_COUNT)
 	wave.is_boss_wave = wave_number % BOSS_WAVE_INTERVAL == 0
 	if wave.is_boss_wave:
 		count = clampi(roundi(count * BOSS_WAVE_MONSTER_MULT), BOSS_WAVE_MONSTER_MIN, BOSS_WAVE_MONSTER_MAX)
-	wave.spawn_counts = _split_count(count, wave.enemy_pool.size())
+	wave.spawn_counts = _split_count_favoring_non_tanks(count, wave.enemy_pool)
 	wave.spawn_interval = maxf(SPAWN_INTERVAL_FLOOR, _last_authored_interval() - SPAWN_INTERVAL_DECAY * extra_waves)
 	wave.max_active = mini(MAX_ACTIVE_CEILING, MAX_ACTIVE_BASE + extra_waves)
 
@@ -200,6 +209,66 @@ func _split_count(total: int, bucket_count: int) -> Array[int]:
 	var remainder := total % bucket_count
 	for i in bucket_count:
 		result.append(base_count + (1 if i < remainder else 0))
+	return result
+
+
+func _pick_procedural_species(type_count: int) -> Array[EnemyData]:
+	# At most 1 tank species per wave (structural, not a counted loop).
+	# Whether a tank appears at all is decided up front with its own
+	# roll (TANK_SPECIES_CHANCE): with 7 non-tank species in the pool today,
+	# just "fill non-tanks first, tanks only if slots are left over" would
+	# never actually leave a slot over and tanks would never appear at all --
+	# reserving a slot explicitly is what keeps them a real, if capped,
+	# possibility instead of an accidental total absence.
+	var tanks: Array[EnemyData] = []
+	var non_tanks: Array[EnemyData] = []
+	for e in procedural_enemy_pool:
+		if e.role == "tank":
+			tanks.append(e)
+		else:
+			non_tanks.append(e)
+	non_tanks.shuffle()
+	tanks.shuffle()
+
+	var include_tank := not tanks.is_empty() and randf() < TANK_SPECIES_CHANCE
+	var non_tank_slots: int = type_count - (1 if include_tank else 0)
+	var species: Array[EnemyData] = []
+	species.append_array(non_tanks.slice(0, mini(non_tank_slots, non_tanks.size())))
+	if include_tank:
+		species.append(tanks[0])
+	# Only reachable if the pool has fewer than type_count non-tank species
+	# (not true today at 7 non-tank species, but stay correct if the roster
+	# ever shrinks) -- fill any still-empty slots from whatever's left.
+	while species.size() < type_count and species.size() < procedural_enemy_pool.size():
+		for e in procedural_enemy_pool:
+			if species.size() >= type_count:
+				break
+			if not species.has(e):
+				species.append(e)
+	return species
+
+
+func _split_count_favoring_non_tanks(total: int, species: Array[EnemyData]) -> Array[int]:
+	var tank_indices: Array[int] = []
+	var non_tank_indices: Array[int] = []
+	for i in species.size():
+		if species[i].role == "tank":
+			tank_indices.append(i)
+		else:
+			non_tank_indices.append(i)
+	if tank_indices.is_empty() or non_tank_indices.is_empty():
+		return _split_count(total, species.size())
+
+	var tank_total := roundi(total * TANK_COUNT_SHARE)
+	var non_tank_total := total - tank_total
+	var tank_split := _split_count(tank_total, tank_indices.size())
+	var non_tank_split := _split_count(non_tank_total, non_tank_indices.size())
+	var result: Array[int] = []
+	result.resize(species.size())
+	for i in tank_indices.size():
+		result[tank_indices[i]] = tank_split[i]
+	for i in non_tank_indices.size():
+		result[non_tank_indices[i]] = non_tank_split[i]
 	return result
 
 

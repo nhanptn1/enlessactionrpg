@@ -22,3 +22,4 @@ projectile_scene = ExtResource("3")
 attack_interval = 2.0
 projectile_speed = 220.0
 drop_chance = 0.15
+role = "basic"

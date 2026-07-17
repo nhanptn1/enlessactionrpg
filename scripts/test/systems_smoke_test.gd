@@ -36,6 +36,7 @@ func _assert_save_roundtrip() -> void:
 	_assert_equipment_slots()
 	_assert_audio_depth()
 	_assert_wave_scale()
+	_assert_wave_tank_balance()
 	await _assert_leaked_enemy_deactivates()
 	await _assert_elite_tint_restores_own_color()
 	await _assert_dead_enemy_not_targeted()
@@ -118,6 +119,40 @@ func _assert_wave_scale() -> void:
 	for c in late_wave.spawn_counts:
 		late_total += c
 	assert(late_total <= 100, "late-game wave total should stay capped at 100, got %d" % late_total)
+
+
+func _assert_wave_tank_balance() -> void:
+	# (2026-07-17) Real playtest report: waves 6+ could roll 2-3 tank species
+	# at once and become nearly unclearable. Checks the fix holds across many
+	# generations: never more than 1 tank species per wave, and when one
+	# does appear, its population share stays capped.
+	var wm := WaveManager.new()
+	wm.waves = [
+		load("res://resources/waves/wave_01.tres"), load("res://resources/waves/wave_02.tres"),
+		load("res://resources/waves/wave_03.tres"), load("res://resources/waves/wave_04.tres"),
+		load("res://resources/waves/wave_05.tres"),
+	]
+	wm.procedural_enemy_pool = [
+		load("res://resources/enemies/slime_scout.tres"), load("res://resources/enemies/goblin_runner.tres"),
+		load("res://resources/enemies/bat_swarm.tres"), load("res://resources/enemies/stinger_wasp.tres"),
+		load("res://resources/enemies/cursed_wraith.tres"), load("res://resources/enemies/skeleton_soldier.tres"),
+		load("res://resources/enemies/wolf_beast.tres"), load("res://resources/enemies/shield_skeleton.tres"),
+		load("res://resources/enemies/armored_gargoyle.tres"), load("res://resources/enemies/armored_brute.tres"),
+		load("res://resources/enemies/stone_golem.tres"),
+	]
+	for _trial in 30:
+		var wave: WaveData = wm._generate_wave(9)
+		var tank_species_count := 0
+		var tank_count := 0
+		var total := 0
+		for i in wave.enemy_pool.size():
+			total += wave.spawn_counts[i]
+			if wave.enemy_pool[i].role == "tank":
+				tank_species_count += 1
+				tank_count += wave.spawn_counts[i]
+		assert(tank_species_count <= 1, "wave 9 rolled %d tank species in one trial, expected at most 1" % tank_species_count)
+		if tank_count > 0:
+			assert(float(tank_count) / float(total) <= 0.2, "a rolled tank species' population share should stay capped around 15%%, got %.1f%%" % (float(tank_count) / float(total) * 100.0))
 
 
 func _assert_leaked_enemy_deactivates() -> void:
