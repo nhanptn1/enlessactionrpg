@@ -42,6 +42,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_dead_enemy_not_targeted()
 	_assert_player_movement_clamping()
 	_assert_trap_zone_activation()
+	await _assert_stats_panel_renders()
 
 
 func _assert_meta_progression() -> void:
@@ -284,3 +285,37 @@ func _assert_trap_detonation() -> void:
 	assert(trap._detonated, "TrapZone did not mark itself detonated")
 	trap._detonate()  # second call must be a no-op, not a double-trigger
 	trap.queue_free()
+
+
+func _assert_stats_panel_renders() -> void:
+	# (2026-07-17) New Pause Menu "Stats" panel showing the player's current
+	# obtained stats (all sources folded together -- meta, in-run picks,
+	# equipment -- since they share the same underlying vars on Player).
+	# _build_stats_rows() finds the player via get_first_node_in_group("player"),
+	# same as open_skills_panel() in real gameplay -- so any earlier test's
+	# player still mid-deferred-free would be picked up instead of this one's.
+	# See the recurring test-rig group-ambiguity issue elsewhere in this file.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var player_scene = load("res://scenes/player/Player.tscn")
+	var player: Player = player_scene.instantiate()
+	add_child(player)
+	var fire_t1 = load("res://resources/upgrades/fire_t1_searing_shot.tres")
+	player.apply_element_upgrade(fire_t1)
+
+	var pause_menu_scene = load("res://scenes/ui/PauseMenu.tscn")
+	var pause_menu: PauseMenu = pause_menu_scene.instantiate()
+	add_child(pause_menu)
+
+	pause_menu._build_stats_rows()
+	var sections := pause_menu.stats_rows_container.get_children()
+	assert(sections.size() == 2, "expected Core + Fire sections only, got %d" % sections.size())
+	var titles: Array[String] = []
+	for section in sections:
+		titles.append((section.get_child(0) as Label).text)
+	assert(titles.has("Core"), "Stats panel missing Core section")
+	assert(titles.has("Fire"), "Stats panel missing Fire section for an unlocked element")
+	assert(not titles.has("Frost"), "Stats panel should not show a locked element's section")
+
+	player.queue_free()
+	pause_menu.queue_free()

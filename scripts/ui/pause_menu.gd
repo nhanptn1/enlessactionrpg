@@ -28,6 +28,10 @@ const ROW_ICON_SIZE := 42
 @onready var tree_view: SkillTreeView = $SkillPanel/Margin/VBox/Scroll/ScrollVBox/TreeView
 @onready var skill_rows_container: VBoxContainer = $SkillPanel/Margin/VBox/Scroll/ScrollVBox/RowsContainer
 @onready var skill_back_button: Button = $SkillPanel/Margin/VBox/BackButton
+@onready var stats_button: Button = $Panel/VBox/StatsButton
+@onready var stats_panel: Control = $StatsPanel
+@onready var stats_rows_container: VBoxContainer = $StatsPanel/Margin/VBox/Scroll/RowsContainer
+@onready var stats_back_button: Button = $StatsPanel/Margin/VBox/BackButton
 
 
 func _ready() -> void:
@@ -39,6 +43,8 @@ func _ready() -> void:
 	restart_button.pressed.connect(_on_restart_pressed)
 	skills_button.pressed.connect(_on_skills_pressed)
 	skill_back_button.pressed.connect(_on_skill_back_pressed)
+	stats_button.pressed.connect(_on_stats_pressed)
+	stats_back_button.pressed.connect(_on_stats_back_pressed)
 	SignalBus.game_paused.connect(_on_game_paused)
 	SignalBus.game_unpaused.connect(_on_game_unpaused)
 	_update_best_label()
@@ -54,6 +60,7 @@ func _on_game_paused(source: String) -> void:
 func _on_game_unpaused(_source: String) -> void:
 	panel.visible = false
 	skill_panel.visible = false
+	stats_panel.visible = false
 
 
 func _on_skills_pressed() -> void:
@@ -83,6 +90,115 @@ func _on_skill_back_pressed() -> void:
 	AudioManager.play_ui("ui_click")
 	skill_panel.visible = false
 	panel.visible = true
+
+
+func _on_stats_pressed() -> void:
+	AudioManager.play_ui("ui_click")
+	panel.visible = false
+	stats_panel.visible = true
+	_build_stats_rows()
+
+
+func _on_stats_back_pressed() -> void:
+	AudioManager.play_ui("ui_click")
+	stats_panel.visible = false
+	panel.visible = true
+
+
+# Live totals only -- every value here is read straight off the player
+# instance, so it already reflects meta upgrades, in-run picks, and equipped
+# items combined (they all fold into the same vars; see player.gd), rather
+# than trying to re-derive a breakdown per source.
+func _build_stats_rows() -> void:
+	for child in stats_rows_container.get_children():
+		child.queue_free()
+	var player := get_tree().get_first_node_in_group("player")
+	if not is_instance_valid(player):
+		return
+	stats_rows_container.add_child(_build_stats_section("Core", _core_stat_lines(player)))
+	if player.physical_level >= 4:
+		stats_rows_container.add_child(_build_stats_section("Physical", _physical_stat_lines(player)))
+	for element in [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING]:
+		var tier: int = player.get_element_tier(element)
+		if tier > 0:
+			stats_rows_container.add_child(_build_stats_section(ELEMENT_NAMES[element], _element_stat_lines(player, element)))
+
+
+func _build_stats_section(title: String, lines: Array[String]) -> Control:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 4)
+
+	var header := Label.new()
+	header.add_theme_font_size_override("font_size", ROW_NAME_FONT_SIZE)
+	header.add_theme_color_override("font_color", ACTIVE_ROW_COLOR)
+	header.text = title
+	section.add_child(header)
+
+	for line in lines:
+		var line_label := Label.new()
+		line_label.add_theme_font_size_override("font_size", ROW_STAT_FONT_SIZE)
+		line_label.add_theme_color_override("font_color", STAT_LABEL_COLOR)
+		line_label.text = line
+		section.add_child(line_label)
+
+	return section
+
+
+func _core_stat_lines(player: Node) -> Array[String]:
+	var lines: Array[String] = [
+		"HP: %d / %d" % [roundi(player.current_hp), roundi(player.max_hp)],
+		"Damage: +%d%%" % roundi((player.damage_mult - 1.0) * 100.0),
+		"Attack Speed: +%d%%" % roundi((1.0 / player.cooldown_mult - 1.0) * 100.0),
+		"Crit Chance: %d%%" % roundi(player.crit_chance * 100.0),
+		"Projectile Speed: +%d%%" % roundi((player.projectile_speed_mult - 1.0) * 100.0),
+		"XP Gain: +%d%%" % roundi((player.xp_gain_mult - 1.0) * 100.0),
+	]
+	if player.bonus_projectile_count > 0:
+		lines.append("Bonus Arrows: +%d" % player.bonus_projectile_count)
+	return lines
+
+
+func _physical_stat_lines(player: Node) -> Array[String]:
+	return ["Trap Detonate Bonus: +%d%%" % roundi(player.physical_trap_detonate_mult * 100.0)]
+
+
+func _element_stat_lines(player: Node, element: int) -> Array[String]:
+	var lines: Array[String] = []
+	match element:
+		UpgradeResource.ElementType.FIRE:
+			lines.append("Skill Damage: +%d%%" % roundi((player.fire_skill_dmg_mult - 1.0) * 100.0))
+			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - player.fire_skill_cd_mult) * 100.0))
+			if player.fire_spread_chance > 0.0:
+				lines.append("Spread Chance: %d%%" % roundi(player.fire_spread_chance * 100.0))
+			if player.fire_dps_mult > 1.0:
+				lines.append("Burn DPS: +%d%%" % roundi((player.fire_dps_mult - 1.0) * 100.0))
+			if player.fire_explode_on_death > 0.0:
+				lines.append("Explodes on Death")
+			if player.fire_duration_bonus > 0.0:
+				lines.append("Burn Duration: +%.1fs" % player.fire_duration_bonus)
+		UpgradeResource.ElementType.FROST:
+			lines.append("Skill Damage: +%d%%" % roundi((player.frost_skill_dmg_mult - 1.0) * 100.0))
+			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - player.frost_skill_cd_mult) * 100.0))
+			if player.frost_duration_bonus > 0.0:
+				lines.append("Slow Duration: +%.1fs" % player.frost_duration_bonus)
+			if player.frost_damage_amp > 0.0:
+				lines.append("Damage Amp vs Slowed: +%d%%" % roundi(player.frost_damage_amp * 100.0))
+			if player.frost_spread_chance > 0.0:
+				lines.append("Spread Chance: %d%%" % roundi(player.frost_spread_chance * 100.0))
+			if player.frost_combo_bonus_mult > 0.0:
+				lines.append("Combo Bonus: +%d%%" % roundi(player.frost_combo_bonus_mult * 100.0))
+		UpgradeResource.ElementType.LIGHTNING:
+			lines.append("Skill Damage: +%d%%" % roundi((player.lightning_skill_dmg_mult - 1.0) * 100.0))
+			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - player.lightning_skill_cd_mult) * 100.0))
+			if player.lightning_slow_bonus > 0.0:
+				lines.append("Slow Bonus: +%d%%" % roundi(player.lightning_slow_bonus * 100.0))
+			if player.lightning_dps > 0.0:
+				lines.append("Shock DPS: +%d" % roundi(player.lightning_dps))
+			if player.lightning_spread_chance > 0.0:
+				lines.append("Spread Chance: %d%%" % roundi(player.lightning_spread_chance * 100.0))
+			if player.lightning_combo_bonus_mult > 0.0:
+				lines.append("Combo Bonus: +%d%%" % roundi(player.lightning_combo_bonus_mult * 100.0))
+	return lines
 
 
 func _build_skill_rows() -> void:
