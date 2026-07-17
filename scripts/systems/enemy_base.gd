@@ -61,8 +61,8 @@ func _ready() -> void:
 	# One-time setup only -- pooled instances are reused across many lives
 	# without _ready() running again (same convention as projectile.gd's own
 	# pooling), so anything that depends on `data` or needs resetting per
-	# life belongs in activate(), not here.
-	add_to_group("enemy")
+	# life belongs in activate(), not here. Group membership in particular
+	# must NOT be a one-time add here -- see activate()/_deactivate().
 	hurtbox.body_entered.connect(_on_hurtbox_body_entered)
 	hurtbox.body_exited.connect(_on_hurtbox_body_exited)
 	contact_timer.wait_time = CONTACT_DAMAGE_INTERVAL
@@ -77,6 +77,15 @@ func activate() -> void:
 	# Re-primes every per-life state -- called once for a brand new spawn and
 	# again every time a pooled instance is reused. `data`/the multiplier
 	# vars must already be set via setup() before this runs.
+	# (2026-07-17) add_to_group() is safe to call even if already a member --
+	# this is the fix for a real bug: a pooled enemy that died was NEVER
+	# removed from "enemy", so every targeting/splash/chain query across the
+	# game (player.gd's nearest-enemy aim, burst/chain damage, the danger
+	# indicator, status-effect spread) kept finding dead, invisible, pooled
+	# enemies indefinitely -- the player would aim and fire at a dead
+	# enemy's last position, landing no hit and no visual feedback, reading
+	# exactly like "attacks nothing" right after a kill.
+	add_to_group("enemy")
 	current_hp = data.base_hp * _hp_mult
 	_is_dying = false
 	_time_alive = 0.0
@@ -241,7 +250,12 @@ func _deactivate() -> void:
 	# Shared by _die() and _on_screen_exited() -- whatever ends this life, it
 	# must stop acting immediately: no more contact damage, ranged attacks,
 	# or movement, whether it's about to fade out or sit invisible in the
-	# pool for an unknown stretch of time before its next life.
+	# pool for an unknown stretch of time before its next life. Leaving the
+	# "enemy" group is just as important as the physics/collision/hurtbox
+	# state below -- every targeting/splash/chain query in the game finds
+	# candidates via that group, so a dead instance left in it stays a valid
+	# (if invisible, unhittable) target until reactivate() re-adds it.
+	remove_from_group("enemy")
 	contact_timer.stop()
 	attack_timer.stop()
 	hurtbox.set_deferred("monitoring", false)

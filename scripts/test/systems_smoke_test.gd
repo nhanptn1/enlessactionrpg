@@ -38,6 +38,7 @@ func _assert_save_roundtrip() -> void:
 	_assert_wave_scale()
 	await _assert_leaked_enemy_deactivates()
 	await _assert_elite_tint_restores_own_color()
+	await _assert_dead_enemy_not_targeted()
 	_assert_player_movement_clamping()
 	_assert_trap_zone_activation()
 
@@ -135,9 +136,17 @@ func _assert_leaked_enemy_deactivates() -> void:
 	assert(enemy.collision.disabled, "a leaked enemy must disable collision")
 	assert(not enemy.hurtbox.monitoring, "a leaked enemy must stop hurtbox monitoring")
 	assert(enemy.attack_timer.is_stopped(), "a leaked enemy must stop its attack_timer")
+	assert(not enemy.is_in_group("enemy"), "a leaked enemy must leave the 'enemy' group")
 
 	spawner.queue_free()
 	pool.queue_free()
+	# Both queue_free() calls above are deferred -- without actually waiting
+	# for them, the next assertion's fresh EnemySpawner/EnemyPool would
+	# coexist with these in the same groups, making get_first_node_in_group()
+	# ambiguous (a node could get acquired-from/released-to this stale pool
+	# instead, then vanish once ITS deferred free finally processes).
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 func _assert_elite_tint_restores_own_color() -> void:
@@ -155,6 +164,39 @@ func _assert_elite_tint_restores_own_color() -> void:
 	var reused: EnemyBase = spawner.spawn(shield_skeleton, 1.0, 1.0, 1.0, -1, 1.0, 100.0, false)
 	assert(not reused.modulate.is_equal_approx(Color.WHITE), "a non-elite spawn must not fall back to plain white, must restore the species' own tint")
 
+	spawner.queue_free()
+	pool.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_dead_enemy_not_targeted() -> void:
+	# (2026-07-17) Real bug caught by the user's first live playtest: a
+	# defeated pooled enemy was never removed from the "enemy" group, so
+	# Player._get_nearest_enemies() kept finding and aiming at dead,
+	# invisible enemies -- reading as "attacks nothing" right after a kill.
+	var spawner := EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	var pool := EnemyPool.new()
+	add_child(pool)
+	var player_scene = load("res://scenes/player/Player.tscn")
+	var player: Player = player_scene.instantiate()
+	add_child(player)
+	player.global_position = Vector2(360, 1150)
+
+	var slime = load("res://resources/enemies/slime_scout.tres")
+	var enemy: EnemyBase = spawner.spawn(slime, 1.0, 1.0, 1.0, -1, 1.0, 400.0, false)
+	enemy.global_position = Vector2(400, 300)
+	assert(player._get_nearest_enemies(1).has(enemy), "a live enemy should be targetable")
+
+	enemy._die()
+	await get_tree().create_timer(enemy.DEATH_FADE_DURATION + 0.15).timeout
+
+	assert(not enemy.is_in_group("enemy"), "a dead enemy must leave the 'enemy' group")
+	assert(not player._get_nearest_enemies(5).has(enemy), "a dead enemy must never be selected as a target again")
+
+	player.queue_free()
 	spawner.queue_free()
 	pool.queue_free()
 
