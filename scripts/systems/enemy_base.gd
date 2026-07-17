@@ -32,6 +32,13 @@ var _is_wave_tracked := true  # false for boss-summoned minions -- must never af
 var _pooled := false
 
 var _base_modulate: Color
+# (2026-07-17) The ROOT node's own authored tint (e.g. ShieldSkeleton/
+# StoneGolem/ArmoredBrute's blue/orange/red .tscn-baked modulate), distinct
+# from `_base_modulate` above which tracks the SPRITE child's own modulate.
+# Captured once here so EnemySpawner can restore it on every non-elite
+# spawn instead of hardcoding Color.WHITE, which would erase any species'
+# intentional tint.
+var _base_root_modulate: Color
 var _base_scale: Vector2
 var _hit_tween: Tween
 var _lunge_tween: Tween
@@ -62,6 +69,7 @@ func _ready() -> void:
 	contact_timer.timeout.connect(_on_contact_timer_timeout)
 	screen_check.screen_exited.connect(_on_screen_exited)
 	_base_modulate = sprite.modulate
+	_base_root_modulate = modulate
 	_base_scale = sprite.scale
 
 
@@ -200,6 +208,13 @@ func _on_screen_exited() -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	if is_instance_valid(player) and player.has_method("take_damage"):
 		player.take_damage(LEAK_DAMAGE)
+	# (2026-07-17) A leaked-but-pooled instance used to skip straight to
+	# _finish_life() with no deactivation at all, unlike _die() below -- it
+	# stayed fully live (movement, hurtbox, attack_timer) while sitting
+	# hidden in the pool, so e.g. a leaked ranged enemy kept firing real
+	# shots at the player indefinitely until reacquired. Both end-of-life
+	# paths now go through the same _deactivate() first.
+	_deactivate()
 	_finish_life()
 
 
@@ -214,16 +229,24 @@ func _die() -> void:
 	# Stop everything that could still act during the fade-out (the corpse
 	# shouldn't keep contact-damaging or firing at the player for the brief
 	# window before it's actually removed).
-	contact_timer.stop()
-	attack_timer.stop()
-	hurtbox.set_deferred("monitoring", false)
-	collision.disabled = true
-	set_physics_process(false)
+	_deactivate()
 	var death_tween := create_tween()
 	death_tween.set_parallel(true)
 	death_tween.tween_property(sprite, "scale", Vector2.ZERO, DEATH_FADE_DURATION).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	death_tween.tween_property(sprite, "modulate:a", 0.0, DEATH_FADE_DURATION)
 	death_tween.chain().tween_callback(_finish_life)
+
+
+func _deactivate() -> void:
+	# Shared by _die() and _on_screen_exited() -- whatever ends this life, it
+	# must stop acting immediately: no more contact damage, ranged attacks,
+	# or movement, whether it's about to fade out or sit invisible in the
+	# pool for an unknown stretch of time before its next life.
+	contact_timer.stop()
+	attack_timer.stop()
+	hurtbox.set_deferred("monitoring", false)
+	collision.disabled = true
+	set_physics_process(false)
 
 
 func _finish_life() -> void:

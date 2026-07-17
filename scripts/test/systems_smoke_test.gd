@@ -7,7 +7,7 @@ const MAIN_SCENE := "res://scenes/main/Main.tscn"
 func _ready() -> void:
 	_assert_autoloads()
 	_assert_skill_resources()
-	_assert_save_roundtrip()
+	await _assert_save_roundtrip()
 	print("SystemsSmokeTest: ALL PASSED")
 	get_tree().quit(0)
 
@@ -36,6 +36,8 @@ func _assert_save_roundtrip() -> void:
 	_assert_equipment_slots()
 	_assert_audio_depth()
 	_assert_wave_scale()
+	await _assert_leaked_enemy_deactivates()
+	await _assert_elite_tint_restores_own_color()
 	_assert_player_movement_clamping()
 	_assert_trap_zone_activation()
 
@@ -115,6 +117,46 @@ func _assert_wave_scale() -> void:
 	for c in late_wave.spawn_counts:
 		late_total += c
 	assert(late_total <= 100, "late-game wave total should stay capped at 100, got %d" % late_total)
+
+
+func _assert_leaked_enemy_deactivates() -> void:
+	var spawner := EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	var pool := EnemyPool.new()
+	add_child(pool)
+
+	var cursed_wraith = load("res://resources/enemies/cursed_wraith.tres")
+	var enemy: EnemyBase = spawner.spawn(cursed_wraith, 1.0, 1.0, 1.0, -1, 1.0, 100.0, false)
+	enemy._on_screen_exited()
+	await get_tree().process_frame
+
+	assert(not enemy.is_physics_processing(), "a leaked enemy must stop physics_process")
+	assert(enemy.collision.disabled, "a leaked enemy must disable collision")
+	assert(not enemy.hurtbox.monitoring, "a leaked enemy must stop hurtbox monitoring")
+	assert(enemy.attack_timer.is_stopped(), "a leaked enemy must stop its attack_timer")
+
+	spawner.queue_free()
+	pool.queue_free()
+
+
+func _assert_elite_tint_restores_own_color() -> void:
+	var spawner := EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	var pool := EnemyPool.new()
+	add_child(pool)
+
+	var shield_skeleton = load("res://resources/enemies/shield_skeleton.tres")
+	var elite: EnemyBase = spawner.spawn(shield_skeleton, 1.0, 1.0, 1.0, -1, 1.0, 100.0, true)
+	elite._die()
+	await get_tree().create_timer(elite.DEATH_FADE_DURATION + 0.15).timeout
+
+	var reused: EnemyBase = spawner.spawn(shield_skeleton, 1.0, 1.0, 1.0, -1, 1.0, 100.0, false)
+	assert(not reused.modulate.is_equal_approx(Color.WHITE), "a non-elite spawn must not fall back to plain white, must restore the species' own tint")
+
+	spawner.queue_free()
+	pool.queue_free()
 
 
 func _assert_player_movement_clamping() -> void:

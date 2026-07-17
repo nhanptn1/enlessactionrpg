@@ -27,6 +27,8 @@ func on_attack_timer_timeout(enemy: EnemyBase) -> void:
 	if not is_instance_valid(player) or enemy.data.projectile_scene == null:
 		return
 	var pool := enemy.get_tree().get_first_node_in_group("projectile_pool")
+	if not is_instance_valid(pool):
+		return
 	var dir = (player.global_position - enemy.global_position).normalized()
 	var dmg := enemy.data.base_damage * enemy._damage_mult
 	var proj = pool.acquire(enemy.data.projectile_scene)

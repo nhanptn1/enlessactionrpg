@@ -39,12 +39,17 @@ func spawn(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0,
 		enemy.modulate = ELITE_TINT
 		SignalBus.elite_spawned.emit()
 	elif not is_boss:
-		# A reused pooled instance may still carry a previous life's elite
-		# tint -- must be reset explicitly every spawn, not just "if elite".
-		enemy.modulate = Color.WHITE
+		# (2026-07-17) A reused pooled instance may still carry a previous
+		# life's elite tint -- must be reset explicitly every spawn, not just
+		# "if elite". Restoring the species' own authored tint (captured once
+		# in EnemyBase._ready(), e.g. Shield Skeleton's blue/Stone Golem's
+		# orange/Armored Brute's red) instead of a hardcoded Color.WHITE --
+		# the latter silently erased every species' intentional art tint on
+		# every non-elite spawn (the vast majority of spawns).
+		enemy.modulate = enemy._base_root_modulate
 	if not is_boss:
 		enemy.activate()
 	var wm := get_tree().get_first_node_in_group("wave_manager")
 	if is_instance_valid(wm):
-		enemy.died.connect(wm._on_boss_died if is_boss else wm._on_enemy_died)
+		enemy.died.connect(wm._on_enemy_died.bind(is_boss))
 	return enemy

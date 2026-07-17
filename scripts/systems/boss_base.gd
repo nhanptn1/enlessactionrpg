@@ -670,28 +670,41 @@ func _rapid_volley() -> void:
 # Dark Ranger Commander -- several telegraphed impact zones scattered around
 # the player's position (landing together), instead of Forest Guardian's
 # single centered zone -- reads as "raining down" rather than "one big hit."
-func _arrow_rain() -> void:
+# Shared by _arrow_rain()/_summon_flames(): N telegraphed circular zones
+# scattered around the player's position, landing together in one resolve
+# moment. `resolve_vfx` takes a single Vector2 point and plays whatever
+# impact visual that attack uses there (kept per-attack since the two use
+# genuinely different ImpactVFX calls, not just different colors).
+func _scattered_zone_attack(zone_count: int, zone_radius: float, telegraph_time: float, cooldown: float, damage: float, telegraph_color: Color, resolve_vfx: Callable) -> void:
 	SignalBus.boss_attack_telegraph.emit()
 	var player := get_tree().get_first_node_in_group("player")
 	var center: Vector2 = player.global_position if is_instance_valid(player) else global_position
 	var points: Array[Vector2] = []
-	for _i in ARROW_RAIN_IMPACT_COUNT:
+	for _i in zone_count:
 		points.append(center + Vector2(randf_range(-90.0, 90.0), randf_range(-60.0, 60.0)))
 	for p in points:
-		_show_circle_telegraph(p, ARROW_RAIN_IMPACT_RADIUS, ARROW_RAIN_COLOR, ARROW_RAIN_TELEGRAPH_TIME)
+		_show_circle_telegraph(p, zone_radius, telegraph_color, telegraph_time)
 	_pause_walk_for_attack()
-	_play_attack_lunge(center, ARROW_RAIN_TELEGRAPH_TIME)
-	await get_tree().create_timer(ARROW_RAIN_TELEGRAPH_TIME, false).timeout
+	_play_attack_lunge(center, telegraph_time)
+	await get_tree().create_timer(telegraph_time, false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
 	for p in points:
-		ImpactVFX.flash_burst(p, ARROW_RAIN_IMPACT_RADIUS, Color(ARROW_RAIN_COLOR.r, ARROW_RAIN_COLOR.g, ARROW_RAIN_COLOR.b, 1.0), self)
+		resolve_vfx.call(p)
+	player = get_tree().get_first_node_in_group("player")
 	if is_instance_valid(player):
 		for p in points:
-			if player.global_position.distance_to(p) <= ARROW_RAIN_IMPACT_RADIUS:
-				player.take_damage(ARROW_RAIN_DAMAGE * _damage_mult)
+			if player.global_position.distance_to(p) <= zone_radius:
+				player.take_damage(damage * _damage_mult)
 	_resume_walk_for_cooldown()
-	await get_tree().create_timer(ARROW_RAIN_COOLDOWN, false).timeout
+	await get_tree().create_timer(cooldown, false).timeout
+
+
+func _arrow_rain() -> void:
+	await _scattered_zone_attack(
+		ARROW_RAIN_IMPACT_COUNT, ARROW_RAIN_IMPACT_RADIUS, ARROW_RAIN_TELEGRAPH_TIME, ARROW_RAIN_COOLDOWN, ARROW_RAIN_DAMAGE, ARROW_RAIN_COLOR,
+		func(p: Vector2): ImpactVFX.flash_burst(p, ARROW_RAIN_IMPACT_RADIUS, Color(ARROW_RAIN_COLOR.r, ARROW_RAIN_COLOR.g, ARROW_RAIN_COLOR.b, 1.0), self)
+	)
 
 
 # Dark Ranger Commander -- a short fade-out/reposition/fade-in "teleport",
@@ -718,14 +731,27 @@ func _shadow_step() -> void:
 # itself (a tween on global_position), not just a static hitbox -- capped to
 # CHARGE_DISTANCE and horizontal-only so it can never overshoot into (or
 # interact with) the post-engage advance-to-lose-line creep.
-func _charge() -> void:
-	SignalBus.boss_attack_telegraph.emit()
+# Shared by _charge()/_leap_smash(): both are a bounded, horizontal-only
+# reposition toward wherever the player currently is, clamped to the same
+# play-area bounds SHADOW_STEP_MIN_X/MAX_X already established -- the two
+# attacks' telegraph shape, hit-check, and landing VFX differ (corridor vs
+# circle) and stay in each attack's own function.
+func _compute_horizontal_dash_target(distance: float) -> Dictionary:
 	var player := get_tree().get_first_node_in_group("player")
 	var dir_x := 1.0
 	if is_instance_valid(player) and player.global_position.x < global_position.x:
 		dir_x = -1.0
-	var charge_origin := global_position
-	var charge_end := Vector2(clampf(charge_origin.x + dir_x * CHARGE_DISTANCE, SHADOW_STEP_MIN_X, SHADOW_STEP_MAX_X), charge_origin.y)
+	var origin := global_position
+	var end := Vector2(clampf(origin.x + dir_x * distance, SHADOW_STEP_MIN_X, SHADOW_STEP_MAX_X), origin.y)
+	return {"origin": origin, "end": end, "dir_x": dir_x}
+
+
+func _charge() -> void:
+	SignalBus.boss_attack_telegraph.emit()
+	var target := _compute_horizontal_dash_target(CHARGE_DISTANCE)
+	var charge_origin: Vector2 = target["origin"]
+	var charge_end: Vector2 = target["end"]
+	var dir_x: float = target["dir_x"]
 	_pause_walk_for_attack()
 	_show_line_telegraph(charge_origin, charge_end, CHARGE_HIT_WIDTH, Color(CHARGE_COLOR.r, CHARGE_COLOR.g, CHARGE_COLOR.b, 0.5), CHARGE_TELEGRAPH_TIME)
 	_play_attack_lunge(charge_end, CHARGE_TELEGRAPH_TIME)
@@ -737,7 +763,7 @@ func _charge() -> void:
 	await dash_tween.finished
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
-	player = get_tree().get_first_node_in_group("player")
+	var player := get_tree().get_first_node_in_group("player")
 	# Reuses the exact same corridor polygon as the telegraph -- matching
 	# every other reach_line attack's own telegraph-equals-hitbox convention
 	# (see _apply_attack_damage()'s "reach_line" branch) -- instead of a
@@ -759,12 +785,8 @@ func _charge() -> void:
 # implementation there's no shape mismatch to introduce here.
 func _leap_smash() -> void:
 	SignalBus.boss_attack_telegraph.emit()
-	var player := get_tree().get_first_node_in_group("player")
-	var dir_x := 1.0
-	if is_instance_valid(player) and player.global_position.x < global_position.x:
-		dir_x = -1.0
-	var jump_origin := global_position
-	var jump_end := Vector2(clampf(jump_origin.x + dir_x * LEAP_SMASH_DISTANCE, SHADOW_STEP_MIN_X, SHADOW_STEP_MAX_X), jump_origin.y)
+	var target := _compute_horizontal_dash_target(LEAP_SMASH_DISTANCE)
+	var jump_end: Vector2 = target["end"]
 	_pause_walk_for_attack()
 	_show_circle_telegraph(jump_end, LEAP_SMASH_RADIUS, Color(LEAP_SMASH_COLOR.r, LEAP_SMASH_COLOR.g, LEAP_SMASH_COLOR.b, 0.5), LEAP_SMASH_TELEGRAPH_TIME)
 	_play_attack_lunge(jump_end, LEAP_SMASH_TELEGRAPH_TIME)
@@ -776,7 +798,7 @@ func _leap_smash() -> void:
 	await jump_tween.finished
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
-	player = get_tree().get_first_node_in_group("player")
+	var player := get_tree().get_first_node_in_group("player")
 	if is_instance_valid(player) and player.has_method("take_damage") and player.global_position.distance_to(global_position) <= LEAP_SMASH_RADIUS:
 		player.take_damage(LEAP_SMASH_DAMAGE * _damage_mult)
 	ImpactVFX.ground_shockwave(global_position, LEAP_SMASH_RADIUS, self)
@@ -788,27 +810,10 @@ func _leap_smash() -> void:
 # position (landing together), same shape as Dark Ranger's _arrow_rain(),
 # just fire-themed (reuses ImpactVFX.fire_explosion(), no new VFX needed).
 func _summon_flames() -> void:
-	SignalBus.boss_attack_telegraph.emit()
-	var player := get_tree().get_first_node_in_group("player")
-	var center: Vector2 = player.global_position if is_instance_valid(player) else global_position
-	var points: Array[Vector2] = []
-	for _i in SUMMON_FLAMES_ZONE_COUNT:
-		points.append(center + Vector2(randf_range(-90.0, 90.0), randf_range(-60.0, 60.0)))
-	for p in points:
-		_show_circle_telegraph(p, SUMMON_FLAMES_ZONE_RADIUS, SUMMON_FLAMES_COLOR, SUMMON_FLAMES_TELEGRAPH_TIME)
-	_pause_walk_for_attack()
-	_play_attack_lunge(center, SUMMON_FLAMES_TELEGRAPH_TIME)
-	await get_tree().create_timer(SUMMON_FLAMES_TELEGRAPH_TIME, false).timeout
-	if not is_instance_valid(self) or not _attack_loop_running:
-		return
-	for p in points:
-		ImpactVFX.fire_explosion(p, SUMMON_FLAMES_ZONE_RADIUS, self)
-	if is_instance_valid(player):
-		for p in points:
-			if player.global_position.distance_to(p) <= SUMMON_FLAMES_ZONE_RADIUS:
-				player.take_damage(SUMMON_FLAMES_DAMAGE * _damage_mult)
-	_resume_walk_for_cooldown()
-	await get_tree().create_timer(SUMMON_FLAMES_COOLDOWN, false).timeout
+	await _scattered_zone_attack(
+		SUMMON_FLAMES_ZONE_COUNT, SUMMON_FLAMES_ZONE_RADIUS, SUMMON_FLAMES_TELEGRAPH_TIME, SUMMON_FLAMES_COOLDOWN, SUMMON_FLAMES_DAMAGE, SUMMON_FLAMES_COLOR,
+		func(p: Vector2): ImpactVFX.fire_explosion(p, SUMMON_FLAMES_ZONE_RADIUS, self)
+	)
 
 
 func _show_circle_telegraph(pos: Vector2, radius: float, color: Color, duration: float) -> void:

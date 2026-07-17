@@ -246,10 +246,16 @@ func _on_spawn_tick() -> void:
 		if _pending_boss != null:
 			_spawn_boss()
 		return
-	if _active_on_screen >= _current_wave.max_active:
-		return  # at the active cap -- wait for a slot to open (a death/leak), try again next tick
-	var enemy_data: EnemyData = _spawn_queue.pop_back()
+	# Peek (don't pop yet) so a clustering species' full cluster_size can be
+	# checked against the cap as one unit -- checking only _active_on_screen
+	# here (as if every entry were cluster_size 1) let a cluster's for-loop
+	# below push _active_on_screen past max_active by up to cluster_size-1,
+	# since nothing re-checked the cap between individual spawns in the loop.
+	var enemy_data: EnemyData = _spawn_queue[-1]
 	var cluster_size: int = maxi(enemy_data.cluster_size, 1)
+	if _active_on_screen + cluster_size > _current_wave.max_active:
+		return  # this entry's full cluster doesn't fit yet -- wait for a slot to open, try again next tick
+	_spawn_queue.pop_back()
 	if cluster_size == 1:
 		_spawn_one(enemy_data, -1.0)
 	else:
@@ -286,9 +292,14 @@ func notify_enemy_died() -> void:
 		_start_next_wave()
 
 
-func _on_enemy_died(xp_reward: int, drop_chance: float, death_position: Vector2) -> void:
+func _on_enemy_died(xp_reward: int, drop_chance: float, death_position: Vector2, is_boss: bool = false) -> void:
+	# Bound to `true`/`false` at connect time in enemy_spawner.gd rather than
+	# split into two near-identical functions -- a boss is spawned via
+	# _spawn_boss(), never _spawn_one(), so it was never counted into
+	# _active_on_screen in the first place and must not decrement it either.
 	_grant_death_rewards(xp_reward, drop_chance, death_position)
-	_active_on_screen = maxi(_active_on_screen - 1, 0)
+	if not is_boss:
+		_active_on_screen = maxi(_active_on_screen - 1, 0)
 	notify_enemy_died()
 
 
@@ -299,14 +310,6 @@ func notify_enemy_left_screen() -> void:
 	# enemies, so this can never apply to a boss (which has no leak mechanic
 	# at all) or a boss-summoned minion (never wave-tracked).
 	_active_on_screen = maxi(_active_on_screen - 1, 0)
-	notify_enemy_died()
-
-
-func _on_boss_died(xp_reward: int, drop_chance: float, death_position: Vector2) -> void:
-	# Deliberately separate from _on_enemy_died() -- the boss is spawned via
-	# _spawn_boss(), never _spawn_one(), so it was never counted into
-	# _active_on_screen in the first place and must not decrement it either.
-	_grant_death_rewards(xp_reward, drop_chance, death_position)
 	notify_enemy_died()
 
 

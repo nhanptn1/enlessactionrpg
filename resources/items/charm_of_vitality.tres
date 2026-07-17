@@ -9,5 +9,5 @@ display_name = "Charm of Vitality"
 category = "accessory"
 rarity = "common"
 effect_type = "stat_boost"
-upgrade_id = "hp"
+upgrade_id = "max_hp"
 upgrade_stacks = 1

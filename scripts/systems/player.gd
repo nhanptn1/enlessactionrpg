@@ -163,6 +163,13 @@ signal equipment_changed(slot: String, item: ItemData)
 # same category -- see _equip_item(). Consumables never occupy a slot; they
 # apply their effect once and are gone, same as before this system existed.
 var equipped: Dictionary = {"weapon": null, "armor": null, "accessory": null}
+# (2026-07-17) The exact stat delta _equip_item() actually applied for each
+# occupied slot -- reverted by subtracting this measured value directly
+# rather than recomputing a nominal "stacks * per-stack increment" amount,
+# which could overshoot if the original apply() call had been clamped (e.g.
+# cooldown_mult's 0.3 floor, crit_chance's 1.0 ceiling), permanently
+# over-correcting the stat on every future equip/unequip.
+var _equipped_deltas: Dictionary = {"weapon": 0.0, "armor": 0.0, "accessory": 0.0}
 
 
 func _ready() -> void:
@@ -796,35 +803,56 @@ func _equip_item(item: ItemData) -> void:
 	var slot: String = item.category
 	var previous: ItemData = equipped[slot]
 	if previous != null:
-		_revert_equip_stat(previous.upgrade_id, previous.upgrade_stacks)
+		_revert_equip_stat(previous.upgrade_id, _equipped_deltas[slot])
+	var before := _get_equip_stat_value(item.upgrade_id)
 	for _i in item.upgrade_stacks:
 		apply_upgrade(item.upgrade_id)
+	_equipped_deltas[slot] = _get_equip_stat_value(item.upgrade_id) - before
 	equipped[slot] = item
 	equipment_changed.emit(slot, item)
 
 
-func _revert_equip_stat(upgrade_id: String, stacks: int) -> void:
-	# Exact inverse of apply_upgrade()'s per-stack deltas, applied `stacks`
-	# times in one step. Not guaranteed exact if the original apply hit a
-	# clamp (cooldown_mult's 0.3 floor, crit_chance's 1.0 ceiling) -- equipment
-	# bonuses are small enough in practice that this is not expected to come
-	# up, matching this project's general "don't over-engineer edge cases
-	# that can't happen with the current numbers" approach.
+func _get_equip_stat_value(upgrade_id: String) -> float:
 	match upgrade_id:
 		"damage":
-			damage_mult -= 0.02 * stacks
+			return damage_mult
 		"cooldown":
-			cooldown_mult = minf(cooldown_mult + 0.03 * stacks, 1.0)
+			return cooldown_mult
+		"projectile_count":
+			return float(bonus_projectile_count)
+		"projectile_speed":
+			return projectile_speed_mult
+		"crit_chance":
+			return crit_chance
+		"xp_gain":
+			return xp_gain_mult
+		"max_hp":
+			return max_hp
+	return 0.0
+
+
+func _revert_equip_stat(upgrade_id: String, delta: float) -> void:
+	# Subtracts the exact delta _equip_item() measured actually happened
+	# (before/after, via _get_equip_stat_value()), not a nominal
+	# "stacks * per-stack increment" recomputation -- if the original apply
+	# was clamped (e.g. cooldown_mult's 0.3 floor, crit_chance's 1.0
+	# ceiling), the measured delta already reflects that, so this can never
+	# overshoot and permanently over-correct the stat on un-equip.
+	match upgrade_id:
+		"damage":
+			damage_mult -= delta
+		"cooldown":
+			cooldown_mult -= delta
 			_refresh_timer_cooldowns()
 		"projectile_count":
-			bonus_projectile_count -= stacks
+			bonus_projectile_count -= roundi(delta)
 		"projectile_speed":
-			projectile_speed_mult -= 0.05 * stacks
+			projectile_speed_mult -= delta
 		"crit_chance":
-			crit_chance = maxf(crit_chance - 0.02 * stacks, 0.0)
+			crit_chance -= delta
 		"xp_gain":
-			xp_gain_mult -= 0.05 * stacks
+			xp_gain_mult -= delta
 		"max_hp":
-			max_hp = maxf(max_hp - 2.0 * stacks, 1.0)
+			max_hp -= delta
 			current_hp = minf(current_hp, max_hp)
 			hp_changed.emit(current_hp, max_hp)
