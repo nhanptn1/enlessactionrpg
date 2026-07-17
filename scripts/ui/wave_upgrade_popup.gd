@@ -163,9 +163,15 @@ func _max_tier_for(element: UpgradeResource.ElementType) -> int:
 	# Physical grew from 4 to 6 -- Trap Shot's former single-card "Trap Mastery"
 	# capstone split into 3 progressive tiers (bare trap -> low explosion ->
 	# bigger explosion -> max explosion) instead of one lump stat jump.
+	# (2026-07-17) Fire/Frost/Lightning grew a 5th tier -- a one-time capstone
+	# passive (Inferno Heart/Absolute Zero/Overcharge) on top of the 4-tier
+	# active-skill chain, see player.gd's _update_elemental_skill() guard and
+	# status_effects.gd's *_level >= 5 checks. Physical has no equivalent --
+	# its own repeatable growth already comes from the level-up popup's
+	# generic pool (damage/cooldown/etc.), which was never tier-capped.
 	if element == UpgradeResource.ElementType.PHYSICAL:
 		return 6
-	return 4
+	return 5
 
 
 func _on_choice_selected(index: int) -> void:

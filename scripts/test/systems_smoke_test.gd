@@ -46,6 +46,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_elemental_homing_never_misses()
 	await _assert_maxed_element_still_offers_repeatable_cards()
 	await _assert_boss_mutations()
+	await _assert_elemental_capstones()
 
 
 func _assert_meta_progression() -> void:
@@ -453,3 +454,81 @@ func _assert_boss_mutations() -> void:
 	assert(cycle2_rolls > 0, "cycle 2+ should roll mutations some of the time at a 50% chance")
 
 	await get_tree().process_frame
+
+
+func _assert_elemental_capstones() -> void:
+	# (2026-07-17) Phase 3 pillar 2: tier-5 elemental capstone passives
+	# (Inferno Heart/Absolute Zero/Overcharge). Lighter than the throwaway
+	# test -- one before/after damage ratio (Fire's burn-tick bonus) plus the
+	# guaranteed-spread check, not all 3 elements' full combo math.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var player: Player = get_tree().get_first_node_in_group("player")
+	var popup: WaveUpgradePopup = get_tree().get_first_node_in_group("wave_upgrade_popup")
+	assert(is_instance_valid(player) and is_instance_valid(popup), "real Main.tscn should have a player + wave_upgrade_popup")
+
+	for tier in [1, 2, 3, 4]:
+		var u: UpgradeResource = null
+		for candidate in popup.upgrade_pool:
+			if candidate.element == UpgradeResource.ElementType.FIRE and candidate.tier == tier:
+				u = candidate
+				break
+		assert(u != null, "missing a real fire tier-%d upgrade resource" % tier)
+		player.apply_element_upgrade(u)
+
+	var slime: EnemyData = load("res://resources/enemies/slime_scout.tres")
+	var e1: EnemyBase = slime.scene.instantiate()
+	e1.setup(slime, 100.0)
+	add_child(e1)
+	e1.activate()
+	e1.status[StatusEffects.FIRE] = 2.5
+	var hp_before_capped := e1.current_hp
+	StatusEffects.tick(e1, StatusEffects.FIRE_TICK_INTERVAL)
+	var baseline_dmg := hp_before_capped - e1.current_hp
+	e1.queue_free()
+
+	var tier5: UpgradeResource = null
+	for candidate in popup.upgrade_pool:
+		if candidate.element == UpgradeResource.ElementType.FIRE and candidate.tier == 5:
+			tier5 = candidate
+			break
+	assert(tier5 != null, "missing the fire tier-5 capstone resource in the wired pool")
+	player.apply_element_upgrade(tier5)
+	assert(player.fire_level == 5, "fire should reach capstone tier 5")
+	var skill := player.get_current_skill_for_element(UpgradeResource.ElementType.FIRE)
+	assert(skill.id == "wildfire_storm", "tier 5 is passive-only -- active skill should stay Wildfire Storm")
+
+	var e2: EnemyBase = slime.scene.instantiate()
+	e2.setup(slime, 100.0)
+	add_child(e2)
+	e2.activate()
+	e2.status[StatusEffects.FIRE] = 2.5
+	var hp_before_capstone := e2.current_hp
+	StatusEffects.tick(e2, StatusEffects.FIRE_TICK_INTERVAL)
+	var capped_dmg := hp_before_capstone - e2.current_hp
+	e2.queue_free()
+
+	var ratio := capped_dmg / baseline_dmg
+	assert(is_equal_approx(ratio, StatusEffects.FIRE_CAPSTONE_DPS_MULT), "fire capstone should multiply burn tick damage by %s, got ratio %s" % [StatusEffects.FIRE_CAPSTONE_DPS_MULT, ratio])
+
+	var e3: EnemyBase = slime.scene.instantiate()
+	e3.setup(slime)
+	add_child(e3)
+	e3.activate()
+	e3.global_position = Vector2(300, 300)
+	var e4: EnemyBase = slime.scene.instantiate()
+	e4.setup(slime)
+	add_child(e4)
+	e4.activate()
+	e4.global_position = Vector2(320, 310)
+	StatusEffects.apply(e3, StatusEffects.FIRE, 2.5)
+	assert(e4.status.has(StatusEffects.FIRE), "Inferno Heart should guarantee a spread to a nearby enemy")
+	e3.queue_free()
+	e4.queue_free()
+
+	main.queue_free()

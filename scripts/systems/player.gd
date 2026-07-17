@@ -330,20 +330,28 @@ func _apply_upgrade_stats(upgrade: UpgradeResource) -> void:
 
 
 func _update_elemental_skill(element: UpgradeResource.ElementType) -> void:
-	# fire_level/frost_level/lightning_level (1-3) index straight into that
-	# element's 3-tier skill array. Every tier pick -- the tier-1 root unlock
-	# or a later tier-2/3 fork -- swaps the active attack wholesale: Fire Arrow
-	# (T1) -> Explosive Volley (T2) -> Burning Rain (T3), same idea per element.
-	# Only one element's Timer ever actually runs (see active_element) -- a
-	# non-active element's data/tree progress still updates here so it's ready
-	# the moment the player switches to it, it just doesn't start firing.
+	# fire_level/frost_level/lightning_level (1-4) index straight into that
+	# element's 4-tier skill array. Every tier pick -- the tier-1 root unlock
+	# or a later tier-2/3/4 upgrade -- swaps the active attack wholesale: Fire
+	# Arrow (T1) -> Explosive Volley (T2) -> Burning Rain (T3) -> Wildfire
+	# Storm (T4), same idea per element. Only one element's Timer ever
+	# actually runs (see active_element) -- a non-active element's data/tree
+	# progress still updates here so it's ready the moment the player
+	# switches to it, it just doesn't start firing.
+	# (2026-07-17) Tier 5 (the capstone passive -- Inferno Heart/Absolute
+	# Zero/Overcharge) is stat-only, same as Physical's tiers 4-6 having "no
+	# case" below -- guarded here so level 5 doesn't index past the 4-entry
+	# skills array; _current_*_skill just stays whatever tier 4 already set.
 	match element:
 		UpgradeResource.ElementType.FIRE:
-			_current_fire_skill = fire_skills[fire_level - 1]
+			if fire_level <= fire_skills.size():
+				_current_fire_skill = fire_skills[fire_level - 1]
 		UpgradeResource.ElementType.FROST:
-			_current_frost_skill = frost_skills[frost_level - 1]
+			if frost_level <= frost_skills.size():
+				_current_frost_skill = frost_skills[frost_level - 1]
 		UpgradeResource.ElementType.LIGHTNING:
-			_current_lightning_skill = lightning_skills[lightning_level - 1]
+			if lightning_level <= lightning_skills.size():
+				_current_lightning_skill = lightning_skills[lightning_level - 1]
 	# Refresh wait_time BEFORE start() -- Timer.start() latches whatever
 	# wait_time currently holds into time_left, and a never-started Timer
 	# still has Godot's default wait_time (1.0s), not the skill's real

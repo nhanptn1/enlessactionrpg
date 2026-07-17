@@ -10,7 +10,7 @@ const ELEMENT_NAMES := {
 	UpgradeResource.ElementType.LIGHTNING: "Lightning",
 }
 const PHYSICAL_TIER_MAX := 6  # Trap Shot's capstone split into 3 progressive tiers -- see wave_upgrade_popup.gd::_max_tier_for()
-const ELEMENT_TIER_MAX := 4
+const ELEMENT_TIER_MAX := 5  # (2026-07-17) grew by 1 for the tier-5 capstone passive, see wave_upgrade_popup.gd::_max_tier_for()
 const ROW_NAME_FONT_SIZE := 26
 const ROW_STAT_FONT_SIZE := 20
 const ROW_ICON_SIZE := 42
@@ -176,6 +176,8 @@ func _element_stat_lines(player: Node, element: int) -> Array[String]:
 				lines.append("Explodes on Death")
 			if player.fire_duration_bonus > 0.0:
 				lines.append("Burn Duration: +%.1fs" % player.fire_duration_bonus)
+			if player.fire_level >= 5:
+				lines.append("Capstone: Inferno Heart (guaranteed spread, +50% burn)")
 		UpgradeResource.ElementType.FROST:
 			lines.append("Skill Damage: +%d%%" % roundi((player.frost_skill_dmg_mult - 1.0) * 100.0))
 			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - maxf(player.frost_skill_cd_mult, 0.3)) * 100.0))
@@ -187,6 +189,8 @@ func _element_stat_lines(player: Node, element: int) -> Array[String]:
 				lines.append("Spread Chance: %d%%" % roundi(player.frost_spread_chance * 100.0))
 			if player.frost_combo_bonus_mult > 0.0:
 				lines.append("Combo Bonus: +%d%%" % roundi(player.frost_combo_bonus_mult * 100.0))
+			if player.frost_level >= 5:
+				lines.append("Capstone: Absolute Zero (guaranteed spread, 2x combo damage)")
 		UpgradeResource.ElementType.LIGHTNING:
 			lines.append("Skill Damage: +%d%%" % roundi((player.lightning_skill_dmg_mult - 1.0) * 100.0))
 			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - maxf(player.lightning_skill_cd_mult, 0.3)) * 100.0))
@@ -198,6 +202,8 @@ func _element_stat_lines(player: Node, element: int) -> Array[String]:
 				lines.append("Spread Chance: %d%%" % roundi(player.lightning_spread_chance * 100.0))
 			if player.lightning_combo_bonus_mult > 0.0:
 				lines.append("Combo Bonus: +%d%%" % roundi(player.lightning_combo_bonus_mult * 100.0))
+			if player.lightning_level >= 5:
+				lines.append("Capstone: Overcharge (guaranteed spread, 2x Superconductor damage)")
 	return lines
 
 

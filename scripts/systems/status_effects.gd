@@ -44,6 +44,15 @@ const SPREAD_RADIUS := 90.0  # Ignite Trail / Ice Wall Nova / Chain Resonance
 const EXPLODE_DAMAGE := 20.0
 const EXPLODE_RADIUS := 90.0  # Explosive Volley
 
+# (2026-07-17) Phase 3 pillar 2: tier-5 capstone passives (Inferno Heart/
+# Absolute Zero/Overcharge, see resources/upgrades/*_t5_*.tres). Read directly
+# off *_level >= 5 rather than a new bool flag -- fire_level/frost_level/
+# lightning_level already track exactly this ("highest tier reached").
+const CAPSTONE_TIER := 5
+const FIRE_CAPSTONE_DPS_MULT := 1.5  # on top of fire_dps_mult, not replacing it
+const FROST_CAPSTONE_COMBO_MULT := 2.0  # applies to both combos Frost participates in (Frostfire and Superconductor)
+const LIGHTNING_CAPSTONE_COMBO_MULT := 2.0  # Superconductor only -- Lightning has no Fire combo
+
 const TINT_PRIORITY := [FROST, LIGHTNING, FIRE]  # first active status in this order wins the tint
 
 
@@ -77,6 +86,8 @@ static func tick(target: Node, delta: float) -> void:
 		var fire_new_remaining: float = maxf(target.status.get(FIRE, 0.0), 0.0)
 		if int(fire_old_remaining / FIRE_TICK_INTERVAL) != int(fire_new_remaining / FIRE_TICK_INTERVAL):
 			var dps_mult: float = player.fire_dps_mult if is_instance_valid(player) else 1.0
+			if is_instance_valid(player) and player.fire_level >= CAPSTONE_TIER:
+				dps_mult *= FIRE_CAPSTONE_DPS_MULT
 			target.take_damage(FIRE_DPS * dps_mult * FIRE_TICK_INTERVAL)
 			if not is_instance_valid(target):
 				return  # the burn tick itself killed it
@@ -138,11 +149,11 @@ static func _try_spread(target: Node, element: String, duration: float) -> void:
 	var chance := 0.0
 	match element:
 		FIRE:
-			chance = player.fire_spread_chance
+			chance = 1.0 if player.fire_level >= CAPSTONE_TIER else player.fire_spread_chance
 		FROST:
-			chance = player.frost_spread_chance
+			chance = 1.0 if player.frost_level >= CAPSTONE_TIER else player.frost_spread_chance
 		LIGHTNING:
-			chance = player.lightning_spread_chance
+			chance = 1.0 if player.lightning_level >= CAPSTONE_TIER else player.lightning_spread_chance
 	if chance <= 0.0 or randf() >= chance:
 		return
 	var nearby := _find_nearby_enemy(target)
@@ -170,6 +181,8 @@ static func _evaluate_combos(target: Node) -> void:
 	var player := _get_player(target)
 	if target.status.has(FIRE) and target.status.has(FROST):
 		var frost_mult: float = 1.0 + (player.frost_combo_bonus_mult if is_instance_valid(player) else 0.0)
+		if is_instance_valid(player) and player.frost_level >= CAPSTONE_TIER:
+			frost_mult *= FROST_CAPSTONE_COMBO_MULT
 		target.take_damage(FROSTFIRE_DAMAGE * frost_mult)
 		var cam := target.get_viewport().get_camera_2d()
 		if is_instance_valid(cam) and cam.has_method("shake"):
@@ -179,6 +192,10 @@ static func _evaluate_combos(target: Node) -> void:
 		var combo_mult: float = 1.0
 		if is_instance_valid(player):
 			combo_mult += player.frost_combo_bonus_mult + player.lightning_combo_bonus_mult
+			if player.frost_level >= CAPSTONE_TIER:
+				combo_mult *= FROST_CAPSTONE_COMBO_MULT
+			if player.lightning_level >= CAPSTONE_TIER:
+				combo_mult *= LIGHTNING_CAPSTONE_COMBO_MULT
 		target.take_damage(SUPERCONDUCTOR_DAMAGE * combo_mult)
 		_splash_nearby(target)
 		_clear_all(target)

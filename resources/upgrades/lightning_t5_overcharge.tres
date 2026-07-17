@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_storm_overload.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "lightning_t5_overcharge"
+element = 2
+icon = ExtResource("2")
+title = "Overcharge"
+description = "Capstone: Lightning status always spreads to a nearby enemy, and Superconductor Surge combo damage doubles."
+stat_to_modify = ""
+modification_value = 0.0
+tier = 5
+exclusive_group = ""
