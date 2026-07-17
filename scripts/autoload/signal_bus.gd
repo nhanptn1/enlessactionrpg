@@ -19,3 +19,7 @@ signal game_unpaused(source: String)
 signal boss_phase_changed(phase: int)
 signal boss_attack_telegraph
 signal boss_hp_changed(current: float, max_hp: float)
+# "" = no mutation on this boss spawn -- emitted once from BossBase._ready()
+# either way, so HUD resets the label correctly on every boss wave, not just
+# mutated ones. See boss_base.gd::MUTATIONS.
+signal boss_mutation_announced(mutation_name: String)

@@ -45,6 +45,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_stats_panel_renders()
 	await _assert_elemental_homing_never_misses()
 	await _assert_maxed_element_still_offers_repeatable_cards()
+	await _assert_boss_mutations()
 
 
 func _assert_meta_progression() -> void:
@@ -409,3 +410,46 @@ func _assert_maxed_element_still_offers_repeatable_cards() -> void:
 	assert(offer[0].tier == 0, "a maxed element should only ever offer tier=0 repeatable cards now, got tier %d" % offer[0].tier)
 
 	main.queue_free()
+
+
+func _assert_boss_mutations() -> void:
+	# (2026-07-17) Phase 3 pillar 1: endless boss variety. Real boss instance,
+	# not mocked -- confirms mutation_id actually changes stats/behavior, not
+	# just that BossBase.MUTATIONS is a well-formed dictionary.
+	var boss_data = load("res://resources/enemies/fallen_knight.tres")
+
+	var enraged: BossBase = boss_data.scene.instantiate()
+	enraged.mutation_id = "enraged"
+	enraged.setup(boss_data, 1.0, 1.0, 1.0)
+	add_child(enraged)
+	var em: Dictionary = BossBase.MUTATIONS["enraged"]
+	assert(is_equal_approx(enraged._speed_mult, em["speed_mult"]), "enraged should multiply _speed_mult")
+	assert(is_equal_approx(enraged._damage_mult, em["damage_mult"]), "enraged should multiply _damage_mult")
+	assert(is_equal_approx(enraged._cooldown_mult, em["cooldown_mult"]), "enraged should set _cooldown_mult")
+	enraged.queue_free()
+
+	var shielded: BossBase = boss_data.scene.instantiate()
+	shielded.mutation_id = "shielded"
+	shielded.setup(boss_data, 1.0, 1.0, 1.0)
+	add_child(shielded)
+	var hp_before := shielded.current_hp
+	shielded._mutation_invulnerable = true
+	shielded.take_damage(5.0)
+	assert(shielded.current_hp == hp_before, "shielded boss must take zero damage during its invulnerability window")
+	shielded._mutation_invulnerable = false
+	shielded.take_damage(1.0)
+	assert(shielded.current_hp < hp_before, "shielded boss should take damage again once the window closes")
+	shielded.queue_free()
+
+	# Wave-cycle gating: cycle 1 never mutates, cycle 2+ can.
+	var cycle1_rolls := 0
+	var cycle2_rolls := 0
+	for _i in 200:
+		if 1 >= WaveManager.BOSS_MUTATION_MIN_CYCLE and randf() < WaveManager.BOSS_MUTATION_CHANCE:
+			cycle1_rolls += 1
+		if 2 >= WaveManager.BOSS_MUTATION_MIN_CYCLE and randf() < WaveManager.BOSS_MUTATION_CHANCE:
+			cycle2_rolls += 1
+	assert(cycle1_rolls == 0, "a player's first-ever boss (cycle 1) must never roll a mutation")
+	assert(cycle2_rolls > 0, "cycle 2+ should roll mutations some of the time at a 50% chance")
+
+	await get_tree().process_frame

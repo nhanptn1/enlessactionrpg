@@ -146,6 +146,39 @@ const SUMMON_COOLDOWN := 5.0
 const SAPLING_COUNT := 3
 const INITIAL_ATTACK_DELAY := 1.5
 
+# (2026-07-17) Phase 3 pillar 1: endless boss variety. Reuses the existing
+# 4-boss rotation (WaveManager.boss_pool) rather than building new bosses --
+# a random mutation is rolled onto a boss spawn from the 2nd cycle onward
+# (see WaveManager.BOSS_MUTATION_*), applied generically here regardless of
+# which attack_pattern_id the boss uses, so every boss in the rotation gets
+# all 3 mutations for free instead of needing bespoke per-boss content.
+# "color" multiplies onto sprite.modulate (same technique _play_hit_reaction()
+# already uses for its white flash) -- a visible tint distinct from each
+# boss's own base color, not a wholesale re-tint.
+const MUTATIONS := {
+	"enraged": {
+		"display_name": "Enraged",
+		"color": Color(1.4, 0.55, 0.4, 1.0),
+		"speed_mult": 1.3,
+		"damage_mult": 1.3,
+		"cooldown_mult": 0.75,  # attacks recover 25% faster
+	},
+	"shielded": {
+		"display_name": "Shielded",
+		"color": Color(0.55, 0.85, 1.3, 1.0),
+		"shield_interval": 6.0,  # seconds between shield windows
+		"shield_duration": 1.5,  # seconds fully invulnerable per window
+	},
+	"volatile": {
+		"display_name": "Volatile",
+		"color": Color(1.3, 0.75, 0.3, 1.0),
+		"zone_count": 2,
+		"zone_radius": 55.0,
+		"zone_damage": 1.0,  # multiplied by _damage_mult at resolve time, matching every other boss hit
+		"telegraph_time": 1.0,
+	},
+}
+
 # Dark Ranger Commander's special-cased (non-generic-shape) attacks.
 const RAPID_VOLLEY_PROJECTILE := preload("res://scenes/effects/CursedBolt.tscn")
 const RAPID_VOLLEY_DAMAGE := 1.0  # (2026-07-16) 7.0->1.0, rescaled with player.max_hp's 100->10 rebalance (effective 2 per bolt after BOSS_DAMAGE_MULT)
@@ -233,6 +266,13 @@ var _phase_1_attacks: Array
 var _phase_2_attacks: Array
 var status: Dictionary = {}  # element name (StatusEffects.FIRE/LIGHTNING/FROST) -> seconds remaining -- bosses only take DOT/combo damage, no movement lock
 
+# "" = no mutation, the pre-Phase-3 default. Set directly by EnemySpawner
+# before add_child() (mirroring how _pooled is set on regular enemies),
+# not threaded through setup() -- see MUTATIONS above.
+var mutation_id: String = ""
+var _cooldown_mult := 1.0  # only "enraged" changes this; see _apply_mutation()
+var _mutation_invulnerable := false  # "shielded" only -- see _run_shield_loop()
+
 
 func setup(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0, damage_mult: float = 1.0, xp_override: int = -1) -> void:
 	data = enemy_data  # caller MUST call this before add_child()
@@ -249,6 +289,7 @@ func _ready() -> void:
 	_phase_2_attacks = _pattern.get("phase_2", [])
 	_max_hp = data.base_hp * _hp_mult
 	current_hp = _max_hp
+	_apply_mutation()  # before velocity below (reads _speed_mult) and before _base_modulate captures sprite.modulate (must capture the tinted color, not the pre-mutation one)
 	# (2026-07-16) Bosses used to walk in at the same speed as a basic Slime
 	# Scout (EnemyData.base_speed=90) -- slowed per user feedback that every
 	# boss should move slower in general, not just during the post-engage
@@ -260,7 +301,42 @@ func _ready() -> void:
 	sprite.play("move")
 	_attack_loop_running = true
 	SignalBus.boss_hp_changed.emit(current_hp, _max_hp)
+	SignalBus.boss_mutation_announced.emit(MUTATIONS.get(mutation_id, {}).get("display_name", ""))
 	_run_attack_loop()
+	if mutation_id == "shielded":
+		_run_shield_loop()
+
+
+# Applied once at spawn -- speed/damage/cooldown multiply onto the existing
+# wave-cycle multipliers rather than replacing them, so a mutation composes
+# with normal boss-cycle scaling instead of overriding it.
+func _apply_mutation() -> void:
+	if mutation_id == "" or not MUTATIONS.has(mutation_id):
+		return
+	var m: Dictionary = MUTATIONS[mutation_id]
+	_speed_mult *= m.get("speed_mult", 1.0)
+	_damage_mult *= m.get("damage_mult", 1.0)
+	_cooldown_mult = m.get("cooldown_mult", 1.0)
+	sprite.modulate = sprite.modulate * m["color"]
+
+
+# "Shielded" -- periodic invulnerability window, independent of the attack
+# loop (runs alongside it, not inside it) so it works identically regardless
+# of which attack pattern the boss uses.
+func _run_shield_loop() -> void:
+	var m: Dictionary = MUTATIONS["shielded"]
+	var interval: float = m["shield_interval"]
+	var duration: float = m["shield_duration"]
+	while is_instance_valid(self) and not _is_dying:
+		await get_tree().create_timer(interval, false).timeout
+		if not is_instance_valid(self) or _is_dying:
+			return
+		_mutation_invulnerable = true
+		ImpactVFX.shield_flash(global_position, 50.0, self)
+		await get_tree().create_timer(duration, false).timeout
+		if not is_instance_valid(self) or _is_dying:
+			return
+		_mutation_invulnerable = false
 
 
 func _physics_process(delta: float) -> void:
@@ -303,6 +379,9 @@ func apply_status(element: String, duration: float) -> void:
 
 func take_damage(amount: float) -> void:
 	if _is_dying:
+		return
+	if _mutation_invulnerable:
+		ImpactVFX.shield_flash(global_position, 40.0, self)  # feedback that the hit was blocked, not silently ignored
 		return
 	current_hp -= amount * StatusEffects.damage_amp(self)  # Brittle Frost: frozen bosses take extra damage too
 	SignalBus.enemy_hit.emit()
@@ -414,6 +493,8 @@ func _die() -> void:
 		return
 	_is_dying = true
 	_attack_loop_running = false
+	if mutation_id == "volatile":
+		_spawn_volatile_death_zones()  # captures everything it needs into local closures before self is freed below
 	StatusEffects.explode_on_death(self)  # Explosive Volley: no-op unless burning and the player has the branch
 	var xp_reward: int = _xp_override if _xp_override >= 0 else data.xp_reward
 	died.emit(xp_reward, data.drop_chance, global_position)
@@ -429,6 +510,40 @@ func _die() -> void:
 	death_tween.tween_property(sprite, "scale", Vector2.ZERO, DEATH_FADE_DURATION).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	death_tween.tween_property(sprite, "modulate:a", 0.0, DEATH_FADE_DURATION)
 	death_tween.chain().tween_callback(queue_free)
+
+
+# "Volatile" -- telegraphed damage zones around the death position, resolving
+# after this boss instance is already gone (its own death_tween above frees
+# it in DEATH_FADE_DURATION, well before the zones' own telegraph_time
+# typically resolves). Everything the delayed callback needs is captured into
+# plain local closures up front (host node, positions, multiplier) -- it must
+# never reference `self`, since `self` won't be valid by the time it runs.
+func _spawn_volatile_death_zones() -> void:
+	var m: Dictionary = MUTATIONS["volatile"]
+	var tree := get_tree()
+	if not is_instance_valid(tree) or not is_instance_valid(tree.current_scene):
+		return
+	var host: Node = tree.current_scene
+	var zone_count: int = m["zone_count"]
+	var zone_radius: float = m["zone_radius"]
+	var telegraph_time: float = m["telegraph_time"]
+	var damage: float = m["zone_damage"]
+	var color: Color = m["color"]
+	var dmg_mult := _damage_mult
+	var points: Array[Vector2] = []
+	for _i in zone_count:
+		points.append(global_position + Vector2(randf_range(-70.0, 70.0), randf_range(-50.0, 50.0)))
+	for p in points:
+		Telegraph.show_circle(p, zone_radius, color, telegraph_time, host)
+	tree.create_timer(telegraph_time, false).timeout.connect(func():
+		if not is_instance_valid(host):
+			return
+		var player := host.get_tree().get_first_node_in_group("player")
+		for p in points:
+			ImpactVFX.flash_burst(p, zone_radius, Color(color.r, color.g, color.b, 1.0), host)
+			if is_instance_valid(player) and player.has_method("take_damage") and player.global_position.distance_to(p) <= zone_radius:
+				player.take_damage(damage * dmg_mult)
+	)
 
 
 func _run_attack_loop() -> void:
@@ -450,7 +565,7 @@ func _execute_attack(attack_id: String) -> void:
 	match attack_id:
 		"summon_saplings":
 			_summon_saplings()
-			await get_tree().create_timer(SUMMON_COOLDOWN, false).timeout
+			await get_tree().create_timer(SUMMON_COOLDOWN * _cooldown_mult, false).timeout
 			return
 		"rapid_volley":
 			await _rapid_volley()
@@ -489,7 +604,7 @@ func _execute_attack(attack_id: String) -> void:
 		return
 	_apply_attack_damage(attack_id, info, target_pos)
 	_resume_walk_for_cooldown()
-	await get_tree().create_timer(info["cooldown"], false).timeout
+	await get_tree().create_timer(info["cooldown"] * _cooldown_mult, false).timeout
 
 
 func _apply_attack_damage(attack_id: String, info: Dictionary, target_pos: Vector2) -> void:
@@ -610,7 +725,7 @@ func _throw_rock() -> void:
 		player.take_damage(THROW_ROCK_DAMAGE * _damage_mult)
 	ImpactVFX.flash_burst(target_pos, THROW_ROCK_IMPACT_RADIUS, Color(THROW_ROCK_COLOR.r, THROW_ROCK_COLOR.g, THROW_ROCK_COLOR.b, 1.0), self)
 	_resume_walk_for_cooldown()
-	await get_tree().create_timer(THROW_ROCK_COOLDOWN, false).timeout
+	await get_tree().create_timer(THROW_ROCK_COOLDOWN * _cooldown_mult, false).timeout
 
 
 # Arcs the rock up then down across two chained tween segments (a rough
@@ -653,7 +768,7 @@ func _rapid_volley() -> void:
 	await get_tree().create_timer(RAPID_VOLLEY_TELEGRAPH_TIME, false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running or not is_instance_valid(player):
 		_resume_walk_for_cooldown()
-		await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN, false).timeout
+		await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN * _cooldown_mult, false).timeout
 		return
 	var base_dir: Vector2 = (player.global_position - global_position).normalized()
 	var pool := get_tree().get_first_node_in_group("projectile_pool")
@@ -664,7 +779,7 @@ func _rapid_volley() -> void:
 			var proj = pool.acquire(RAPID_VOLLEY_PROJECTILE)
 			proj.activate(dir, RAPID_VOLLEY_SPEED, RAPID_VOLLEY_DAMAGE * _damage_mult, global_position, 0, "player", RAPID_VOLLEY_MAX_RANGE)
 	_resume_walk_for_cooldown()
-	await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN, false).timeout
+	await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN * _cooldown_mult, false).timeout
 
 
 # Dark Ranger Commander -- several telegraphed impact zones scattered around
@@ -697,7 +812,7 @@ func _scattered_zone_attack(zone_count: int, zone_radius: float, telegraph_time:
 			if player.global_position.distance_to(p) <= zone_radius:
 				player.take_damage(damage * _damage_mult)
 	_resume_walk_for_cooldown()
-	await get_tree().create_timer(cooldown, false).timeout
+	await get_tree().create_timer(cooldown * _cooldown_mult, false).timeout
 
 
 func _arrow_rain() -> void:
@@ -722,7 +837,7 @@ func _shadow_step() -> void:
 	var cam := get_viewport().get_camera_2d()
 	if is_instance_valid(cam) and cam.has_method("shake"):
 		cam.shake(4.0, 0.15)
-	await get_tree().create_timer(SHADOW_STEP_COOLDOWN, false).timeout
+	await get_tree().create_timer(SHADOW_STEP_COOLDOWN * _cooldown_mult, false).timeout
 
 
 # Fallen Knight -- a short horizontal dash toward the player, ending in a
@@ -775,7 +890,7 @@ func _charge() -> void:
 		player.take_damage(CHARGE_DAMAGE * _damage_mult)
 	ImpactVFX.sword_slash(global_position, Vector2(dir_x, 0.0), self)
 	_resume_walk_for_cooldown()
-	await get_tree().create_timer(CHARGE_COOLDOWN, false).timeout
+	await get_tree().create_timer(CHARGE_COOLDOWN * _cooldown_mult, false).timeout
 
 
 # Demon Beast -- "jumps to a target area": leaps horizontally (same bounded,
@@ -803,7 +918,7 @@ func _leap_smash() -> void:
 		player.take_damage(LEAP_SMASH_DAMAGE * _damage_mult)
 	ImpactVFX.ground_shockwave(global_position, LEAP_SMASH_RADIUS, self)
 	_resume_walk_for_cooldown()
-	await get_tree().create_timer(LEAP_SMASH_COOLDOWN, false).timeout
+	await get_tree().create_timer(LEAP_SMASH_COOLDOWN * _cooldown_mult, false).timeout
 
 
 # Demon Beast -- several telegraphed fire zones scattered around the player's

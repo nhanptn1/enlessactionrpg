@@ -14,6 +14,7 @@ class_name HUD
 @onready var skill_button: Button = $SkillButton
 @onready var boss_hp_bar_container: MarginContainer = $Margin/VBox/BossHPBarContainer
 @onready var boss_hp_bar: ProgressBar = $Margin/VBox/BossHPBarContainer/BossVBox/BossHPBar
+@onready var boss_label: Label = $Margin/VBox/BossHPBarContainer/BossVBox/BossLabel
 @onready var equip_slots: Dictionary = {
 	"weapon": $Margin/VBox/EquipmentRow/WeaponSlot,
 	"armor": $Margin/VBox/EquipmentRow/ArmorSlot,
@@ -71,6 +72,7 @@ func _ready() -> void:
 		wave_manager.wave_started.connect(_on_wave_started)
 	SignalBus.wave_started.connect(_on_signal_bus_wave_started)
 	SignalBus.boss_hp_changed.connect(_on_boss_hp_changed)
+	SignalBus.boss_mutation_announced.connect(_on_boss_mutation_announced)
 	# Touch/mobile-friendly entry point for pausing -- the "pause" input
 	# action (Escape) still works too, this is the on-screen equivalent.
 	# No unpause branch needed here: while paused, HUD is frozen along with
@@ -213,6 +215,14 @@ func _on_signal_bus_wave_started(_wave_number: int, is_boss: bool) -> void:
 func _on_boss_hp_changed(current: float, max_hp: float) -> void:
 	boss_hp_bar.max_value = max_hp
 	boss_hp_bar.value = current
+
+
+func _on_boss_mutation_announced(mutation_name: String) -> void:
+	# Emitted once per boss spawn regardless of whether it rolled a mutation
+	# (mutation_name == ""), so this always resets the label -- a mutated
+	# boss's name from an earlier cycle can never linger onto a later
+	# unmutated one.
+	boss_label.text = "BOSS" if mutation_name == "" else "BOSS — %s" % mutation_name.to_upper()
 
 
 func _on_equipment_changed(slot: String, item: ItemData) -> void:

@@ -47,6 +47,15 @@ const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.2
 const BOSS_DAMAGE_MULT := 2.0
 const BOSS_XP_REWARD := 100  # (2026-07-16) 200->100, halved alongside every regular enemy's xp_reward
 const BOSS_VISUAL_SCALE := 1.5
+# (2026-07-17) Phase 3 pillar 1: endless boss variety. boss_pool only has 4
+# entries, so once the rotation has gone around once (cycle 2+), a mutation
+# rolled onto the spawn keeps repeat fights from being byte-for-byte
+# identical -- see BossBase.MUTATIONS for what each one actually does. Cycle
+# 1 (a player's very first-ever boss encounter, wave 10) is deliberately left
+# unmutated so the fight is learned clean first.
+const BOSS_MUTATION_CHANCE := 0.5
+const BOSS_MUTATION_MIN_CYCLE := 2
+const BOSS_MUTATION_IDS: Array[String] = ["enraged", "shielded", "volatile"]
 const MONSTER_XP_MULT := 1.25  # (2026-07-16) per-kill XP felt low after the earlier halving -- applied once here at the single death-reward choke point (_grant_death_rewards()), so it covers every enemy.xp_reward, BOSS_XP_REWARD, and elite/minion overrides uniformly rather than needing 12+ separate .tres edits.
 const RARITY_WEIGHTS := {"common": 0.55, "rare": 0.30, "epic": 0.15}
 # Elite rolls apply to any regular monster, including the ones that now
@@ -91,6 +100,7 @@ var _spawn_queue: Array[EnemyData] = []
 var _spawn_timer: Timer
 var _pending_boss: EnemyData = null  # set on boss waves, spawned once _spawn_queue empties -- see _spawn_boss()
 var _pending_boss_hp_mult := 1.0
+var _pending_boss_mutation_id: String = ""  # "" = no mutation this cycle -- see BOSS_MUTATION_* above
 
 
 func _ready() -> void:
@@ -150,6 +160,9 @@ func _start_next_wave() -> void:
 		var cycle := wave_number / BOSS_WAVE_INTERVAL
 		_pending_boss = boss_pool[(cycle - 1) % boss_pool.size()]
 		_pending_boss_hp_mult = _boss_hp_mult(cycle)
+		_pending_boss_mutation_id = ""
+		if cycle >= BOSS_MUTATION_MIN_CYCLE and randf() < BOSS_MUTATION_CHANCE:
+			_pending_boss_mutation_id = BOSS_MUTATION_IDS[randi() % BOSS_MUTATION_IDS.size()]
 
 	# The boss counts toward _alive_count from the start too (as "still
 	# pending"), even though it isn't spawned yet -- otherwise the wave
@@ -348,8 +361,9 @@ func _spawn_one(enemy_data: EnemyData, x_override: float) -> void:
 
 func _spawn_boss() -> void:
 	var boss_data := _pending_boss
+	var mutation_id := _pending_boss_mutation_id
 	_pending_boss = null
-	spawner.spawn(boss_data, _pending_boss_hp_mult, 1.0, BOSS_DAMAGE_MULT, BOSS_XP_REWARD, BOSS_VISUAL_SCALE, -1.0, false, true)
+	spawner.spawn(boss_data, _pending_boss_hp_mult, 1.0, BOSS_DAMAGE_MULT, BOSS_XP_REWARD, BOSS_VISUAL_SCALE, -1.0, false, true, mutation_id)
 
 
 func notify_enemy_died() -> void:
