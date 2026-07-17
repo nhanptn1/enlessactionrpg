@@ -43,6 +43,7 @@ func _assert_save_roundtrip() -> void:
 	_assert_player_movement_clamping()
 	_assert_trap_zone_activation()
 	await _assert_stats_panel_renders()
+	await _assert_elemental_homing_never_misses()
 
 
 func _assert_meta_progression() -> void:
@@ -319,3 +320,55 @@ func _assert_stats_panel_renders() -> void:
 
 	player.queue_free()
 	pause_menu.queue_free()
+
+
+func _assert_elemental_homing_never_misses() -> void:
+	# (2026-07-17) User asked for elemental shots to never miss a target.
+	# Fire Arrow's own straight-line lead prediction against a zigzagging
+	# enemy previously landed well under 100% (see entries 30-31's measured
+	# 76-80% at long range) -- Projectile.homing_target now re-aims at the
+	# live target every physics frame instead, which should make a miss
+	# structurally impossible as long as the enemy stays alive and in range.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var pool := ProjectilePool.new()
+	add_child(pool)
+	var player_scene = load("res://scenes/player/Player.tscn")
+	var player: Player = player_scene.instantiate()
+	add_child(player)
+	player.global_position = Vector2(360, 1150)
+	var fire_t1 = load("res://resources/upgrades/fire_t1_searing_shot.tres")
+	player.apply_element_upgrade(fire_t1)
+
+	var spawner := EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	var enemy_pool := EnemyPool.new()
+	add_child(enemy_pool)
+	var goblin = load("res://resources/enemies/goblin_runner.tres")
+	assert(goblin.zigzag_speed > 0.0, "sanity: goblin_runner should actually be a zigzag mover")
+
+	var trials := 8
+	var hits := 0
+	for trial in trials:
+		var enemy: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 900.0, false)
+		enemy.global_position = Vector2(randf_range(100.0, 620.0), 250.0)
+		var hp_before: float = enemy.current_hp
+		player._on_fire_skill_timeout()
+		var elapsed := 0.0
+		while elapsed < 2.5:
+			await get_tree().physics_frame
+			elapsed += 1.0 / 60.0
+			if not is_instance_valid(enemy) or enemy.current_hp < hp_before:
+				break
+		if not is_instance_valid(enemy) or enemy.current_hp < hp_before:
+			hits += 1
+		if is_instance_valid(enemy):
+			enemy.queue_free()
+		await get_tree().process_frame
+	assert(hits == trials, "homing Fire Arrow should hit a zigzagging enemy every trial, got %d/%d" % [hits, trials])
+
+	player.queue_free()
+	spawner.queue_free()
+	enemy_pool.queue_free()
+	pool.queue_free()

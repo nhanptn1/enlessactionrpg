@@ -492,8 +492,13 @@ func _fire_elemental_projectile(skill: SkillData, dmg_mult: float, status_rolls:
 	for i in shot_count:
 		var dir := base_dir.rotated(_spread_offset(i, shot_count))
 		var dmg := skill.base_damage * dmg_mult * (2.0 if randf() < crit_chance else 1.0)
-		var proj = pool.acquire(skill.projectile_scene)
-		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, status_rolls, skill.burst_radius, skill.chain_count, skill.visual_scale, skill.burst_vfx_id)
+		var proj: Projectile = pool.acquire(skill.projectile_scene)
+		# Only the dead-center shot (i==0) homes and is guaranteed to connect --
+		# the fanned side shots (tier-2's 3-arrow spread) keep their fixed
+		# trajectory, same bonus-AOE role they've always had, so multishot still
+		# reads as a fan rather than every arrow collapsing onto one target.
+		var homing_target: Node2D = targets[0] if i == 0 else null
+		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, status_rolls, skill.burst_radius, skill.chain_count, skill.visual_scale, skill.burst_vfx_id, homing_target)
 
 
 func _fire_elemental_rain(skill: SkillData, dmg_mult: float, status_rolls: Array[Dictionary]) -> void:

@@ -259,7 +259,15 @@ func _deactivate() -> void:
 	contact_timer.stop()
 	attack_timer.stop()
 	hurtbox.set_deferred("monitoring", false)
-	collision.disabled = true
+	# _deactivate() can run synchronously from inside a projectile's
+	# body_entered callback (take_damage() -> _die() -> here), which fires
+	# while the physics server is still flushing collision queries for this
+	# step -- a direct `collision.disabled = true` throws "Can't change this
+	# state while flushing queries" in that case, same constraint as
+	# hurtbox.monitoring above. Homing elemental shots (2026-07-17) made this
+	# path the common case for a kill instead of a rare one, which is what
+	# surfaced it.
+	collision.set_deferred("disabled", true)
 	set_physics_process(false)
 
 

@@ -14,6 +14,12 @@ var status_rolls: Array[Dictionary] = []  # {element, chance, duration} rolled o
 var burst_radius: float = 0.0  # 0 = off; guaranteed splash to enemies within this radius of the hit
 var chain_count: int = 0  # 0 = off; guaranteed chain to N additional nearest distinct enemies
 var burst_vfx_id: String = ""  # "" = element-default burst look (see SkillData.burst_vfx_id)
+# null = a plain straight-line shot (unchanged). When set, this shot re-aims
+# at the target's current position every physics frame instead of flying its
+# initial direction -- a guaranteed hit (barring the target dying or leaving
+# max_range first) rather than a one-shot lead prediction that a fast-turning
+# target can still dodge. See player.gd::_fire_elemental_projectile().
+var homing_target: Node2D = null
 var _hits_remaining: int
 var _already_hit: Array[Node] = []
 var _spawn_position: Vector2
@@ -30,7 +36,7 @@ func _ready() -> void:
 		_base_visual_scale = get_node("Visual").scale
 
 
-func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE, p_status_rolls: Array[Dictionary] = [], p_burst_radius: float = 0.0, p_chain_count: int = 0, p_visual_scale: float = 1.0, p_burst_vfx_id: String = "") -> void:
+func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE, p_status_rolls: Array[Dictionary] = [], p_burst_radius: float = 0.0, p_chain_count: int = 0, p_visual_scale: float = 1.0, p_burst_vfx_id: String = "", p_homing_target: Node2D = null) -> void:
 	direction = p_direction
 	speed = p_speed
 	damage = p_damage
@@ -41,6 +47,7 @@ func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position:
 	burst_radius = p_burst_radius
 	chain_count = p_chain_count
 	burst_vfx_id = p_burst_vfx_id
+	homing_target = p_homing_target  # pooled reuse -- must reset every activation, not just set-once
 	global_position = p_position
 	rotation = direction.angle()
 	_spawn_position = p_position
@@ -60,6 +67,9 @@ func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position:
 func _physics_process(delta: float) -> void:
 	if not _active:
 		return
+	if is_instance_valid(homing_target):
+		direction = (homing_target.global_position - global_position).normalized()
+		rotation = direction.angle()
 	position += direction * speed * delta
 	if global_position.distance_to(_spawn_position) >= max_range:
 		_deactivate()
