@@ -17,5 +17,5 @@ projectile_count = 1
 fire_mode = 1
 rain_arrow_count = 3
 rain_spread_width = 150.0
-telegraph_time = 0.8
+telegraph_time = 0.6
 trap_radius = 70.0
