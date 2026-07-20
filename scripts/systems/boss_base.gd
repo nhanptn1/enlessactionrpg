@@ -722,7 +722,11 @@ func _throw_rock() -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	var target_pos: Vector2 = player.global_position if is_instance_valid(player) else global_position
 	_pause_walk_for_attack()
-	_show_circle_telegraph(target_pos, THROW_ROCK_IMPACT_RADIUS, THROW_ROCK_TELEGRAPH_COLOR, THROW_ROCK_TELEGRAPH_TIME)
+	# (2026-07-20) Duration covers telegraph+flight, not just telegraph -- it
+	# used to vanish the instant the throw began, leaving the impact zone
+	# live but invisible for the whole flight, which is exactly what made an
+	# evade "still get hit" per direct user report.
+	_show_circle_telegraph(target_pos, THROW_ROCK_IMPACT_RADIUS, THROW_ROCK_TELEGRAPH_COLOR, THROW_ROCK_TELEGRAPH_TIME + THROW_ROCK_FLIGHT_TIME)
 	_play_attack_lunge(target_pos, THROW_ROCK_TELEGRAPH_TIME)
 	var throw_origin := global_position
 	await get_tree().create_timer(THROW_ROCK_TELEGRAPH_TIME, false).timeout
@@ -881,7 +885,9 @@ func _charge() -> void:
 	var charge_end: Vector2 = target["end"]
 	var dir_x: float = target["dir_x"]
 	_pause_walk_for_attack()
-	_show_line_telegraph(charge_origin, charge_end, CHARGE_HIT_WIDTH, Color(CHARGE_COLOR.r, CHARGE_COLOR.g, CHARGE_COLOR.b, 0.5), CHARGE_TELEGRAPH_TIME)
+	# (2026-07-20) Same readability fix as _throw_rock(): stay visible through
+	# the dash itself, not just the telegraph window before it.
+	_show_line_telegraph(charge_origin, charge_end, CHARGE_HIT_WIDTH, Color(CHARGE_COLOR.r, CHARGE_COLOR.g, CHARGE_COLOR.b, 0.5), CHARGE_TELEGRAPH_TIME + CHARGE_DASH_TIME)
 	_play_attack_lunge(charge_end, CHARGE_TELEGRAPH_TIME)
 	await get_tree().create_timer(CHARGE_TELEGRAPH_TIME, false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running:
@@ -916,7 +922,9 @@ func _leap_smash() -> void:
 	var target := _compute_horizontal_dash_target(LEAP_SMASH_DISTANCE)
 	var jump_end: Vector2 = target["end"]
 	_pause_walk_for_attack()
-	_show_circle_telegraph(jump_end, LEAP_SMASH_RADIUS, Color(LEAP_SMASH_COLOR.r, LEAP_SMASH_COLOR.g, LEAP_SMASH_COLOR.b, 0.5), LEAP_SMASH_TELEGRAPH_TIME)
+	# (2026-07-20) Same readability fix as _throw_rock(): stay visible through
+	# the jump itself, not just the telegraph window before it.
+	_show_circle_telegraph(jump_end, LEAP_SMASH_RADIUS, Color(LEAP_SMASH_COLOR.r, LEAP_SMASH_COLOR.g, LEAP_SMASH_COLOR.b, 0.5), LEAP_SMASH_TELEGRAPH_TIME + LEAP_SMASH_JUMP_TIME)
 	_play_attack_lunge(jump_end, LEAP_SMASH_TELEGRAPH_TIME)
 	await get_tree().create_timer(LEAP_SMASH_TELEGRAPH_TIME, false).timeout
 	if not is_instance_valid(self) or not _attack_loop_running:

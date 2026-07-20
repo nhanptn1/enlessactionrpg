@@ -67,7 +67,16 @@ func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position:
 func _physics_process(delta: float) -> void:
 	if not _active:
 		return
-	if is_instance_valid(homing_target):
+	# (2026-07-20) is_in_group() check matters as much as is_instance_valid():
+	# a pooled enemy's death hides+reuses the node without freeing it (see
+	# enemy_base.gd::_deactivate()'s remove_from_group("enemy")), so a dead
+	# target stays "valid" forever at its frozen death position. Without this,
+	# the projectile kept re-aiming at that fixed point, overshot it, flipped
+	# direction every frame, and orbited there forever -- never reaching
+	# max_range, never despawning (reported as "stuck" with the effect never
+	# removed). Falling back to the last real direction lets it fly on through
+	# and expire normally.
+	if is_instance_valid(homing_target) and homing_target.is_in_group(target_group):
 		direction = (homing_target.global_position - global_position).normalized()
 		rotation = direction.angle()
 	position += direction * speed * delta
