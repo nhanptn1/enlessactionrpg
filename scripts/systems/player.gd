@@ -77,6 +77,7 @@ var bonus_projectile_count := 0
 var projectile_speed_mult := 1.0
 var crit_chance := 0.0
 var xp_gain_mult := 1.0
+var active_run_modifier_id: String = ""  # set once in _apply_run_modifier() -- see RunModifiers.MODIFIERS
 var fire_level := 0  # highest tier reached (0-3), not a pick count
 var lightning_level := 0
 var frost_level := 0
@@ -175,6 +176,7 @@ var _equipped_deltas: Dictionary = {"weapon": 0.0, "armor": 0.0, "accessory": 0.
 func _ready() -> void:
 	add_to_group("player")
 	_apply_meta_upgrades()
+	_apply_run_modifier()
 	_current_skill = basic_shot
 	attack_timer.wait_time = _current_skill.cooldown
 	attack_timer.timeout.connect(_on_attack_timeout)
@@ -198,6 +200,22 @@ func _apply_meta_upgrades() -> void:
 	damage_mult += SaveManager.get_meta_bonus("power")
 	cooldown_mult = maxf(cooldown_mult - SaveManager.get_meta_bonus("quickdraw"), 0.3)
 	xp_gain_mult += SaveManager.get_meta_bonus("insight")
+
+
+# (2026-07-17) Phase 3 pillar 3: exactly one random modifier is active every
+# run (see RunModifiers.MODIFIERS) -- applied after meta upgrades so it
+# multiplies the meta-boosted baseline, not the raw starting stats.
+# enemy_hp_mult/enemy_count_mult (Bounty Hunter/Swarm Warning) aren't applied
+# here -- wave_manager.gd reads active_run_modifier_id directly since it owns
+# that scaling, same pattern StatusEffects already uses to consult the player
+# rather than the player pushing values into every other system.
+func _apply_run_modifier() -> void:
+	active_run_modifier_id = RunModifiers.roll_random_id()
+	damage_mult *= RunModifiers.get_mult(active_run_modifier_id, "player_damage_mult")
+	cooldown_mult = maxf(cooldown_mult * RunModifiers.get_mult(active_run_modifier_id, "player_cooldown_mult"), 0.3)
+	max_hp *= RunModifiers.get_mult(active_run_modifier_id, "player_max_hp_mult")
+	current_hp = max_hp
+	xp_gain_mult *= RunModifiers.get_mult(active_run_modifier_id, "player_xp_gain_mult")
 
 
 func _physics_process(delta: float) -> void:

@@ -40,6 +40,12 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 28
 text = "Wave 1"
 
+[node name="ModifierLabel" type="Label" parent="Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.65, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = ""
+
 [node name="SkillRow" type="HBoxContainer" parent="Margin/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 8

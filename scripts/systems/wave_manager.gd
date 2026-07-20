@@ -137,6 +137,11 @@ func _start_next_wave() -> void:
 		_current_speed_mult = 1.0
 	else:
 		_current_wave = _generate_wave(wave_number)
+	# (2026-07-17) Bounty Hunter run modifier -- applies to every wave
+	# (hand-authored 1-5 included), unlike enemy_count_mult below which only
+	# touches generated waves since hand-authored spawn_counts are a fixed
+	# array baked into each wave's .tres, not worth mutating at runtime.
+	_current_hp_mult *= _get_modifier_mult("enemy_hp_mult")
 
 	wave_started.emit(wave_number)
 	SignalBus.wave_started.emit(wave_number, _is_boss_wave)
@@ -196,6 +201,10 @@ func _generate_wave(wave_number: int) -> WaveData:
 
 	var extra_waves := wave_number - waves.size()
 	var count: int = mini(_last_authored_count() + COUNT_SCALING_PER_WAVE * extra_waves, MAX_WAVE_MONSTER_COUNT)
+	# (2026-07-17) Swarm Warning run modifier -- only touches generated waves
+	# (wave 6+); the boss-wave clamp just below re-clamps regardless, so this
+	# naturally doesn't inflate a boss wave's support-monster count.
+	count = mini(roundi(count * _get_modifier_mult("enemy_count_mult")), MAX_WAVE_MONSTER_COUNT)
 	wave.is_boss_wave = wave_number % BOSS_WAVE_INTERVAL == 0
 	if wave.is_boss_wave:
 		count = clampi(roundi(count * BOSS_WAVE_MONSTER_MULT), BOSS_WAVE_MONSTER_MIN, BOSS_WAVE_MONSTER_MAX)
@@ -287,6 +296,23 @@ func _split_count_favoring_non_tanks(total: int, species: Array[EnemyData]) -> A
 
 func _boss_hp_mult(cycle: int) -> float:
 	return BOSS_HP_MULT_BASE * (1.0 + BOSS_HP_MULT_GROWTH_PER_CYCLE * (cycle - 1))
+
+
+# WaveManager doesn't roll or own the active run modifier -- Player does (see
+# _apply_run_modifier()), same as every other player-stat consultation in
+# this codebase (StatusEffects._get_player(), boss_base.gd, etc.) fetching
+# via group lookup rather than the value being pushed around.
+func _get_modifier_mult(key: String) -> float:
+	# _generate_wave() is designed to be callable on a standalone WaveManager
+	# that was never add_child()'d (the established test pattern throughout
+	# this file's own smoke tests) -- get_tree() is null in that case, not
+	# just "no player found", so this must be checked first.
+	if not is_inside_tree():
+		return 1.0
+	var player := get_tree().get_first_node_in_group("player")
+	if not is_instance_valid(player):
+		return 1.0
+	return RunModifiers.get_mult(player.active_run_modifier_id, key)
 
 
 func roll_item_drop() -> ItemData:

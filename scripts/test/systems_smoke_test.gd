@@ -47,6 +47,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_maxed_element_still_offers_repeatable_cards()
 	await _assert_boss_mutations()
 	await _assert_elemental_capstones()
+	await _assert_run_modifiers()
 
 
 func _assert_meta_progression() -> void:
@@ -313,11 +314,15 @@ func _assert_stats_panel_renders() -> void:
 
 	pause_menu._build_stats_rows()
 	var sections := pause_menu.stats_rows_container.get_children()
-	assert(sections.size() == 2, "expected Core + Fire sections only, got %d" % sections.size())
+	# (2026-07-17) Core + Run Modifier + Fire -- every player now always rolls
+	# an active run modifier (Phase 3 pillar 3), so the Stats panel always
+	# shows a 3rd section on top of the 2 this assertion originally expected.
+	assert(sections.size() == 3, "expected Core + Run Modifier + Fire sections, got %d" % sections.size())
 	var titles: Array[String] = []
 	for section in sections:
 		titles.append((section.get_child(0) as Label).text)
 	assert(titles.has("Core"), "Stats panel missing Core section")
+	assert(titles.has("Run Modifier"), "Stats panel missing Run Modifier section")
 	assert(titles.has("Fire"), "Stats panel missing Fire section for an unlocked element")
 	assert(not titles.has("Frost"), "Stats panel should not show a locked element's section")
 
@@ -375,6 +380,12 @@ func _assert_elemental_homing_never_misses() -> void:
 	spawner.queue_free()
 	enemy_pool.queue_free()
 	pool.queue_free()
+	# Missing here previously -- every other test in this file awaits a
+	# couple frames after its own queue_free() calls so the next test's
+	# group lookups can't pick up a stale instance still mid-deferred-free.
+	# Surfaced by entry 53's next test asserting exact fire_level counts.
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 func _assert_maxed_element_still_offers_repeatable_cards() -> void:
@@ -396,7 +407,12 @@ func _assert_maxed_element_still_offers_repeatable_cards() -> void:
 	var popup: WaveUpgradePopup = get_tree().get_first_node_in_group("wave_upgrade_popup")
 	assert(is_instance_valid(player) and is_instance_valid(popup), "real Main.tscn should have a player + wave_upgrade_popup")
 
-	for tier in [1, 2, 3, 4]:
+	# (2026-07-17) 1-5, not 1-4 -- entry 52 grew Fire's real max tier to 5
+	# (the Inferno Heart capstone), so tier 4 alone is no longer "maxed" and
+	# would legitimately still offer the tier-5 card as a next-tier option
+	# (a real gap this test had already gone stale on, just not caught
+	# deterministically since _get_offerable_upgrades() picks randomly).
+	for tier in [1, 2, 3, 4, 5]:
 		var upgrade: UpgradeResource = null
 		for candidate in popup.upgrade_pool:
 			if candidate.element == UpgradeResource.ElementType.FIRE and candidate.tier == tier:
@@ -404,13 +420,15 @@ func _assert_maxed_element_still_offers_repeatable_cards() -> void:
 				break
 		assert(upgrade != null, "missing a real fire tier-%d upgrade resource in the wired pool" % tier)
 		player.apply_element_upgrade(upgrade)
-	assert(player.fire_level == 4, "fire should be fully maxed, got tier %d" % player.fire_level)
+	assert(player.fire_level == 5, "fire should be fully maxed, got tier %d" % player.fire_level)
 
 	var offer := popup._get_offerable_upgrades(UpgradeResource.ElementType.FIRE)
 	assert(not offer.is_empty(), "a maxed Fire should still offer its repeatable boost cards, not go silent for the rest of the run")
 	assert(offer[0].tier == 0, "a maxed element should only ever offer tier=0 repeatable cards now, got tier %d" % offer[0].tier)
 
 	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 func _assert_boss_mutations() -> void:
@@ -532,3 +550,46 @@ func _assert_elemental_capstones() -> void:
 	e4.queue_free()
 
 	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_run_modifiers() -> void:
+	# (2026-07-17) Phase 3 pillar 3: exactly one random modifier is active
+	# every run. Lighter than the throwaway test -- roll coverage plus one
+	# deterministic Player apply check and one WaveManager read check.
+	var seen := {}
+	for _i in 300:
+		seen[RunModifiers.roll_random_id()] = true
+	assert(seen.size() == RunModifiers.MODIFIERS.size(), "all %d modifiers should show up across 300 rolls, saw %d" % [RunModifiers.MODIFIERS.size(), seen.size()])
+
+	for key in ["vitality", "power", "quickdraw", "insight"]:
+		SaveManager.meta_upgrades[key] = 0
+	var player_scene: PackedScene = load("res://scenes/player/Player.tscn")
+	var player: Player = player_scene.instantiate()
+	add_child(player)
+	assert(RunModifiers.MODIFIERS.has(player.active_run_modifier_id), "rolled id '%s' should be a real key" % player.active_run_modifier_id)
+	var expected_max_hp: float = 10.0 * RunModifiers.get_mult(player.active_run_modifier_id, "player_max_hp_mult")
+	assert(is_equal_approx(player.max_hp, expected_max_hp), "max_hp should reflect the rolled modifier's mult")
+	assert(player.current_hp == player.max_hp, "current_hp should be topped to the modifier-adjusted max_hp")
+
+	# _generate_wave() must stay callable on a standalone WaveManager (never
+	# add_child()'d) -- every other test in this file relies on that, and
+	# _get_modifier_mult() reading get_tree() without an is_inside_tree()
+	# guard broke it the first time this feature was added.
+	var wm := WaveManager.new()
+	wm.waves = [
+		load("res://resources/waves/wave_01.tres"), load("res://resources/waves/wave_02.tres"),
+		load("res://resources/waves/wave_03.tres"), load("res://resources/waves/wave_04.tres"),
+		load("res://resources/waves/wave_05.tres"),
+	]
+	wm.procedural_enemy_pool = [load("res://resources/enemies/slime_scout.tres")]
+	var wave6: WaveData = wm._generate_wave(6)
+	var wave6_total := 0
+	for c in wave6.spawn_counts:
+		wave6_total += c
+	assert(wave6_total > 0, "_generate_wave() must still work on a standalone WaveManager not in the scene tree")
+
+	player.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame

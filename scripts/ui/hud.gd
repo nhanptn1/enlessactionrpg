@@ -6,6 +6,7 @@ class_name HUD
 @onready var xp_bar: ProgressBar = $Margin/VBox/XPBar
 @onready var level_label: Label = $Margin/VBox/LevelLabel
 @onready var wave_label: Label = $Margin/VBox/WaveLabel
+@onready var modifier_label: Label = $Margin/VBox/ModifierLabel
 @onready var skill_label: Label = $Margin/VBox/SkillRow/SkillLabel
 @onready var skill_icon: TextureRect = $Margin/VBox/SkillRow/SkillIconStack/Icon
 @onready var skill_cooldown: RadialCooldown = $Margin/VBox/SkillRow/SkillIconStack/SkillCooldown
@@ -51,6 +52,10 @@ func _ready() -> void:
 		xp_bar.max_value = _player.xp_to_next_level()
 		xp_bar.value = _player.xp
 		level_label.text = "Lv. %d" % _player.level
+		if _player.active_run_modifier_id != "":
+			var m: Dictionary = RunModifiers.MODIFIERS.get(_player.active_run_modifier_id, {})
+			modifier_label.text = m.get("display_name", "")
+			modifier_label.tooltip_text = m.get("description", "")
 		if _player.basic_shot:
 			skill_label.text = _player.basic_shot.display_name
 			skill_icon.texture = _player.basic_shot.icon

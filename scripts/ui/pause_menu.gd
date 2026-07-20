@@ -116,6 +116,8 @@ func _build_stats_rows() -> void:
 	if not is_instance_valid(player):
 		return
 	stats_rows_container.add_child(_build_stats_section("Core", _core_stat_lines(player)))
+	if player.active_run_modifier_id != "":
+		stats_rows_container.add_child(_build_stats_section("Run Modifier", _run_modifier_stat_lines(player)))
 	if player.physical_level >= 4:
 		stats_rows_container.add_child(_build_stats_section("Physical", _physical_stat_lines(player)))
 	for element in [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING]:
@@ -155,6 +157,14 @@ func _core_stat_lines(player: Node) -> Array[String]:
 	]
 	if player.bonus_projectile_count > 0:
 		lines.append("Bonus Arrows: +%d" % player.bonus_projectile_count)
+	return lines
+
+
+func _run_modifier_stat_lines(player: Node) -> Array[String]:
+	var m: Dictionary = RunModifiers.MODIFIERS.get(player.active_run_modifier_id, {})
+	var lines: Array[String] = [m.get("display_name", "")]
+	if m.has("description"):
+		lines.append(m["description"])
 	return lines
 
 
