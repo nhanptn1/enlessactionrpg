@@ -39,20 +39,27 @@ const IMPACT_FLASH_RADIUS := 40.0
 # 550px / 30s = ~18.3px/s effective needed; at ~72% move-uptime that's
 # 18.3/0.72 ~= 25.4px/s raw, rounded up slightly. Re-measured after the
 # change with the same throwaway-test methodology -- see PROJECT_SUMMARY.md.
-const POST_ENGAGE_WALK_SPEED := 26.0
+const POST_ENGAGE_WALK_SPEED := 20.0  # (2026-07-20) 26.0->20.0 per direct user request to slow boss waves further
 const LOSE_LINE_Y := 950.0  # player sits at y=1150 (Main.tscn) -- this leaves a real buffer, not literal contact
-const PRE_ENGAGE_SPEED_MULT := 0.6  # applied to EnemyData.base_speed for the initial walk-in, see _ready()
+const PRE_ENGAGE_SPEED_MULT := 0.5  # (2026-07-20) 0.6->0.5, same request -- applied to EnemyData.base_speed for the initial walk-in, see _ready()
 
 # Golem's ranged attack -- a thrown rock, procedural (no rock art exists),
 # arcs from the boss to the target over two chained tween segments (rise then
 # fall) rather than a straight line, so it reads as thrown rather than teleporting.
 const THROW_ROCK_DAMAGE := 1.0  # effective 2 after BOSS_DAMAGE_MULT, matching root_slam/vine_whip
 const THROW_ROCK_TELEGRAPH_TIME := 0.7
-const THROW_ROCK_FLIGHT_TIME := 0.45
+const THROW_ROCK_FLIGHT_TIME := 0.55  # (2026-07-20) 0.45->0.55 per user request to slow the thrown rock further
 const THROW_ROCK_ARC_HEIGHT := 40.0
 const THROW_ROCK_IMPACT_RADIUS := 34.0
 const THROW_ROCK_COOLDOWN := 2.2
-const THROW_ROCK_COLOR := Color(0.45, 0.38, 0.32, 1.0)
+const THROW_ROCK_COLOR := Color(0.45, 0.38, 0.32, 1.0)  # the rock's own material color -- kept dull/stone-like
+# (2026-07-20) The telegraph circle used to reuse THROW_ROCK_COLOR at 0.5 alpha,
+# which blends into the forest ground and reads as "no warning" per direct user
+# report ("golem rock hard to see... not have warning attack before throwing").
+# Every other boss telegraph in this file uses a bright, saturated warning color
+# (ARROW_RAIN_COLOR, LEAP_SMASH_COLOR, SUMMON_FLAMES_COLOR below) -- give this
+# one the same treatment instead of the rock's own muted tone.
+const THROW_ROCK_TELEGRAPH_COLOR := Color(0.95, 0.8, 0.15, 0.55)
 
 # Each boss picks a named entry via @export var attack_pattern_id below --
 # one shared script serves every boss (telegraph/phase/death framework is
@@ -184,7 +191,7 @@ const RAPID_VOLLEY_PROJECTILE := preload("res://scenes/effects/CursedBolt.tscn")
 const RAPID_VOLLEY_DAMAGE := 1.0  # (2026-07-16) 7.0->1.0, rescaled with player.max_hp's 100->10 rebalance (effective 2 per bolt after BOSS_DAMAGE_MULT)
 const RAPID_VOLLEY_SHOT_COUNT := 3
 const RAPID_VOLLEY_SPREAD_DEG := 18.0
-const RAPID_VOLLEY_SPEED := 260.0
+const RAPID_VOLLEY_SPEED := 210.0  # (2026-07-20) 260.0->210.0 per direct user request to slow boss projectiles a bit
 const RAPID_VOLLEY_TELEGRAPH_TIME := 0.5
 const RAPID_VOLLEY_COOLDOWN := 2.0
 const RAPID_VOLLEY_MAX_RANGE := 1400.0  # (2026-07-16) same fix as RangedAttack.ENEMY_SHOT_MAX_RANGE -- without it these shots expired mid-flight past Projectile.DEFAULT_MAX_RANGE (900) before reaching the player
@@ -715,7 +722,7 @@ func _throw_rock() -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	var target_pos: Vector2 = player.global_position if is_instance_valid(player) else global_position
 	_pause_walk_for_attack()
-	_show_circle_telegraph(target_pos, THROW_ROCK_IMPACT_RADIUS, Color(THROW_ROCK_COLOR.r, THROW_ROCK_COLOR.g, THROW_ROCK_COLOR.b, 0.5), THROW_ROCK_TELEGRAPH_TIME)
+	_show_circle_telegraph(target_pos, THROW_ROCK_IMPACT_RADIUS, THROW_ROCK_TELEGRAPH_COLOR, THROW_ROCK_TELEGRAPH_TIME)
 	_play_attack_lunge(target_pos, THROW_ROCK_TELEGRAPH_TIME)
 	var throw_origin := global_position
 	await get_tree().create_timer(THROW_ROCK_TELEGRAPH_TIME, false).timeout
@@ -752,9 +759,11 @@ func _fly_rock(from_pos: Vector2, to_pos: Vector2) -> void:
 
 
 func _rock_polygon() -> PackedVector2Array:
+	# (2026-07-20) Scaled ~1.4x from the original (-8,-6)..(-9,3) points per
+	# direct user report that the flying rock is hard to see in flight.
 	return PackedVector2Array([
-		Vector2(-8, -6), Vector2(4, -9), Vector2(9, -2),
-		Vector2(7, 6), Vector2(-3, 9), Vector2(-9, 3),
+		Vector2(-11, -8), Vector2(6, -13), Vector2(13, -3),
+		Vector2(10, 8), Vector2(-4, 13), Vector2(-13, 4),
 	])
 
 
