@@ -62,10 +62,13 @@ const RARITY_WEIGHTS := {"common": 0.55, "rare": 0.30, "epic": 0.15}
 # spawn alongside a boss wave (see _start_next_wave()) -- only the boss
 # itself is excluded, since it already has its own cycle-based scaling in
 # _boss_hp_mult() and is spawned via the separate _spawn_boss(), never
-# through _spawn_one(). 5% matches the ratio the (deferred) big-wave plan
-# docs called for, borrowed here since it's a reasonable rarity regardless of
-# wave scale.
-const ELITE_CHANCE := 0.05
+# through _spawn_one(). This is a flat per-monster roll, so it doesn't stay
+# "rare" as wave size grows -- at the 20-100 monster waves this project
+# later shipped, 5% meant ~5-10 simultaneous 2x-HP/1.4x-damage elites in a
+# single late wave. (2026-07-20) 0.05->0.03 per direct user request:
+# too many elites made the game hard to pass; cutting the roll both shrinks
+# elite count and implicitly grows the normal-monster share of every wave.
+const ELITE_CHANCE := 0.03
 const ELITE_HP_MULT := 2.0
 const ELITE_SPEED_MULT := 1.1
 const ELITE_DAMAGE_MULT := 1.4
@@ -194,8 +197,10 @@ const PROCEDURAL_TYPES_PER_WAVE := 3  # (2026-07-16) was 1 -- a single random ty
 # _pick_procedural_species()), and caps that tank species' POPULATION share
 # once selected -- implementing plan/monster-waves-progression.txt section
 # 6's "10% tank" mix rule, which was never actually wired up until now.
-const TANK_SPECIES_CHANCE := 0.35  # odds a generated wave includes a tank species at all
-const TANK_COUNT_SHARE := 0.15  # that species' population share of the wave, when it appears
+# (2026-07-20) 0.35->0.30 and 0.15->0.12 per direct user request, same
+# difficulty pass as ELITE_CHANCE above.
+const TANK_SPECIES_CHANCE := 0.30  # odds a generated wave includes a tank species at all
+const TANK_COUNT_SHARE := 0.12  # that species' population share of the wave, when it appears
 
 
 func _generate_wave(wave_number: int) -> WaveData:
