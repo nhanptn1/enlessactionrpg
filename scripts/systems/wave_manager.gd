@@ -164,7 +164,12 @@ func _start_next_wave() -> void:
 	if _is_boss_wave:
 		var cycle := wave_number / BOSS_WAVE_INTERVAL
 		_pending_boss = boss_pool[(cycle - 1) % boss_pool.size()]
-		_pending_boss_hp_mult = _boss_hp_mult(cycle)
+		# (2026-07-17) Bounty Hunter run modifier -- was only reaching regular
+		# wave monsters via _current_hp_mult above, leaving the boss itself
+		# completely unaffected despite the modifier's own description ("enemies
+		# have +25% HP") making no boss carve-out, unlike Swarm Warning's
+		# deliberately-documented one. A real gap, caught by review.
+		_pending_boss_hp_mult = _boss_hp_mult(cycle) * _get_modifier_mult("enemy_hp_mult")
 		_pending_boss_mutation_id = ""
 		if cycle >= BOSS_MUTATION_MIN_CYCLE and randf() < BOSS_MUTATION_CHANCE:
 			_pending_boss_mutation_id = BOSS_MUTATION_IDS[randi() % BOSS_MUTATION_IDS.size()]

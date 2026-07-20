@@ -366,7 +366,11 @@ func _physics_process(delta: float) -> void:
 	# put forever -- reaching it is a real loss condition, checked every frame
 	# rather than only at attack boundaries so it can't be skipped by a long
 	# cooldown carrying it past LOSE_LINE_Y unnoticed.
-	velocity = Vector2(0, POST_ENGAGE_WALK_SPEED)
+	# (2026-07-17) *_speed_mult multiplier added -- caught by review: Enraged's
+	# speed boost previously only ever applied to the brief pre-engage walk-in
+	# (see _ready()'s velocity line), making it invisible for the entire actual
+	# fight since this post-engage creep used to read the flat constant alone.
+	velocity = Vector2(0, POST_ENGAGE_WALK_SPEED * _speed_mult)
 	move_and_slide()
 	if global_position.y >= LOSE_LINE_Y:
 		global_position.y = LOSE_LINE_Y

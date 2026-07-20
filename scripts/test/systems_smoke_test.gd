@@ -4,6 +4,18 @@ extends Node2D
 const MAIN_SCENE := "res://scenes/main/Main.tscn"
 
 
+# (2026-07-17) Shared by the tier-lookup loops below -- 3 near-identical
+# copies of this had crept in across separate assertion functions written at
+# different times, which is exactly how one of them (the fire tier-4 loop)
+# went stale after entry 52 grew the real max tier to 5 while the others
+# didn't need updating; caught by review.
+func _find_upgrade(popup: WaveUpgradePopup, element: int, tier: int) -> UpgradeResource:
+	for candidate in popup.upgrade_pool:
+		if candidate.element == element and candidate.tier == tier:
+			return candidate
+	return null
+
+
 func _ready() -> void:
 	_assert_autoloads()
 	_assert_skill_resources()
@@ -48,6 +60,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_boss_mutations()
 	await _assert_elemental_capstones()
 	await _assert_run_modifiers()
+	await _assert_review_fixes()
 
 
 func _assert_meta_progression() -> void:
@@ -413,11 +426,7 @@ func _assert_maxed_element_still_offers_repeatable_cards() -> void:
 	# (a real gap this test had already gone stale on, just not caught
 	# deterministically since _get_offerable_upgrades() picks randomly).
 	for tier in [1, 2, 3, 4, 5]:
-		var upgrade: UpgradeResource = null
-		for candidate in popup.upgrade_pool:
-			if candidate.element == UpgradeResource.ElementType.FIRE and candidate.tier == tier:
-				upgrade = candidate
-				break
+		var upgrade := _find_upgrade(popup, UpgradeResource.ElementType.FIRE, tier)
 		assert(upgrade != null, "missing a real fire tier-%d upgrade resource in the wired pool" % tier)
 		player.apply_element_upgrade(upgrade)
 	assert(player.fire_level == 5, "fire should be fully maxed, got tier %d" % player.fire_level)
@@ -491,11 +500,7 @@ func _assert_elemental_capstones() -> void:
 	assert(is_instance_valid(player) and is_instance_valid(popup), "real Main.tscn should have a player + wave_upgrade_popup")
 
 	for tier in [1, 2, 3, 4]:
-		var u: UpgradeResource = null
-		for candidate in popup.upgrade_pool:
-			if candidate.element == UpgradeResource.ElementType.FIRE and candidate.tier == tier:
-				u = candidate
-				break
+		var u := _find_upgrade(popup, UpgradeResource.ElementType.FIRE, tier)
 		assert(u != null, "missing a real fire tier-%d upgrade resource" % tier)
 		player.apply_element_upgrade(u)
 
@@ -510,11 +515,7 @@ func _assert_elemental_capstones() -> void:
 	var baseline_dmg := hp_before_capped - e1.current_hp
 	e1.queue_free()
 
-	var tier5: UpgradeResource = null
-	for candidate in popup.upgrade_pool:
-		if candidate.element == UpgradeResource.ElementType.FIRE and candidate.tier == 5:
-			tier5 = candidate
-			break
+	var tier5 := _find_upgrade(popup, UpgradeResource.ElementType.FIRE, 5)
 	assert(tier5 != null, "missing the fire tier-5 capstone resource in the wired pool")
 	player.apply_element_upgrade(tier5)
 	assert(player.fire_level == 5, "fire should reach capstone tier 5")
@@ -593,3 +594,83 @@ func _assert_run_modifiers() -> void:
 	player.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+
+func _assert_review_fixes() -> void:
+	# (2026-07-17) 2 real bugs a code-review pass caught right after pillar 3
+	# shipped, both permanently covered since they're genuine correctness
+	# gaps, not just style nits.
+	_assert_bounty_hunter_affects_boss_hp()
+	await _assert_enraged_speed_affects_post_engage_movement()
+
+
+func _assert_bounty_hunter_affects_boss_hp() -> void:
+	# Bounty Hunter's own description ("enemies have +25% HP") makes no boss
+	# carve-out, unlike Swarm Warning's deliberately-documented one -- but
+	# _pending_boss_hp_mult was only ever fed from _boss_hp_mult(cycle), never
+	# multiplied by the modifier, leaving the boss completely unaffected.
+	var spawner := EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	var wm := WaveManager.new()
+	wm.waves = [
+		load("res://resources/waves/wave_01.tres"), load("res://resources/waves/wave_02.tres"),
+		load("res://resources/waves/wave_03.tres"), load("res://resources/waves/wave_04.tres"),
+		load("res://resources/waves/wave_05.tres"),
+	]
+	wm.procedural_enemy_pool = [load("res://resources/enemies/slime_scout.tres")]
+	wm.boss_pool = [load("res://resources/enemies/corrupted_forest_guardian.tres")]
+	var player_scene: PackedScene = load("res://scenes/player/Player.tscn")
+	var player: Player = player_scene.instantiate()
+	add_child(player)
+	player.active_run_modifier_id = "bounty_hunter"
+	add_child(wm)
+
+	for _i in 9:
+		wm._start_next_wave()
+	assert(wm._is_boss_wave, "wave 10 should be a boss wave")
+	var expected: float = wm._boss_hp_mult(1) * RunModifiers.get_mult("bounty_hunter", "enemy_hp_mult")
+	assert(is_equal_approx(wm._pending_boss_hp_mult, expected), "Bounty Hunter should multiply boss HP too, expected %s got %s" % [expected, wm._pending_boss_hp_mult])
+
+	player.queue_free()
+	wm.queue_free()
+	spawner.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_enraged_speed_affects_post_engage_movement() -> void:
+	# Enraged's _speed_mult used to only reach the brief pre-engage walk-in --
+	# the post-engage advance-to-lose-line movement read a flat constant,
+	# making the mutation's namesake "faster" behavior invisible for the
+	# entire actual fight. Real physics ticks, not a manual _physics_process()
+	# call (which sidesteps move_and_slide()'s own handling unreliably).
+	var boss_data: EnemyData = load("res://resources/enemies/fallen_knight.tres")
+	var plain: BossBase = boss_data.scene.instantiate()
+	plain.advances_to_lose_line = true
+	plain.setup(boss_data, 1.0, 1.0, 1.0)
+	add_child(plain)
+	plain._engaged = true
+	plain.global_position = Vector2(100, 300)
+
+	var enraged: BossBase = boss_data.scene.instantiate()
+	enraged.mutation_id = "enraged"
+	enraged.advances_to_lose_line = true
+	enraged.setup(boss_data, 1.0, 1.0, 1.0)
+	add_child(enraged)
+	enraged._engaged = true
+	enraged.global_position = Vector2(600, 300)  # far apart so collision can't block either boss
+
+	var plain_start := plain.global_position.y
+	var enraged_start := enraged.global_position.y
+	for _i in 10:
+		await get_tree().physics_frame
+	var plain_delta := plain.global_position.y - plain_start
+	var enraged_delta := enraged.global_position.y - enraged_start
+	assert(plain_delta > 0.0, "sanity: an unmutated advancing boss should move down over 10 physics ticks")
+	var ratio := enraged_delta / plain_delta
+	var em: Dictionary = BossBase.MUTATIONS["enraged"]
+	assert(absf(ratio - em["speed_mult"]) < 0.01, "Enraged should move %sx faster during actual post-engage advance, got ratio %s" % [em["speed_mult"], ratio])
+
+	plain.queue_free()
+	enraged.queue_free()

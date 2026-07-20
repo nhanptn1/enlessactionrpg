@@ -215,6 +215,14 @@ func _on_wave_started(wave_number: int) -> void:
 
 func _on_signal_bus_wave_started(_wave_number: int, is_boss: bool) -> void:
 	boss_hp_bar_container.visible = is_boss
+	if is_boss:
+		# (2026-07-17) Reset immediately rather than waiting for
+		# boss_mutation_announced -- that only fires once the boss itself
+		# spawns, which is seconds after the bar becomes visible (the wave's
+		# regular monster queue drains first). Without this, a mutated boss's
+		# label could linger visibly into the next boss wave's opening seconds
+		# even if that one rolls no mutation or a different one.
+		boss_label.text = "BOSS"
 
 
 func _on_boss_hp_changed(current: float, max_hp: float) -> void:
