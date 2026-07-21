@@ -410,7 +410,7 @@ func _use_ultimate() -> void:
 				ImpactVFX.ice_burst(enemy.global_position, 40.0, self)
 			StatusEffects.LIGHTNING:
 				ImpactVFX.spark_burst(enemy.global_position, 40.0, self)
-		enemy.take_damage(dmg)
+		enemy.take_damage(dmg, element_name)
 		if is_instance_valid(enemy) and enemy.has_method("apply_status"):
 			# allow_spread=false via apply() directly -- everything on screen is
 			# already being hit, a spread roll per enemy would just be N wasted
@@ -874,12 +874,13 @@ func _fire_area_strike(skill: SkillData, dmg_mult: float, status_rolls: Array[Di
 			ImpactVFX.spark_burst(p, radius, self)
 		else:
 			ImpactVFX.arrow_rain_impact(p, radius, self)
+		var strike_element: String = status_rolls[0]["element"] if not status_rolls.is_empty() else ""
 		for enemy in get_tree().get_nodes_in_group("enemy"):
 			if not is_instance_valid(enemy) or not enemy.has_method("take_damage"):
 				continue
 			if enemy.global_position.distance_to(p) > radius:
 				continue
-			enemy.take_damage(dmg)
+			enemy.take_damage(dmg, strike_element)
 			if enemy.has_method("apply_status"):
 				for roll in status_rolls:
 					if randf() < roll["chance"]:

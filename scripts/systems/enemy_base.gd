@@ -133,7 +133,11 @@ func apply_status(element: String, duration: float) -> void:
 	StatusEffects.apply(self, element, duration)
 
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, _element: String = "") -> void:
+	# _element is accepted-but-ignored: only BossBase's affinity system (see
+	# boss_base.gd) reads it, but the two classes share every damage call site
+	# (projectiles, area strikes, DOT ticks all hit the "enemy" group), so the
+	# signatures must stay compatible.
 	if _is_dying:
 		return
 	current_hp -= amount * StatusEffects.damage_amp(self)  # Brittle Frost: frozen enemies take extra damage

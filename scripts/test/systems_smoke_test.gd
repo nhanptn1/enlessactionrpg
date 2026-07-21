@@ -63,6 +63,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_elemental_capstones()
 	await _assert_run_modifiers()
 	await _assert_review_fixes()
+	await _assert_boss_affinities_and_events()
 
 
 func _assert_meta_progression() -> void:
@@ -770,3 +771,72 @@ func _assert_enraged_speed_affects_post_engage_movement() -> void:
 
 	plain.queue_free()
 	enraged.queue_free()
+
+
+func _assert_boss_affinities_and_events() -> void:
+	# (2026-07-21) Phase 4: boss variety round 2 -- elemental affinities
+	# (resist own element, weak to the counter) + event cycles (guaranteed
+	# mutation every 3rd cycle, Overlord with mutation+affinity+bonus HP every
+	# 5th). Real boss instance through the real spawner path, real WaveManager
+	# rolls at the real wave numbers.
+	var spawner := EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	var boss_data: EnemyData = load("res://resources/enemies/fallen_knight.tres")
+
+	var announced: Array[String] = []
+	var announce_capture := func(n: String): announced.append(n)
+	SignalBus.boss_mutation_announced.connect(announce_capture)
+	var boss: BossBase = spawner.spawn(boss_data, 100.0, 1.0, 1.0, -1, 1.0, -1.0, false, true, "enraged", "fire")
+	SignalBus.boss_mutation_announced.disconnect(announce_capture)
+	assert(boss.affinity_id == "fire", "spawner should set affinity_id on the boss instance")
+	assert(announced.size() == 1 and announced[0] == "Enraged Flamebound (weak to Frost)", "combined announcement should carry both names plus the weak-to hint, got %s" % str(announced))
+
+	var hp0: float = boss.current_hp
+	boss.take_damage(10.0, "fire")
+	assert(is_equal_approx(hp0 - boss.current_hp, 10.0 * BossBase.AFFINITY_RESIST_MULT), "Flamebound must resist fire damage")
+	hp0 = boss.current_hp
+	boss.take_damage(10.0, "frost")
+	assert(is_equal_approx(hp0 - boss.current_hp, 10.0 * BossBase.AFFINITY_WEAK_MULT), "Flamebound must be weak to frost")
+	hp0 = boss.current_hp
+	boss.take_damage(10.0, "lightning")
+	assert(is_equal_approx(hp0 - boss.current_hp, 10.0), "the off-element (neither resist nor counter) must stay neutral")
+	hp0 = boss.current_hp
+	boss.take_damage(10.0)
+	assert(is_equal_approx(hp0 - boss.current_hp, 10.0), "physical/untyped damage must ignore affinity entirely")
+	boss.queue_free()
+
+	# Event-cycle rolls at the real wave numbers: wave 30 (cycle 3) must have
+	# a mutation; wave 50 (cycle 5, Overlord) must have BOTH plus the HP bonus.
+	var wm := WaveManager.new()
+	wm.waves = [
+		load("res://resources/waves/wave_01.tres"), load("res://resources/waves/wave_02.tres"),
+		load("res://resources/waves/wave_03.tres"), load("res://resources/waves/wave_04.tres"),
+		load("res://resources/waves/wave_05.tres"),
+	]
+	wm.procedural_enemy_pool = [load("res://resources/enemies/slime_scout.tres")]
+	wm.boss_pool = [boss_data]
+	var player_scene: PackedScene = load("res://scenes/player/Player.tscn")
+	var player: Player = player_scene.instantiate()
+	add_child(player)
+	player.active_run_modifier_id = ""  # neutral -- keeps the expected HP math deterministic
+	add_child(wm)
+
+	for _i in 29:
+		wm._start_next_wave()
+	assert(wm._is_boss_wave and wm._current_wave.wave_number == 30, "call count drifted -- expected to be sitting on wave 30")
+	assert(wm._pending_boss_mutation_id != "", "every 3rd boss cycle (wave 30) must guarantee a mutation")
+
+	for _i in 20:
+		wm._start_next_wave()
+	assert(wm._is_boss_wave and wm._current_wave.wave_number == 50, "call count drifted -- expected to be sitting on wave 50")
+	assert(wm._pending_boss_mutation_id != "", "an Overlord cycle (wave 50) must have a mutation")
+	assert(wm._pending_boss_affinity_id != "", "an Overlord cycle (wave 50) must have an affinity")
+	var expected_hp: float = wm._boss_hp_mult(5) * WaveManager.OVERLORD_HP_MULT
+	assert(is_equal_approx(wm._pending_boss_hp_mult, expected_hp), "Overlord should multiply boss HP by %s, expected %s got %s" % [WaveManager.OVERLORD_HP_MULT, expected_hp, wm._pending_boss_hp_mult])
+
+	player.queue_free()
+	wm.queue_free()
+	spawner.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame

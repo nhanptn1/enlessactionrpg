@@ -95,7 +95,7 @@ func _on_body_entered(body: Node) -> void:
 	if body in _already_hit:
 		return
 	_already_hit.append(body)
-	body.take_damage(damage)
+	body.take_damage(damage, _shot_element())
 	if body.has_method("apply_status"):
 		for roll in status_rolls:
 			if randf() < roll["chance"]:
@@ -133,7 +133,7 @@ func _apply_burst(origin_body: Node) -> void:
 		if origin_body.global_position.distance_to(enemy.global_position) > burst_radius:
 			continue
 		_already_hit.append(enemy)
-		enemy.take_damage(damage)
+		enemy.take_damage(damage, _shot_element())
 		if enemy.has_method("apply_status"):
 			for roll in status_rolls:
 				if randf() < roll["chance"]:
@@ -151,12 +151,18 @@ func _apply_chain(from_body: Node) -> void:
 		_already_hit.append(next)
 		ImpactVFX.chain_bolt(last.global_position, next.global_position, Color(0.75, 0.4, 1.0, 0.9), self)
 		ImpactVFX.spark_burst(next.global_position, ImpactVFX.CHAIN_SPARK_BURST_RADIUS, self)
-		next.take_damage(damage)
+		next.take_damage(damage, _shot_element())
 		if next.has_method("apply_status"):
 			for roll in status_rolls:
 				if randf() < roll["chance"]:
 					next.apply_status(roll["element"], roll["duration"])
 		last = next
+
+
+func _shot_element() -> String:
+	# The element this shot carries, for BossBase's affinity resist/weak math.
+	# "" for the basic line (no status rolls) = untyped physical damage.
+	return status_rolls[0]["element"] if not status_rolls.is_empty() else ""
 
 
 func _burst_color_for(element: String) -> Color:

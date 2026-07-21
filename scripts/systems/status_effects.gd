@@ -88,13 +88,13 @@ static func tick(target: Node, delta: float) -> void:
 			var dps_mult: float = player.fire_dps_mult if is_instance_valid(player) else 1.0
 			if is_instance_valid(player) and player.fire_level >= CAPSTONE_TIER:
 				dps_mult *= FIRE_CAPSTONE_DPS_MULT
-			target.take_damage(FIRE_DPS * dps_mult * FIRE_TICK_INTERVAL)
+			target.take_damage(FIRE_DPS * dps_mult * FIRE_TICK_INTERVAL, FIRE)
 			if not is_instance_valid(target):
 				return  # the burn tick itself killed it
 	if lightning_old_remaining >= 0.0 and is_instance_valid(player) and player.lightning_dps > 0.0:
 		var lightning_new_remaining: float = maxf(target.status.get(LIGHTNING, 0.0), 0.0)
 		if int(lightning_old_remaining / LIGHTNING_TICK_INTERVAL) != int(lightning_new_remaining / LIGHTNING_TICK_INTERVAL):
-			target.take_damage(player.lightning_dps * LIGHTNING_TICK_INTERVAL)
+			target.take_damage(player.lightning_dps * LIGHTNING_TICK_INTERVAL, LIGHTNING)
 			if not is_instance_valid(target):
 				return  # the shock tick itself killed it
 	for element in expired:
@@ -139,7 +139,7 @@ static func explode_on_death(target: Node) -> void:
 		if not enemy.has_method("take_damage"):
 			continue
 		if target.global_position.distance_to(enemy.global_position) <= EXPLODE_RADIUS:
-			enemy.take_damage(EXPLODE_DAMAGE)
+			enemy.take_damage(EXPLODE_DAMAGE, FIRE)
 
 
 static func _try_spread(target: Node, element: String, duration: float) -> void:

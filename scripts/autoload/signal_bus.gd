@@ -25,3 +25,7 @@ signal boss_hp_changed(current: float, max_hp: float)
 # either way, so HUD resets the label correctly on every boss wave, not just
 # mutated ones. See boss_base.gd::MUTATIONS.
 signal boss_mutation_announced(mutation_name: String)
+# "" = no affinity on this boss spawn -- emitted once from BossBase._ready()
+# either way (same contract as boss_mutation_announced above). HUD uses it to
+# show/hide the element-counter cycle reference. See boss_base.gd::AFFINITIES.
+signal boss_affinity_announced(affinity_id: String)

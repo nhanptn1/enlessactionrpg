@@ -280,6 +280,26 @@ var mutation_id: String = ""
 var _cooldown_mult := 1.0  # only "enraged" changes this; see _apply_mutation()
 var _mutation_invulnerable := false  # "shielded" only -- see _run_shield_loop()
 
+# (2026-07-21) Phase 4: boss variety round 2 -- elemental affinities, the
+# first of the two follow-ups floated when mutations shipped. A boss with an
+# affinity takes only AFFINITY_RESIST_MULT damage from its own element and
+# AFFINITY_WEAK_MULT from its counter (fire<-frost, frost<-lightning,
+# lightning<-fire, a closed rotation) -- physical damage is never affected,
+# so a basic-line build fights every boss the same as before. The point is
+# to make the player's existing element-switching mechanic matter in boss
+# fights: HUD announces the affinity name, and swapping to the counter
+# element is the intended answer. Rolled independently of mutation_id (the
+# two can stack) by WaveManager, set by EnemySpawner the same way
+# mutation_id is. "" = no affinity, the default.
+const AFFINITIES := {
+	"fire": {"display_name": "Flamebound", "color": Color(1.35, 0.75, 0.6, 1.0), "weak_to": "frost"},
+	"frost": {"display_name": "Frostbound", "color": Color(0.65, 0.9, 1.35, 1.0), "weak_to": "lightning"},
+	"lightning": {"display_name": "Stormbound", "color": Color(1.2, 1.1, 0.55, 1.0), "weak_to": "fire"},
+}
+const AFFINITY_RESIST_MULT := 0.5
+const AFFINITY_WEAK_MULT := 1.5
+var affinity_id: String = ""
+
 
 func setup(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0, damage_mult: float = 1.0, xp_override: int = -1) -> void:
 	data = enemy_data  # caller MUST call this before add_child()
@@ -297,6 +317,7 @@ func _ready() -> void:
 	_max_hp = data.base_hp * _hp_mult
 	current_hp = _max_hp
 	_apply_mutation()  # before velocity below (reads _speed_mult) and before _base_modulate captures sprite.modulate (must capture the tinted color, not the pre-mutation one)
+	_apply_affinity()  # same ordering constraint as _apply_mutation() -- its tint must be captured into _base_modulate too
 	# (2026-07-16) Bosses used to walk in at the same speed as a basic Slime
 	# Scout (EnemyData.base_speed=90) -- slowed per user feedback that every
 	# boss should move slower in general, not just during the post-engage
@@ -308,7 +329,20 @@ func _ready() -> void:
 	sprite.play("move")
 	_attack_loop_running = true
 	SignalBus.boss_hp_changed.emit(current_hp, _max_hp)
-	SignalBus.boss_mutation_announced.emit(MUTATIONS.get(mutation_id, {}).get("display_name", ""))
+	# One combined announcement string covers both systems -- e.g. "Enraged",
+	# "Flamebound (weak to Frost)", or "Enraged Flamebound (weak to Frost)".
+	# The weak-to hint ships in the label itself: a player who doesn't know
+	# the affinity rotation can't use the counter-play at all, so the label
+	# must teach it, not just name it.
+	var special_names: Array[String] = []
+	var mutation_name: String = MUTATIONS.get(mutation_id, {}).get("display_name", "")
+	if mutation_name != "":
+		special_names.append(mutation_name)
+	if AFFINITIES.has(affinity_id):
+		var weak_to: String = AFFINITIES[affinity_id]["weak_to"]
+		special_names.append("%s (weak to %s)" % [AFFINITIES[affinity_id]["display_name"], weak_to.capitalize()])
+	SignalBus.boss_mutation_announced.emit(" ".join(special_names))
+	SignalBus.boss_affinity_announced.emit(affinity_id)
 	_run_attack_loop()
 	if mutation_id == "shielded":
 		_run_shield_loop()
@@ -325,6 +359,15 @@ func _apply_mutation() -> void:
 	_damage_mult *= m.get("damage_mult", 1.0)
 	_cooldown_mult = m.get("cooldown_mult", 1.0)
 	sprite.modulate = sprite.modulate * m["color"]
+
+
+func _apply_affinity() -> void:
+	# Purely a tint at spawn time -- the resist/weak math lives in
+	# take_damage(), read fresh per hit, since it depends on each incoming
+	# hit's element rather than any spawn-time stat.
+	if affinity_id == "" or not AFFINITIES.has(affinity_id):
+		return
+	sprite.modulate = sprite.modulate * AFFINITIES[affinity_id]["color"]
 
 
 # "Shielded" -- periodic invulnerability window, independent of the attack
@@ -388,12 +431,20 @@ func apply_status(element: String, duration: float) -> void:
 	StatusEffects.apply(self, element, duration)
 
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, element: String = "") -> void:
+	# `element` "" = physical/untyped -- affinity never touches it. Passed by
+	# the elemental damage paths (projectile hits/bursts/chains, area strikes,
+	# DOT ticks); everything else keeps calling with one arg unchanged.
 	if _is_dying:
 		return
 	if _mutation_invulnerable:
 		ImpactVFX.shield_flash(global_position, 40.0, self)  # feedback that the hit was blocked, not silently ignored
 		return
+	if affinity_id != "" and element != "" and AFFINITIES.has(affinity_id):
+		if element == affinity_id:
+			amount *= AFFINITY_RESIST_MULT
+		elif element == AFFINITIES[affinity_id]["weak_to"]:
+			amount *= AFFINITY_WEAK_MULT
 	current_hp -= amount * StatusEffects.damage_amp(self)  # Brittle Frost: frozen bosses take extra damage too
 	SignalBus.enemy_hit.emit()
 	SignalBus.boss_hp_changed.emit(maxf(current_hp, 0.0), _max_hp)

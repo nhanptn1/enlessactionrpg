@@ -56,6 +56,18 @@ const BOSS_VISUAL_SCALE := 1.5
 const BOSS_MUTATION_CHANCE := 0.5
 const BOSS_MUTATION_MIN_CYCLE := 2
 const BOSS_MUTATION_IDS: Array[String] = ["enraged", "shielded", "volatile"]
+# (2026-07-21) Phase 4: boss variety round 2. Elemental affinities roll
+# independently of mutations (the two can stack) from the same min cycle, so
+# the first-ever boss stays clean. Event cycles layer on top: every 3rd
+# cycle (waves 30/60/90...) guarantees a mutation lands; every 5th cycle
+# (waves 50/100...) is an "Overlord" -- guaranteed mutation AND affinity
+# plus extra HP, the milestone fight both systems build toward. Cycle 15
+# etc. hits both rules; the stricter Overlord treatment simply wins.
+const BOSS_AFFINITY_CHANCE := 0.4
+const BOSS_AFFINITY_IDS: Array[String] = ["fire", "frost", "lightning"]
+const EVENT_MUTATION_CYCLE_INTERVAL := 3
+const EVENT_OVERLORD_CYCLE_INTERVAL := 5
+const OVERLORD_HP_MULT := 1.25
 const MONSTER_XP_MULT := 1.25  # (2026-07-16) per-kill XP felt low after the earlier halving -- applied once here at the single death-reward choke point (_grant_death_rewards()), so it covers every enemy.xp_reward, BOSS_XP_REWARD, and elite/minion overrides uniformly rather than needing 12+ separate .tres edits.
 const RARITY_WEIGHTS := {"common": 0.55, "rare": 0.30, "epic": 0.15}
 # Elite rolls apply to any regular monster, including the ones that now
@@ -104,6 +116,7 @@ var _spawn_timer: Timer
 var _pending_boss: EnemyData = null  # set on boss waves, spawned once _spawn_queue empties -- see _spawn_boss()
 var _pending_boss_hp_mult := 1.0
 var _pending_boss_mutation_id: String = ""  # "" = no mutation this cycle -- see BOSS_MUTATION_* above
+var _pending_boss_affinity_id: String = ""  # "" = no affinity this cycle -- see BOSS_AFFINITY_* above
 
 
 func _ready() -> void:
@@ -174,8 +187,16 @@ func _start_next_wave() -> void:
 		# deliberately-documented one. A real gap, caught by review.
 		_pending_boss_hp_mult = _boss_hp_mult(cycle) * _get_modifier_mult("enemy_hp_mult")
 		_pending_boss_mutation_id = ""
-		if cycle >= BOSS_MUTATION_MIN_CYCLE and randf() < BOSS_MUTATION_CHANCE:
-			_pending_boss_mutation_id = BOSS_MUTATION_IDS[randi() % BOSS_MUTATION_IDS.size()]
+		_pending_boss_affinity_id = ""
+		var is_overlord := cycle % EVENT_OVERLORD_CYCLE_INTERVAL == 0
+		var guaranteed_mutation := is_overlord or cycle % EVENT_MUTATION_CYCLE_INTERVAL == 0
+		if cycle >= BOSS_MUTATION_MIN_CYCLE:
+			if guaranteed_mutation or randf() < BOSS_MUTATION_CHANCE:
+				_pending_boss_mutation_id = BOSS_MUTATION_IDS[randi() % BOSS_MUTATION_IDS.size()]
+			if is_overlord or randf() < BOSS_AFFINITY_CHANCE:
+				_pending_boss_affinity_id = BOSS_AFFINITY_IDS[randi() % BOSS_AFFINITY_IDS.size()]
+		if is_overlord:
+			_pending_boss_hp_mult *= OVERLORD_HP_MULT
 
 	# The boss counts toward _alive_count from the start too (as "still
 	# pending"), even though it isn't spawned yet -- otherwise the wave
@@ -398,8 +419,9 @@ func _spawn_one(enemy_data: EnemyData, x_override: float) -> void:
 func _spawn_boss() -> void:
 	var boss_data := _pending_boss
 	var mutation_id := _pending_boss_mutation_id
+	var affinity_id := _pending_boss_affinity_id
 	_pending_boss = null
-	spawner.spawn(boss_data, _pending_boss_hp_mult, 1.0, BOSS_DAMAGE_MULT, BOSS_XP_REWARD, BOSS_VISUAL_SCALE, -1.0, false, true, mutation_id)
+	spawner.spawn(boss_data, _pending_boss_hp_mult, 1.0, BOSS_DAMAGE_MULT, BOSS_XP_REWARD, BOSS_VISUAL_SCALE, -1.0, false, true, mutation_id, affinity_id)
 
 
 func notify_enemy_died() -> void:
