@@ -110,16 +110,12 @@ func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Arr
 	# wave, same as before the repeatable cards existed.
 	var current_tier := _current_level_for(target_element)
 	var max_tier := _max_tier_for(target_element)
-	var units: Array = []
 	var next_tier := current_tier + 1
+	var tier_up: Array[UpgradeResource] = []
 	if next_tier <= max_tier:
-		var tier_matches: Array[UpgradeResource] = []
 		for upgrade in upgrade_pool:
-			if upgrade.element != target_element or upgrade.tier != next_tier:
-				continue
-			tier_matches.append(upgrade)
-		if not tier_matches.is_empty():
-			units.append(tier_matches)
+			if upgrade.element == target_element and upgrade.tier == next_tier:
+				tier_up.append(upgrade)
 	# (2026-07-17) Deliberately NOT gated on current_tier < max_tier -- an
 	# earlier pass cut these off once an element hit max_tier, on the mistaken
 	# assumption they'd become "a genuinely dead choice with nothing left to
@@ -132,14 +128,29 @@ func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Arr
 	# more *tiers* to unlock, but its damage/cooldown/duration/combo power
 	# still has real room to grow. Without this, a maxed element simply went
 	# silent for the rest of the run once its tree was full.
+	var repeatables: Array = []
 	if current_tier >= 1:
 		for upgrade in upgrade_pool:
 			if upgrade.element == target_element and upgrade.tier == 0:
 				var single: Array[UpgradeResource] = [upgrade]
-				units.append(single)
-	if units.is_empty():
+				repeatables.append(single)
+	if tier_up.is_empty() and repeatables.is_empty():
 		return []
-	return units[randi() % units.size()]
+	if tier_up.is_empty():
+		return repeatables[randi() % repeatables.size()]
+	if repeatables.is_empty():
+		return tier_up
+	# (2026-07-21) A real tier-up used to be just one peer among N repeatable
+	# flavors (3 per element today) in a flat random pick -- diluting its real
+	# odds to 1/(1+3) = 25% any time this element got a slot at all, which
+	# compounded across tiers 2->3->4->5 read as the tree being stuck for long
+	# stretches (direct user report: "element path skills can't level up").
+	# Tier-up now gets an even 50/50 against "any repeatable flavor" as a
+	# whole, instead of losing ground the more flavors an element happens to
+	# have.
+	if randf() < 0.5:
+		return tier_up
+	return repeatables[randi() % repeatables.size()]
 
 
 func _current_level_for(element: UpgradeResource.ElementType) -> int:
