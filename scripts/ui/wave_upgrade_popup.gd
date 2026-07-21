@@ -13,9 +13,18 @@ const CARD_FRAME_PATHS := {
 	# extraction -- green was open hue space (Fire=red/orange, Frost=blue,
 	# Lightning=purple/gold) and fits the archer's forest-ranger theme.
 	UpgradeResource.ElementType.PHYSICAL: "res://art/ui/card_frame_physical.png",
-	# Class-skill cards reuse the physical frame -- class skills are untyped/
-	# physical damage, and a 5th bespoke frame recolor isn't worth it yet.
-	UpgradeResource.ElementType.CLASS: "res://art/ui/card_frame_physical.png",
+}
+# (2026-07-21) Class-skill cards have no bespoke frame art, so each class
+# borrows whichever existing element frame best matches its own identity
+# color (see CharacterClasses vfx_color) instead of all sharing the plain
+# physical green -- Ranger green -> Physical, Sniper gold -> Fire (warm),
+# Elementalist violet -> Lightning, Juggernaut cyan -> Frost. Resolved per
+# card in _apply_card_style() off the player's active class.
+const CLASS_FRAME_ELEMENT := {
+	"ranger": UpgradeResource.ElementType.PHYSICAL,
+	"sniper": UpgradeResource.ElementType.FIRE,
+	"elementalist": UpgradeResource.ElementType.LIGHTNING,
+	"juggernaut": UpgradeResource.ElementType.FROST,
 }
 const CARD_TEXTURE_MARGIN := 40.0  # 9-slice margin so corner flourishes don't stretch when the button isn't the source's exact size
 
@@ -94,7 +103,13 @@ func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
 
 
 func _apply_card_style(button: Button, element: UpgradeResource.ElementType) -> void:
-	var stylebox: StyleBoxTexture = _card_styles.get(element)
+	var style_key: int = element
+	if element == UpgradeResource.ElementType.CLASS:
+		# Borrow the class's matching element frame (see CLASS_FRAME_ELEMENT);
+		# PHYSICAL is the safe fallback if the class is somehow unknown.
+		var cid: String = player.active_class_id if is_instance_valid(player) else ""
+		style_key = CLASS_FRAME_ELEMENT.get(cid, UpgradeResource.ElementType.PHYSICAL)
+	var stylebox: StyleBoxTexture = _card_styles.get(style_key)
 	if stylebox == null:
 		return
 	for state in ["normal", "hover", "pressed", "focus"]:
