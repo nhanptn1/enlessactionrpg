@@ -489,6 +489,12 @@ func _fire_elemental_skill(skill: SkillData, element: String, dmg_mult: float, d
 	# unlike the basic line which carries no status at all (see _fire_at()).
 	var status_rolls: Array[Dictionary] = [{"element": element, "chance": 1.0, "duration": duration}]
 	if skill.fire_mode == SkillData.FireMode.ARROW_RAIN:
+		# (2026-07-21) Same no-target guard as the non-rain branch below and
+		# _fire_trap_shot() -- without it Burning Rain/Thunder Storm cast into
+		# empty space in front of the player whenever nothing was nearby,
+		# per direct user report.
+		if _get_nearest_enemies(1).is_empty():
+			return
 		_fire_elemental_rain(skill, dmg_mult, status_rolls)
 	else:
 		_fire_elemental_projectile(skill, dmg_mult, status_rolls)
@@ -547,6 +553,11 @@ func _on_attack_timeout() -> void:
 func _auto_fire(skill: SkillData) -> void:
 	match skill.fire_mode:
 		SkillData.FireMode.ARROW_RAIN:
+			# (2026-07-21) Same no-target guard as the "_" branch below and
+			# TRAP_SHOT above -- Arrow Rain used to cast into empty space in
+			# front of the player whenever nothing was nearby.
+			if _get_nearest_enemies(1).is_empty():
+				return
 			_fire_arrow_rain(skill)
 		SkillData.FireMode.TRAP_SHOT:
 			if not _fire_trap_shot(skill):
@@ -638,11 +649,19 @@ func _fire_arrow_rain(skill: SkillData) -> void:
 
 
 func _fire_area_strike(skill: SkillData, dmg_mult: float, status_rolls: Array[Dictionary], telegraph_color: Color, bonus_zones: int = 0) -> void:
-	# Scatters impact zones near real enemies (falling back to the general
-	# engagement area above the player if none are in range), shows a warning
-	# circle on each, then guarantee-hits everything caught inside once the
-	# telegraph resolves -- matches the plan docs' "warning marker -> impact"
-	# framing and reuses boss_base.gd's own telegraphed-zone pattern.
+	# Scatters impact zones around real enemies, shows a warning circle on
+	# each, then guarantee-hits everything caught inside once the telegraph
+	# resolves -- matches the plan docs' "warning marker -> impact" framing
+	# and reuses boss_base.gd's own telegraphed-zone pattern.
+	# (2026-07-21) No targets used to fall back to random zones scattered
+	# above the player -- same "cast at nothing" waste as Trap Shot already
+	# guards against. Callers now check emptiness before ever calling this
+	# (see _auto_fire()/_fire_elemental_skill()), but this stays as a
+	# defense-in-depth guard rather than trusting every future caller to
+	# remember that check.
+	var targets := _get_nearest_enemies(skill.rain_arrow_count + bonus_zones)
+	if targets.is_empty():
+		return
 	var zone_count: int = skill.rain_arrow_count + bonus_zones
 	var scatter: float = skill.rain_spread_width
 	var radius: float = skill.trap_radius
@@ -650,15 +669,10 @@ func _fire_area_strike(skill: SkillData, dmg_mult: float, status_rolls: Array[Di
 	# instead of the plain procedural circle basic Arrow Rain still uses.
 	var is_fire = not status_rolls.is_empty() and status_rolls[0]["element"] == StatusEffects.FIRE
 	var is_lightning = not status_rolls.is_empty() and status_rolls[0]["element"] == StatusEffects.LIGHTNING
-	var targets := _get_nearest_enemies(zone_count)
 	var points: Array[Vector2] = []
-	if targets.is_empty():
-		for _i in zone_count:
-			points.append(global_position + Vector2(randf_range(-scatter, scatter) / 2.0, -randf_range(150.0, 500.0)))
-	else:
-		for _i in zone_count:
-			var anchor: Vector2 = targets[randi() % targets.size()].global_position
-			points.append(anchor + Vector2(randf_range(-scatter, scatter) / 2.0, randf_range(-scatter, scatter) / 2.0))
+	for _i in zone_count:
+		var anchor: Vector2 = targets[randi() % targets.size()].global_position
+		points.append(anchor + Vector2(randf_range(-scatter, scatter) / 2.0, randf_range(-scatter, scatter) / 2.0))
 	for p in points:
 		Telegraph.show_circle(p, radius, telegraph_color, skill.telegraph_time, self)
 		if is_fire:
