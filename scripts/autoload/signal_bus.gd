@@ -15,6 +15,7 @@ signal level_up(level: int)
 signal skill_unlocked(skill: SkillData)
 signal player_died
 signal player_dashed
+signal player_ultimate_used
 signal game_paused(source: String)
 signal game_unpaused(source: String)
 signal boss_phase_changed(phase: int)

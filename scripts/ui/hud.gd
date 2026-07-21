@@ -7,6 +7,10 @@ class_name HUD
 @onready var level_label: Label = $Margin/VBox/LevelLabel
 @onready var wave_label: Label = $Margin/VBox/WaveLabel
 @onready var modifier_label: Label = $Margin/VBox/ModifierLabel
+@onready var ultimate_label: Label = $Margin/VBox/UltimateLabel
+@onready var ultimate_button: Button = $UltimateButton
+@onready var ultimate_button_icon: TextureRect = $UltimateButton/Icon
+@onready var ultimate_caption: Label = $UltimateCaption
 @onready var skill_label: Label = $Margin/VBox/SkillRow/SkillLabel
 @onready var skill_icon: TextureRect = $Margin/VBox/SkillRow/SkillIconStack/Icon
 @onready var skill_cooldown: RadialCooldown = $Margin/VBox/SkillRow/SkillIconStack/SkillCooldown
@@ -85,6 +89,7 @@ func _ready() -> void:
 	# can't be pressed again until PauseMenu's own Resume button unpauses.
 	pause_button.pressed.connect(_on_pause_pressed)
 	skill_button.pressed.connect(_on_skill_button_pressed)
+	ultimate_button.pressed.connect(_on_ultimate_button_pressed)
 
 
 func _process(_delta: float) -> void:
@@ -100,6 +105,35 @@ func _process(_delta: float) -> void:
 		var elemental_timer: Timer = _player.get_elemental_timer_by_element(_player.active_element)
 		if is_instance_valid(elemental_timer) and elemental_timer.wait_time > 0.0:
 			_elemental_rows[_player.active_element].ring.value = 1.0 - (elemental_timer.time_left / elemental_timer.wait_time)
+	# Ultimate charge readout + on-screen cast button -- polled like the
+	# cooldown rings above (charge changes on every kill; a per-kill
+	# signal-driven update would fire far more often than once a frame
+	# anyway). Everything stays hidden until the active element's capstone
+	# actually unlocks the ultimate, so early runs see nothing new. The
+	# button is the touch/mobile trigger (Q still works on keyboard); its
+	# icon is the active element's own capstone skill art, dimmed while
+	# charging and full-bright once ready.
+	var ult_unlocked: bool = _player.is_ultimate_unlocked()
+	ultimate_label.visible = ult_unlocked
+	ultimate_button.visible = ult_unlocked
+	ultimate_caption.visible = ult_unlocked
+	if ult_unlocked:
+		var ready: bool = _player.can_use_ultimate()
+		if ready:
+			ultimate_label.text = "ULTIMATE READY — press Q"
+		else:
+			ultimate_label.text = "Ultimate: %d/%d kills" % [_player.ultimate_charge, _player.ULTIMATE_KILLS_REQUIRED]
+		ultimate_button.disabled = not ready
+		ultimate_button.modulate = Color(1, 1, 1, 1) if ready else Color(0.6, 0.6, 0.6, 0.75)
+		var skill: SkillData = _player.get_current_skill_for_element(_player.active_element)
+		var icon_texture: Texture2D = skill.icon if skill != null else null
+		if ultimate_button_icon.texture != icon_texture:
+			ultimate_button_icon.texture = icon_texture
+
+
+func _on_ultimate_button_pressed() -> void:
+	if is_instance_valid(_player) and _player.try_use_ultimate():
+		AudioManager.play_ui("ui_click")
 
 
 func _on_pause_pressed() -> void:

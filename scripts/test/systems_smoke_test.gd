@@ -54,6 +54,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_dead_enemy_not_targeted()
 	_assert_player_movement_clamping()
 	await _assert_dash_dodge()
+	await _assert_ultimate_ability()
 	_assert_trap_zone_activation()
 	await _assert_stats_panel_renders()
 	await _assert_elemental_homing_never_misses()
@@ -314,6 +315,54 @@ func _assert_dash_dodge() -> void:
 
 	assert(player._dash_cooldown_remaining > 0.0, "cooldown should still be active immediately after a dash, blocking spam")
 
+	player.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_ultimate_ability() -> void:
+	# (2026-07-21) Phase 4 pillar 2: late-run ultimate. Standalone player (no
+	# Main.tscn needed -- the ultimate reads only the enemy group and player
+	# stats), real upgrade resources for the tier climb, real EnemyBase
+	# targets. Same queue_free + double-await hygiene as _assert_dash_dodge().
+	var player_scene = load("res://scenes/player/Player.tscn")
+	var player = player_scene.instantiate()
+	add_child(player)
+	for path in [
+		"res://resources/upgrades/fire_t1_searing_shot.tres",
+		"res://resources/upgrades/fire_t2_inferno_growth.tres",
+		"res://resources/upgrades/fire_t3_burning_legacy.tres",
+		"res://resources/upgrades/fire_t4_inferno_mastery.tres",
+		"res://resources/upgrades/fire_t5_inferno_heart.tres",
+	]:
+		player.apply_element_upgrade(load(path))
+	# No projectile_pool here -- stop auto-fire so it can't error mid-test.
+	player.attack_timer.stop()
+	var fire_timer: Timer = player.get_elemental_timer_by_element(UpgradeResource.ElementType.FIRE)
+	if is_instance_valid(fire_timer):
+		fire_timer.stop()
+
+	assert(player.is_ultimate_unlocked(), "fire capstone should unlock the ultimate")
+	assert(not player.can_use_ultimate(), "uncharged ultimate must not be usable")
+
+	for _i in player.ULTIMATE_KILLS_REQUIRED + 10:
+		SignalBus.enemy_died.emit()
+	assert(player.ultimate_charge == player.ULTIMATE_KILLS_REQUIRED, "charge should cap at ULTIMATE_KILLS_REQUIRED")
+	assert(player.can_use_ultimate(), "capstone + full charge should make the ultimate usable")
+
+	var slime: EnemyData = load("res://resources/enemies/slime_scout.tres")
+	var enemy: EnemyBase = slime.scene.instantiate()
+	enemy.setup(slime, 100.0)
+	add_child(enemy)
+	enemy.activate()
+	enemy.global_position = Vector2(300, 300)
+	var hp_before: float = enemy.current_hp
+	player._use_ultimate()
+	assert(player.ultimate_charge == 0, "using the ultimate should consume the full charge")
+	assert(enemy.current_hp < hp_before, "the ultimate should damage every enemy in the group")
+	assert(enemy.status.has(StatusEffects.FIRE), "the fire ultimate should burn every enemy it hits")
+
+	enemy.queue_free()
 	player.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame

@@ -33,6 +33,25 @@ const DASH_SPEED := 900.0
 const DASH_DURATION := 0.18
 const DASH_COOLDOWN := 1.8
 const DASH_ALPHA_DIP := 0.4  # visual-only cue that i-frames are active, no new art needed
+
+# (2026-07-21) Phase 4 pillar 2: late-run ultimate ability. Unlocked the
+# moment the ACTIVE element reaches its tier-5 capstone (read off
+# *_level >= 5, same convention status_effects.gd's capstone checks use);
+# charged by kills (any source -- SignalBus.enemy_died is emitted at the
+# single death choke point, so trap/burst/chain/DOT kills all count), then
+# unleashed manually with Q: a screen-wide hit on every enemy in the "enemy"
+# group (bosses included -- they're in that group too, and Shielded's own
+# invulnerability window still blocks it via take_damage()'s guard, which is
+# correct). Each element's ultimate carries its own identity: Fire burns
+# everything, Frost freezes everything, Lightning shocks everything -- the
+# guaranteed status is the real payoff, feeding spreads/combos/capstones.
+const ULTIMATE_KILLS_REQUIRED := 40
+const ULTIMATE_FIRE_DAMAGE := 30.0
+const ULTIMATE_FROST_DAMAGE := 15.0  # lowest raw hit -- a full-screen freeze is already the strongest control effect in the game
+const ULTIMATE_LIGHTNING_DAMAGE := 25.0
+const ULTIMATE_FROST_FREEZE_DURATION := 2.5  # vs. FROST_DURATION 1.6 -- an ultimate freeze should outlast a regular one
+const ULTIMATE_SHAKE_INTENSITY := 12.0
+const ULTIMATE_SHAKE_DURATION := 0.35
 # (2026-07-16) 15.0->8.0 -- user playtest feedback: the multishot fan spread
 # too wide, especially once "+1 Arrow" stacked the shot count up (each extra
 # arrow added another full 15-degree step with no cap on the total spread).
@@ -155,6 +174,8 @@ var _dash_time_remaining := 0.0
 var _dash_cooldown_remaining := 0.0
 var _last_move_dir := 1.0  # dash direction when stationary -- defaults facing right
 var _dash_key_was_down := false  # manual edge-detection, matching this file's raw is_key_pressed() polling convention rather than a new Input Map action
+var ultimate_charge := 0  # kills accumulated toward ULTIMATE_KILLS_REQUIRED -- public so HUD can poll it, same as attack_timer
+var _ult_key_was_down := false  # same manual edge-detection as _dash_key_was_down above
 
 signal hp_changed(current: float, max_hp: float)
 signal xp_changed(current: int, needed: int)
@@ -203,6 +224,7 @@ func _ready() -> void:
 	frost_skill_timer.timeout.connect(_on_frost_skill_timeout)
 	lightning_skill_timer.timeout.connect(_on_lightning_skill_timeout)
 	sprite.animation_finished.connect(_on_animation_finished)
+	SignalBus.enemy_died.connect(_on_enemy_died_charge_ultimate)
 	_sprite_base_position = sprite.position
 	_sprite_base_scale = sprite.scale
 	sprite.play("idle")
@@ -279,6 +301,11 @@ func _physics_process(delta: float) -> void:
 		_start_dash()
 	_dash_key_was_down = dash_key_down
 
+	var ult_key_down := Input.is_key_pressed(KEY_Q)
+	if ult_key_down and not _ult_key_was_down:
+		try_use_ultimate()
+	_ult_key_was_down = ult_key_down
+
 	velocity.y = 0.0
 	move_and_slide()
 	global_position.x = clampf(global_position.x, MIN_X, MAX_X)
@@ -306,6 +333,82 @@ func _play_dash_visual() -> void:
 	_dash_tween = create_tween()
 	_dash_tween.tween_property(sprite, "modulate:a", DASH_ALPHA_DIP, DASH_DURATION * 0.4)
 	_dash_tween.tween_property(sprite, "modulate:a", 1.0, DASH_DURATION * 0.6)
+
+
+func _on_enemy_died_charge_ultimate() -> void:
+	# Charge accrues even before any capstone is reached -- reaching tier 5
+	# with a full bar already waiting is the reward for the long climb, not a
+	# second grind stacked on top of it.
+	ultimate_charge = mini(ultimate_charge + 1, ULTIMATE_KILLS_REQUIRED)
+
+
+func is_ultimate_unlocked() -> bool:
+	return active_element != -1 and get_element_tier(active_element) >= StatusEffects.CAPSTONE_TIER
+
+
+func can_use_ultimate() -> bool:
+	return is_ultimate_unlocked() and ultimate_charge >= ULTIMATE_KILLS_REQUIRED
+
+
+func try_use_ultimate() -> bool:
+	# Shared entry point for both triggers -- the Q key poll in
+	# _physics_process() and HUD's on-screen UltimateButton (the touch/mobile
+	# path, since this project ships to GitHub Pages where a keyboard isn't
+	# guaranteed). Gating lives here so neither caller can bypass it.
+	if not can_use_ultimate():
+		return false
+	_use_ultimate()
+	return true
+
+
+func _use_ultimate() -> void:
+	ultimate_charge = 0
+	var element_name := ""
+	var dmg := 0.0
+	var status_duration := 0.0
+	match active_element:
+		UpgradeResource.ElementType.FIRE:
+			element_name = StatusEffects.FIRE
+			dmg = ULTIMATE_FIRE_DAMAGE * fire_skill_dmg_mult
+			status_duration = StatusEffects.FIRE_DURATION + fire_duration_bonus
+		UpgradeResource.ElementType.FROST:
+			element_name = StatusEffects.FROST
+			dmg = ULTIMATE_FROST_DAMAGE * frost_skill_dmg_mult
+			status_duration = ULTIMATE_FROST_FREEZE_DURATION + frost_duration_bonus
+		UpgradeResource.ElementType.LIGHTNING:
+			element_name = StatusEffects.LIGHTNING
+			dmg = ULTIMATE_LIGHTNING_DAMAGE * lightning_skill_dmg_mult
+			status_duration = StatusEffects.LIGHTNING_DURATION
+	if element_name == "":
+		return
+	var cam := get_viewport().get_camera_2d()
+	if is_instance_valid(cam) and cam.has_method("shake"):
+		cam.shake(ULTIMATE_SHAKE_INTENSITY, ULTIMATE_SHAKE_DURATION)
+	# Snapshot the group first -- damage can kill (and burst/combo chains can
+	# kill neighbors), and mutating group membership mid-iteration while also
+	# iterating it is exactly the kind of subtle skip this avoids.
+	var targets: Array = get_tree().get_nodes_in_group("enemy")
+	for enemy in targets:
+		if not is_instance_valid(enemy) or not enemy.has_method("take_damage"):
+			continue
+		match element_name:
+			StatusEffects.FIRE:
+				ImpactVFX.fire_explosion(enemy.global_position, 40.0, self)
+			StatusEffects.FROST:
+				ImpactVFX.ice_burst(enemy.global_position, 40.0, self)
+			StatusEffects.LIGHTNING:
+				ImpactVFX.spark_burst(enemy.global_position, 40.0, self)
+		enemy.take_damage(dmg)
+		if is_instance_valid(enemy) and enemy.has_method("apply_status"):
+			# allow_spread=false via apply() directly -- everything on screen is
+			# already being hit, a spread roll per enemy would just be N wasted
+			# group scans in the same frame.
+			StatusEffects.apply(enemy, element_name, status_duration, false)
+	_stop_idle_bob()
+	_play_recoil(1.5)
+	if sprite.animation != "attack":
+		sprite.play("attack")
+	SignalBus.player_ultimate_used.emit()
 
 
 func xp_to_next_level() -> int:
