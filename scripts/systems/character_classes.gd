@@ -21,6 +21,7 @@ const CLASSES := {
 		"display_name": "Ranger",
 		"description": "The classic archer. Balanced, no tradeoffs.",
 		"color": Color(1.0, 1.0, 1.0, 1.0),
+		"vfx_color": Color(0.5, 1.0, 0.55, 0.95),  # bright green -- class-skill impact/telegraph highlight
 		"skills": [
 			"res://resources/skills/class_twin_volley.tres",
 			"res://resources/skills/class_split_volley.tres",
@@ -34,6 +35,7 @@ const CLASSES := {
 		"crit_chance_bonus": 0.15,
 		"projectile_speed_mult": 1.15,
 		"max_hp_mult": 0.85,
+		"vfx_color": Color(1.0, 0.9, 0.3, 0.95),  # bright gold
 		"skills": [
 			"res://resources/skills/class_power_shot.tres",
 			"res://resources/skills/class_piercing_bolt.tres",
@@ -46,6 +48,7 @@ const CLASSES := {
 		"color": Color(1.05, 0.85, 1.2, 1.0),
 		"elemental_dmg_mult": 1.25,
 		"physical_dmg_mult": 0.85,
+		"vfx_color": Color(0.85, 0.45, 1.0, 0.95),  # bright violet
 		"skills": [
 			"res://resources/skills/class_arcane_bolt.tres",
 			"res://resources/skills/class_arcane_chain.tres",
@@ -58,6 +61,7 @@ const CLASSES := {
 		"color": Color(0.85, 1.0, 1.15, 1.0),
 		"max_hp_mult": 1.4,
 		"physical_dmg_mult": 0.85,
+		"vfx_color": Color(0.5, 0.9, 1.0, 0.95),  # bright cyan
 		"skills": [
 			"res://resources/skills/class_shockwave.tres",
 			"res://resources/skills/class_quake.tres",
@@ -77,3 +81,10 @@ static func get_value(class_id: String, key: String, default_value: float = 1.0)
 
 static func get_color(class_id: String) -> Color:
 	return CLASSES.get(class_id, {}).get("color", Color.WHITE)
+
+
+static func get_vfx_color(class_id: String) -> Color:
+	# Bright, saturated highlight color for the class skill line's in-game
+	# effects (impact flashes, telegraphs, pulses) -- distinct from the near-
+	# white sprite-tint `color` above.
+	return CLASSES.get(class_id, {}).get("vfx_color", Color(1.0, 0.95, 0.6, 0.95))

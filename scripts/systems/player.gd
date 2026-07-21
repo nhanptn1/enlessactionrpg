@@ -803,7 +803,10 @@ func _fire_class_skill(skill: SkillData) -> void:
 		SkillData.FireMode.ARROW_RAIN:
 			if _get_nearest_enemies(1).is_empty():
 				return
-			_fire_area_strike(skill, damage_mult, no_status, AREA_STRIKE_COLOR_BASIC)
+			# Bright class-colored telegraph instead of the muted basic gold, so
+			# the class storm reads as a distinct, punchy effect.
+			var tele: Color = CharacterClasses.get_vfx_color(active_class_id)
+			_fire_area_strike(skill, damage_mult, no_status, Color(tele.r, tele.g, tele.b, 0.55))
 		SkillData.FireMode.SELF_BURST:
 			if not _fire_self_burst(skill):
 				return
@@ -831,12 +834,19 @@ func _fire_class_projectile(skill: SkillData) -> bool:
 	var proj_speed: float = BASE_PROJECTILE_SPEED * projectile_speed_mult
 	var aim_point := _predict_intercept(attack_origin.global_position, targets[0], proj_speed)
 	var base_dir := (aim_point - attack_origin.global_position).normalized()
+	# Bright per-hit flash + a glow tint on the arrow itself -- class projectiles
+	# otherwise produce NO impact VFX at all (no burst_radius), so they read as
+	# flat. The flash is visual-only (no splash damage). Bigger visual scale on
+	# top of each skill's own so the class line clearly out-sizes the basic arrow.
+	var flash_col: Color = CharacterClasses.get_vfx_color(active_class_id)
+	var flash_radius := 46.0
+	var vis_scale: float = maxf(skill.visual_scale, 1.0) * 1.35
 	for i in skill.projectile_count:
 		var dir := base_dir.rotated(_spread_offset(i, skill.projectile_count))
 		var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
 		var proj: Projectile = pool.acquire(skill.projectile_scene)
 		var homing_target: Node2D = targets[0] if i == 0 else null
-		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, no_status, skill.burst_radius, skill.chain_count, skill.visual_scale, skill.burst_vfx_id, homing_target)
+		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, no_status, skill.burst_radius, skill.chain_count, vis_scale, skill.burst_vfx_id, homing_target, flash_col, flash_radius)
 	return true
 
 
@@ -859,6 +869,13 @@ func _fire_self_burst(skill: SkillData) -> bool:
 		ImpactVFX.ground_spikes(global_position, radius, self)
 	else:
 		ImpactVFX.ground_shockwave(global_position, radius, self)
+	# Big bright class-colored ring on top of the ground VFX + a real camera
+	# shake, so the pulse lands with weight instead of a faint scuff.
+	var pulse_col: Color = CharacterClasses.get_vfx_color(active_class_id)
+	ImpactVFX.flash_burst(global_position, radius * 1.15, pulse_col, self)
+	var cam := get_viewport().get_camera_2d()
+	if is_instance_valid(cam) and cam.has_method("shake"):
+		cam.shake(9.0, 0.22)
 	var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
 	for enemy in in_range:
 		enemy.take_damage(dmg)

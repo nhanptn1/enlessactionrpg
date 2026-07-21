@@ -20,6 +20,8 @@ var burst_vfx_id: String = ""  # "" = element-default burst look (see SkillData.
 # max_range first) rather than a one-shot lead prediction that a fast-turning
 # target can still dodge. See player.gd::_fire_elemental_projectile().
 var homing_target: Node2D = null
+var impact_flash_color: Color = Color(0, 0, 0, 0)  # a==0 = off; a bright visual-only flash per hit (class-skill highlight), no splash damage
+var impact_flash_radius: float = 0.0
 var _hits_remaining: int
 var _already_hit: Array[Node] = []
 var _spawn_position: Vector2
@@ -36,7 +38,7 @@ func _ready() -> void:
 		_base_visual_scale = get_node("Visual").scale
 
 
-func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE, p_status_rolls: Array[Dictionary] = [], p_burst_radius: float = 0.0, p_chain_count: int = 0, p_visual_scale: float = 1.0, p_burst_vfx_id: String = "", p_homing_target: Node2D = null) -> void:
+func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE, p_status_rolls: Array[Dictionary] = [], p_burst_radius: float = 0.0, p_chain_count: int = 0, p_visual_scale: float = 1.0, p_burst_vfx_id: String = "", p_homing_target: Node2D = null, p_impact_flash_color: Color = Color(0, 0, 0, 0), p_impact_flash_radius: float = 0.0) -> void:
 	direction = p_direction
 	speed = p_speed
 	damage = p_damage
@@ -48,6 +50,13 @@ func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position:
 	chain_count = p_chain_count
 	burst_vfx_id = p_burst_vfx_id
 	homing_target = p_homing_target  # pooled reuse -- must reset every activation, not just set-once
+	# (2026-07-21) Visual-only highlight for class-skill shots -- a bright
+	# per-hit flash (independent of burst_radius, so it adds no splash damage)
+	# plus a glow tint on the projectile itself. a==0 means off (basic/
+	# elemental shots), which must reset every activation or a pooled shot
+	# keeps the previous life's class glow.
+	impact_flash_color = p_impact_flash_color
+	impact_flash_radius = p_impact_flash_radius
 	global_position = p_position
 	rotation = direction.angle()
 	_spawn_position = p_position
@@ -60,6 +69,8 @@ func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position:
 	if has_node("Visual"):
 		var visual_node = get_node("Visual")
 		visual_node.scale = _base_visual_scale * p_visual_scale
+		# Brighten toward the flash color for a glow, or reset to white when off.
+		visual_node.modulate = Color(1, 1, 1, 1) if impact_flash_color.a <= 0.0 else impact_flash_color.lerp(Color(1, 1, 1, 1), 0.35)
 		if visual_node is AnimatedSprite2D:
 			visual_node.play()
 
@@ -100,6 +111,9 @@ func _on_body_entered(body: Node) -> void:
 		for roll in status_rolls:
 			if randf() < roll["chance"]:
 				body.apply_status(roll["element"], roll["duration"])
+	if impact_flash_color.a > 0.0:
+		# Visual-only pop on each enemy hit (every pierce), no damage of its own.
+		ImpactVFX.flash_burst(body.global_position, impact_flash_radius, impact_flash_color, self)
 	if burst_radius > 0.0:
 		_apply_burst(body)
 	if chain_count > 0:
