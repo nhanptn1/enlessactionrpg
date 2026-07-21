@@ -297,8 +297,8 @@ func _physics_process(delta: float) -> void:
 		velocity.x = 0.0
 
 	var dash_key_down := Input.is_key_pressed(KEY_SPACE)
-	if dash_key_down and not _dash_key_was_down and _dash_cooldown_remaining <= 0.0:
-		_start_dash()
+	if dash_key_down and not _dash_key_was_down:
+		try_dash()
 	_dash_key_was_down = dash_key_down
 
 	var ult_key_down := Input.is_key_pressed(KEY_Q)
@@ -309,6 +309,18 @@ func _physics_process(delta: float) -> void:
 	velocity.y = 0.0
 	move_and_slide()
 	global_position.x = clampf(global_position.x, MIN_X, MAX_X)
+
+
+func try_dash() -> bool:
+	# Shared gated entry point for both triggers -- the Space poll in
+	# _physics_process() and HUD's on-screen DashButton (the touch/mobile
+	# path), same convention as try_use_ultimate(). is_dead/paused gating
+	# isn't needed here: the key poll already sits behind _physics_process()'s
+	# own state guard, and HUD (default process_mode) is frozen while paused.
+	if is_dead or _is_dashing or _dash_cooldown_remaining > 0.0:
+		return false
+	_start_dash()
+	return true
 
 
 func _start_dash() -> void:

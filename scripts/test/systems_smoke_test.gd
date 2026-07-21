@@ -314,6 +314,7 @@ func _assert_dash_dodge() -> void:
 	assert(player.current_hp == hp_before - 3.0, "damage should apply normally again once the dash ends")
 
 	assert(player._dash_cooldown_remaining > 0.0, "cooldown should still be active immediately after a dash, blocking spam")
+	assert(not player.try_dash(), "try_dash() must refuse while the cooldown is running -- shared gate for Space and the HUD button")
 
 	player.queue_free()
 	await get_tree().process_frame

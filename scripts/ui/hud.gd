@@ -8,6 +8,7 @@ class_name HUD
 @onready var wave_label: Label = $Margin/VBox/WaveLabel
 @onready var modifier_label: Label = $Margin/VBox/ModifierLabel
 @onready var ultimate_label: Label = $Margin/VBox/UltimateLabel
+@onready var dash_button: Button = $DashButton
 @onready var ultimate_button: Button = $UltimateButton
 @onready var ultimate_button_icon: TextureRect = $UltimateButton/Icon
 @onready var ultimate_caption: Label = $UltimateCaption
@@ -90,6 +91,7 @@ func _ready() -> void:
 	pause_button.pressed.connect(_on_pause_pressed)
 	skill_button.pressed.connect(_on_skill_button_pressed)
 	ultimate_button.pressed.connect(_on_ultimate_button_pressed)
+	dash_button.pressed.connect(_on_dash_button_pressed)
 
 
 func _process(_delta: float) -> void:
@@ -113,6 +115,11 @@ func _process(_delta: float) -> void:
 	# button is the touch/mobile trigger (Q still works on keyboard); its
 	# icon is the active element's own capstone skill art, dimmed while
 	# charging and full-bright once ready.
+	# Dash button dims while the cooldown runs -- same poll-driven state as
+	# everything else here. Always visible (dash needs no unlock).
+	var dash_ready: bool = _player._dash_cooldown_remaining <= 0.0 and not _player._is_dashing
+	dash_button.disabled = not dash_ready
+	dash_button.modulate = Color(1, 1, 1, 1) if dash_ready else Color(0.6, 0.6, 0.6, 0.75)
 	var ult_unlocked: bool = _player.is_ultimate_unlocked()
 	ultimate_label.visible = ult_unlocked
 	ultimate_button.visible = ult_unlocked
@@ -134,6 +141,11 @@ func _process(_delta: float) -> void:
 func _on_ultimate_button_pressed() -> void:
 	if is_instance_valid(_player) and _player.try_use_ultimate():
 		AudioManager.play_ui("ui_click")
+
+
+func _on_dash_button_pressed() -> void:
+	if is_instance_valid(_player):
+		_player.try_dash()  # no ui_click on top -- the dash's own whoosh SFX is the feedback
 
 
 func _on_pause_pressed() -> void:
