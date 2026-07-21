@@ -14,19 +14,15 @@ const CARD_FRAME_PATHS := {
 	# Lightning=purple/gold) and fits the archer's forest-ranger theme.
 	UpgradeResource.ElementType.PHYSICAL: "res://art/ui/card_frame_physical.png",
 }
-# (2026-07-21) Class-skill cards have no bespoke frame art, so each class
-# borrows whichever existing element frame best matches its own identity
-# color (see CharacterClasses vfx_color) instead of all sharing the plain
-# physical green -- Ranger green -> Physical, Sniper gold -> Fire (warm),
-# Elementalist violet -> Lightning, Juggernaut cyan -> Frost. Resolved per
-# card in _apply_card_style() off the player's active class.
-const CLASS_FRAME_ELEMENT := {
-	"ranger": UpgradeResource.ElementType.PHYSICAL,
-	"sniper": UpgradeResource.ElementType.FIRE,
-	"elementalist": UpgradeResource.ElementType.LIGHTNING,
-	"juggernaut": UpgradeResource.ElementType.FROST,
-}
 const CARD_TEXTURE_MARGIN := 40.0  # 9-slice margin so corner flourishes don't stretch when the button isn't the source's exact size
+# (2026-07-21) Class-skill cards get a single unified light-yellow border for
+# every class (per direct user request), distinct from the ornate per-element
+# painted frames. A flat styled border rather than a tinted PNG: the element
+# frames are strongly hue'd (physical green, fire red, etc.) and multiply-tint
+# can't turn green into a clean yellow, so a dedicated StyleBoxFlat is the only
+# way to get a consistent light-yellow regardless of class.
+const CLASS_CARD_BORDER := Color(1.0, 0.95, 0.55, 1.0)  # light yellow
+const CLASS_CARD_FILL := Color(0.12, 0.11, 0.05, 0.9)   # dark warm backing so the title stays readable
 
 @export var upgrade_pool: Array[UpgradeResource] = []
 
@@ -38,6 +34,7 @@ const CARD_TEXTURE_MARGIN := 40.0  # 9-slice margin so corner flourishes don't s
 var player: Node
 var _pending_choices: Array[UpgradeResource] = []
 var _card_styles: Dictionary = {}  # UpgradeResource.ElementType -> StyleBoxTexture
+var _class_card_style: StyleBoxFlat  # shared light-yellow border for every class-skill card, built in _ready()
 
 
 func _ready() -> void:
@@ -56,6 +53,11 @@ func _ready() -> void:
 		stylebox.texture_margin_top = CARD_TEXTURE_MARGIN
 		stylebox.texture_margin_bottom = CARD_TEXTURE_MARGIN
 		_card_styles[element] = stylebox
+	_class_card_style = StyleBoxFlat.new()
+	_class_card_style.bg_color = CLASS_CARD_FILL
+	_class_card_style.set_border_width_all(4)
+	_class_card_style.border_color = CLASS_CARD_BORDER
+	_class_card_style.set_corner_radius_all(10)
 
 
 func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
@@ -103,13 +105,13 @@ func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
 
 
 func _apply_card_style(button: Button, element: UpgradeResource.ElementType) -> void:
-	var style_key: int = element
+	# Every class-skill card gets the same light-yellow border, regardless of
+	# which class it belongs to.
 	if element == UpgradeResource.ElementType.CLASS:
-		# Borrow the class's matching element frame (see CLASS_FRAME_ELEMENT);
-		# PHYSICAL is the safe fallback if the class is somehow unknown.
-		var cid: String = player.active_class_id if is_instance_valid(player) else ""
-		style_key = CLASS_FRAME_ELEMENT.get(cid, UpgradeResource.ElementType.PHYSICAL)
-	var stylebox: StyleBoxTexture = _card_styles.get(style_key)
+		for state in ["normal", "hover", "pressed", "focus"]:
+			button.add_theme_stylebox_override(state, _class_card_style)
+		return
+	var stylebox: StyleBoxTexture = _card_styles.get(element)
 	if stylebox == null:
 		return
 	for state in ["normal", "hover", "pressed", "focus"]:
