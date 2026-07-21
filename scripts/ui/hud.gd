@@ -25,6 +25,7 @@ const ELEMENT_BBCODE_COLORS := {
 @onready var skill_icon: TextureRect = $Margin/VBox/SkillRow/SkillIconStack/Icon
 @onready var skill_cooldown: RadialCooldown = $Margin/VBox/SkillRow/SkillIconStack/SkillCooldown
 @onready var elemental_rows_container: VBoxContainer = $Margin/VBox/ElementalSkillRows
+@onready var class_skill_row: HBoxContainer = $Margin/VBox/ClassSkillRow
 @onready var pause_button: Button = $PauseButton
 @onready var skill_button: Button = $SkillButton
 @onready var boss_hp_bar_container: MarginContainer = $Margin/VBox/BossHPBarContainer
@@ -45,6 +46,10 @@ var _player: Node
 # Player.select_active_element()). The active element's row is full
 # brightness with a live cooldown ring; the others are dimmed and static.
 var _elemental_rows: Dictionary = {}
+# Populated once the class skill line unlocks its first tier -- {ring, icon,
+# label}. Never tappable (the class skill always auto-fires; there's no
+# "select active" for it, unlike the elemental rows above).
+var _class_row: Dictionary = {}
 
 
 func _ready() -> void:
@@ -56,6 +61,7 @@ func _ready() -> void:
 		_player.skill_unlocked.connect(_on_skill_unlocked)
 		_player.elemental_skill_changed.connect(_on_elemental_skill_changed)
 		_player.active_element_switched.connect(_on_active_element_switched)
+		_player.class_skill_changed.connect(_on_class_skill_changed)
 		_player.equipment_changed.connect(_on_equipment_changed)
 		for slot in _player.equipped:
 			if _player.equipped[slot] != null:
@@ -117,6 +123,10 @@ func _process(_delta: float) -> void:
 		var elemental_timer: Timer = _player.get_elemental_timer_by_element(_player.active_element)
 		if is_instance_valid(elemental_timer) and elemental_timer.wait_time > 0.0:
 			_elemental_rows[_player.active_element].ring.value = 1.0 - (elemental_timer.time_left / elemental_timer.wait_time)
+	if not _class_row.is_empty():
+		var class_timer: Timer = _player.class_skill_timer
+		if is_instance_valid(class_timer) and class_timer.wait_time > 0.0:
+			_class_row.ring.value = 1.0 - (class_timer.time_left / class_timer.wait_time)
 	# Ultimate charge readout + on-screen cast button -- polled like the
 	# cooldown rings above (charge changes on every kill; a per-kill
 	# signal-driven update would fire far more often than once a frame
@@ -265,6 +275,42 @@ func _build_elemental_row(element: int, skill: SkillData) -> void:
 	row.add_child(label)
 	elemental_rows_container.add_child(row)
 	_elemental_rows[element] = {"ring": ring, "label": label, "icon": icon, "row": row}
+
+
+func _on_class_skill_changed(skill: SkillData) -> void:
+	# The class skill line's own top-left row, built once on first unlock and
+	# refreshed on every tier swap. Mirrors an elemental row (icon + cooldown
+	# ring stacked, name label) but as a plain Control -- the class skill
+	# always auto-fires, so there's nothing to tap to "activate."
+	if _class_row.is_empty():
+		var icon_stack := Control.new()
+		icon_stack.custom_minimum_size = Vector2(38, 38)
+		icon_stack.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		icon_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var icon := TextureRect.new()
+		icon.anchor_right = 1.0
+		icon.anchor_bottom = 1.0
+		icon.stretch_mode = TextureRect.STRETCH_SCALE
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var ring := RadialCooldown.new()
+		ring.anchor_right = 1.0
+		ring.anchor_bottom = 1.0
+		ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_stack.add_child(icon)
+		icon_stack.add_child(ring)
+		var label := Label.new()
+		label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		label.add_theme_font_size_override("font_size", 18)
+		# A class-identity tint distinct from the gold basic/elemental labels.
+		var col: Color = CharacterClasses.get_color(_player.active_class_id)
+		label.add_theme_color_override("font_color", Color(col.r * 0.8, col.g * 0.85, col.b * 0.95, 1.0))
+		class_skill_row.add_child(icon_stack)
+		class_skill_row.add_child(label)
+		_class_row = {"ring": ring, "icon": icon, "label": label}
+	_class_row.icon.texture = skill.icon
+	_class_row.label.text = skill.display_name
+	class_skill_row.visible = true
 
 
 func _on_wave_started(wave_number: int) -> void:

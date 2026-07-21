@@ -195,6 +195,10 @@ signal elemental_skill_changed(element: int, skill: SkillData)
 # elemental_skill_changed, which fires on every tier pick regardless of which
 # element is active.
 signal active_element_switched(element: int, skill: SkillData)
+# HUD-only signal: fires on every class-skill tier pick (see the CLASS branch
+# of apply_element_upgrade()). Distinct from skill_unlocked, which the HUD
+# routes to the basic-line label -- the class line gets its own top-left row.
+signal class_skill_changed(skill: SkillData)
 signal died
 signal item_collected(item: ItemData)
 # Fires whenever a weapon/armor/accessory slot's contents change (equip or
@@ -534,9 +538,10 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 		# Deliberately NOT emitting the player's own skill_unlocked signal --
 		# HUD routes that to the basic-line label (its elemental filter only
 		# knows the 3 element arrays), so a class skill would wrongly
-		# overwrite the basic skill display. SignalBus alone covers the
-		# audio cue.
+		# overwrite the basic skill display. SignalBus covers the audio cue;
+		# class_skill_changed drives the class line's own top-left HUD row.
 		SignalBus.skill_unlocked.emit(_current_class_skill)
+		class_skill_changed.emit(_current_class_skill)
 		return
 	if upgrade.element == UpgradeResource.ElementType.PHYSICAL:
 		physical_level += 1

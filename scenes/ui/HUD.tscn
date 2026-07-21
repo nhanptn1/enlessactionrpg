@@ -124,6 +124,11 @@ category = "accessory"
 layout_mode = 2
 theme_override_constants/separation = 4
 
+[node name="ClassSkillRow" type="HBoxContainer" parent="Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+visible = false
+
 [node name="BossHPBarContainer" type="MarginContainer" parent="Margin/VBox"]
 layout_mode = 2
 theme_override_constants/margin_left = 8
