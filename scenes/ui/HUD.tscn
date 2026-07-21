@@ -1,10 +1,34 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/radial_cooldown.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/ui/heart_hp_display.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/ui/book_icon.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/ui/equip_slot_icon.gd" id="5"]
+
+[sub_resource type="StyleBoxFlat" id="DashStyle"]
+bg_color = Color(0.16, 0.5, 0.62, 0.92)
+corner_radius_top_left = 34
+corner_radius_top_right = 34
+corner_radius_bottom_right = 34
+corner_radius_bottom_left = 34
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.6, 0.88, 0.98, 0.85)
+
+[sub_resource type="StyleBoxFlat" id="UltStyle"]
+bg_color = Color(0.58, 0.42, 0.1, 0.92)
+corner_radius_top_left = 34
+corner_radius_top_right = 34
+corner_radius_bottom_right = 34
+corner_radius_bottom_left = 34
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.85, 0.4, 0.9)
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1")
@@ -158,27 +182,74 @@ horizontal_alignment = 1
 mouse_filter = 2
 text = "Skills"
 
-[node name="DashButton" type="Button" parent="."]
+[node name="ActionButtons" type="VBoxContainer" parent="."]
 anchor_left = 1.0
 anchor_right = 1.0
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = -72.0
-offset_top = -234.0
-offset_right = -16.0
-offset_bottom = -178.0
-theme_override_font_sizes/font_size = 24
+offset_left = -100.0
+offset_top = -320.0
+offset_right = -12.0
+offset_bottom = -84.0
+grow_horizontal = 0
+grow_vertical = 0
+alignment = 2
+theme_override_constants/separation = 16
+
+[node name="UltimateCell" type="VBoxContainer" parent="ActionButtons"]
+layout_mode = 2
+visible = false
+theme_override_constants/separation = 2
+
+[node name="UltimateButton" type="Button" parent="ActionButtons/UltimateCell"]
+custom_minimum_size = Vector2(68, 68)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_styles/normal = SubResource("UltStyle")
+theme_override_styles/hover = SubResource("UltStyle")
+theme_override_styles/pressed = SubResource("UltStyle")
+theme_override_styles/disabled = SubResource("UltStyle")
+theme_override_styles/focus = SubResource("UltStyle")
+
+[node name="Icon" type="TextureRect" parent="ActionButtons/UltimateCell/UltimateButton"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = -12.0
+mouse_filter = 2
+stretch_mode = 5
+expand_mode = 1
+
+[node name="UltimateCaption" type="Label" parent="ActionButtons/UltimateCell"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+theme_override_font_sizes/font_size = 15
+theme_override_constants/outline_size = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+horizontal_alignment = 1
+mouse_filter = 2
+text = "Ult (Q)"
+
+[node name="DashCell" type="VBoxContainer" parent="ActionButtons"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="DashButton" type="Button" parent="ActionButtons/DashCell"]
+custom_minimum_size = Vector2(68, 68)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("DashStyle")
+theme_override_styles/hover = SubResource("DashStyle")
+theme_override_styles/pressed = SubResource("DashStyle")
+theme_override_styles/disabled = SubResource("DashStyle")
+theme_override_styles/focus = SubResource("DashStyle")
 text = ">>"
 
-[node name="DashCaption" type="Label" parent="."]
-anchor_left = 1.0
-anchor_right = 1.0
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = -76.0
-offset_top = -176.0
-offset_right = -12.0
-offset_bottom = -154.0
+[node name="DashCaption" type="Label" parent="ActionButtons/DashCell"]
+layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 14
 theme_override_constants/outline_size = 2
@@ -186,46 +257,6 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 horizontal_alignment = 1
 mouse_filter = 2
 text = "Dash"
-
-[node name="UltimateButton" type="Button" parent="."]
-anchor_left = 1.0
-anchor_right = 1.0
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = -72.0
-offset_top = -150.0
-offset_right = -16.0
-offset_bottom = -94.0
-visible = false
-
-[node name="Icon" type="TextureRect" parent="UltimateButton"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 6.0
-offset_top = 6.0
-offset_right = -6.0
-offset_bottom = -6.0
-mouse_filter = 2
-stretch_mode = 5
-expand_mode = 1
-
-[node name="UltimateCaption" type="Label" parent="."]
-anchor_left = 1.0
-anchor_right = 1.0
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = -76.0
-offset_top = -92.0
-offset_right = -12.0
-offset_bottom = -68.0
-theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
-theme_override_font_sizes/font_size = 16
-theme_override_constants/outline_size = 2
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-horizontal_alignment = 1
-mouse_filter = 2
-visible = false
-text = "Ult (Q)"
 
 [node name="HeartHP" type="Control" parent="."]
 anchor_top = 1.0

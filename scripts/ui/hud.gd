@@ -17,10 +17,10 @@ const ELEMENT_BBCODE_COLORS := {
 }
 
 @onready var element_cycle_label: RichTextLabel = $ElementCycleLabel
-@onready var dash_button: Button = $DashButton
-@onready var ultimate_button: Button = $UltimateButton
-@onready var ultimate_button_icon: TextureRect = $UltimateButton/Icon
-@onready var ultimate_caption: Label = $UltimateCaption
+@onready var dash_button: Button = $ActionButtons/DashCell/DashButton
+@onready var ultimate_cell: VBoxContainer = $ActionButtons/UltimateCell
+@onready var ultimate_button: Button = $ActionButtons/UltimateCell/UltimateButton
+@onready var ultimate_button_icon: TextureRect = $ActionButtons/UltimateCell/UltimateButton/Icon
 @onready var skill_label: Label = $Margin/VBox/SkillRow/SkillLabel
 @onready var skill_icon: TextureRect = $Margin/VBox/SkillRow/SkillIconStack/Icon
 @onready var skill_cooldown: RadialCooldown = $Margin/VBox/SkillRow/SkillIconStack/SkillCooldown
@@ -132,8 +132,10 @@ func _process(_delta: float) -> void:
 	dash_button.modulate = Color(1, 1, 1, 1) if dash_ready else Color(0.6, 0.6, 0.6, 0.75)
 	var ult_unlocked: bool = _player.is_ultimate_unlocked()
 	ultimate_label.visible = ult_unlocked
-	ultimate_button.visible = ult_unlocked
-	ultimate_caption.visible = ult_unlocked
+	# Toggle the whole cell (button + its caption) as one unit -- the
+	# VBoxContainer packs the dash cell to the bottom either way, so the dash
+	# button never shifts when the ultimate appears/disappears.
+	ultimate_cell.visible = ult_unlocked
 	if ult_unlocked:
 		var ready: bool = _player.can_use_ultimate()
 		if ready:
