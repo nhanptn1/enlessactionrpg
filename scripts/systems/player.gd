@@ -655,6 +655,10 @@ func get_current_physical_skill() -> SkillData:
 	return _current_skill
 
 
+func get_current_class_skill() -> SkillData:
+	return _current_class_skill
+
+
 func get_current_skill_for_element(element: int) -> SkillData:
 	return _current_skill_for_element(element)
 

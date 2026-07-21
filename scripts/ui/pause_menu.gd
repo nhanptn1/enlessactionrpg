@@ -11,6 +11,7 @@ const ELEMENT_NAMES := {
 }
 const PHYSICAL_TIER_MAX := 6  # Trap Shot's capstone split into 3 progressive tiers -- see wave_upgrade_popup.gd::_max_tier_for()
 const ELEMENT_TIER_MAX := 5  # (2026-07-17) grew by 1 for the tier-5 capstone passive, see wave_upgrade_popup.gd::_max_tier_for()
+const CLASS_TIER_MAX := 3  # per-class active skill line, see CharacterClasses.CLASSES "skills"
 const ROW_NAME_FONT_SIZE := 26
 const ROW_STAT_FONT_SIZE := 20
 const ROW_ICON_SIZE := 42
@@ -228,6 +229,7 @@ func _build_skill_rows() -> void:
 	skill_rows_container.add_child(_build_physical_row(player))
 	for element in [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING]:
 		skill_rows_container.add_child(_build_element_row(player, element))
+	skill_rows_container.add_child(_build_class_row(player))
 
 
 func _build_physical_row(player: Node) -> Control:
@@ -241,6 +243,16 @@ func _build_element_row(player: Node, element: int) -> Control:
 	var skill: SkillData = player.get_current_skill_for_element(element) if tier > 0 else null
 	var is_active: bool = tier > 0 and player.active_element == element
 	return _build_row(ELEMENT_NAMES[element], skill, tier, ELEMENT_TIER_MAX, element, tier > 0, is_active)
+
+
+func _build_class_row(player: Node) -> Control:
+	# The per-class active skill line -- labeled by the player's class name
+	# (e.g. "Sniper: Railshot") rather than a fixed element name. Never shows
+	# "(Active)" since the class skill always auto-fires; there's no toggle.
+	var tier: int = player.class_skill_level
+	var skill: SkillData = player.get_current_class_skill() if tier > 0 else null
+	var class_name_str: String = CharacterClasses.CLASSES.get(player.active_class_id, {}).get("display_name", "Class")
+	return _build_row(class_name_str, skill, tier, CLASS_TIER_MAX, UpgradeResource.ElementType.CLASS, tier > 0, false)
 
 
 func _build_row(line_name: String, skill: SkillData, tier: int, tier_max: int, icon_element: int, unlocked: bool, is_active: bool) -> Control:
@@ -289,6 +301,11 @@ func _format_skill_stats(skill: SkillData) -> String:
 			return "Damage %d  •  Cooldown %ss  •  %d zones" % [dmg, cd, skill.rain_arrow_count]
 		SkillData.FireMode.TRAP_SHOT:
 			return "Damage %d  •  Cooldown %ss  •  Lasts %.1fs" % [dmg, cd, skill.trap_duration]
+		SkillData.FireMode.SELF_BURST:
+			var s := "Damage %d  •  Cooldown %ss  •  Radius %d" % [dmg, cd, roundi(skill.trap_radius)]
+			if skill.heal_on_cast > 0.0:
+				s += "  •  Heals %d" % roundi(skill.heal_on_cast)
+			return s
 	var parts := "Damage %d  •  Cooldown %ss" % [dmg, cd]
 	if skill.pierce_count > 0:
 		parts += "  •  Pierce %d" % skill.pierce_count
