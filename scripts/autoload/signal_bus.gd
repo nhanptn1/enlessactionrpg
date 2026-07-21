@@ -14,6 +14,7 @@ signal wave_cleared(wave_number: int, was_boss: bool)
 signal level_up(level: int)
 signal skill_unlocked(skill: SkillData)
 signal player_died
+signal player_dashed
 signal game_paused(source: String)
 signal game_unpaused(source: String)
 signal boss_phase_changed(phase: int)

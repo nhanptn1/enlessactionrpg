@@ -53,6 +53,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_elite_tint_restores_own_color()
 	await _assert_dead_enemy_not_targeted()
 	_assert_player_movement_clamping()
+	await _assert_dash_dodge()
 	_assert_trap_zone_activation()
 	await _assert_stats_panel_renders()
 	await _assert_elemental_homing_never_misses()
@@ -271,6 +272,51 @@ func _assert_player_movement_clamping() -> void:
 	assert(player.global_position.x == 60.0, "Player min bounds clamp failed: %f" % player.global_position.x)
 	
 	player.queue_free()
+
+
+func _assert_dash_dodge() -> void:
+	# (2026-07-21) Next-phase kickoff: player dash/dodge. Real Player.tscn
+	# instance, real await get_tree().physics_frame ticks -- NOT manual
+	# _physics_process() calls, which this session already found gives
+	# unreliable move_and_slide() displacement (the engine "catches up" a
+	# much larger delta than intended on the first real tick after a tight
+	# synchronous loop with no yielding). Awaits after queue_free() (see
+	# bottom) since every Main.tscn-loading test after this one calls
+	# get_first_node_in_group("player"), and a leaked not-yet-freed instance
+	# left in that group is exactly the recurring contamination bug this
+	# project has hit before (entry 53's note on missing double-frame awaits).
+	var player_scene = load("res://scenes/player/Player.tscn")
+	var player = player_scene.instantiate()
+	add_child(player)
+	player.global_position = Vector2(300.0, 1150.0)
+	await get_tree().physics_frame
+
+	var start_x: float = player.global_position.x
+	var hp_before: float = player.current_hp
+	player._last_move_dir = 1.0
+	player._start_dash()
+	assert(player._is_dashing and player._is_invulnerable, "_start_dash() should set both dashing and invulnerable")
+
+	player.take_damage(5.0)
+	assert(player.current_hp == hp_before, "no damage should land while invulnerable during a dash")
+
+	var ticks := 0
+	while player._is_dashing and ticks < 60:
+		await get_tree().physics_frame
+		ticks += 1
+	assert(not player._is_dashing and not player._is_invulnerable, "dash should end and clear invulnerability on its own")
+
+	var dist: float = player.global_position.x - start_x
+	assert(dist > 100.0 and dist < 200.0, "dash should cover roughly DASH_SPEED*DASH_DURATION, got %s" % dist)
+
+	player.take_damage(3.0)
+	assert(player.current_hp == hp_before - 3.0, "damage should apply normally again once the dash ends")
+
+	assert(player._dash_cooldown_remaining > 0.0, "cooldown should still be active immediately after a dash, blocking spam")
+
+	player.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 func _assert_trap_zone_activation() -> void:

@@ -21,6 +21,18 @@ const RECOIL_SCALE_PUNCH := 1.08  # extra scale-up on top of the pull-back, scal
 const MOVEMENT_SPEED := 400.0
 const MIN_X := 60.0
 const MAX_X := 660.0
+# (2026-07-21) Dash/dodge: a quick burst covering ~162px (900 * 0.18) --
+# comfortably clears every boss zone-attack radius in the game (Throw Rock 34,
+# Arrow Rain 42, Leap Smash 60) in one dash. Player is fully invulnerable for
+# the dash's own duration (see _is_invulnerable in take_damage()), so it reads
+# as a real dodge through danger, not just a fast reposition. Explicitly
+# floated in plan/gameplay-character-plan.txt ("optional dash or dodge can be
+# added later") and considered but not picked for Phase 3; picked as the
+# start of the next phase per direct user choice.
+const DASH_SPEED := 900.0
+const DASH_DURATION := 0.18
+const DASH_COOLDOWN := 1.8
+const DASH_ALPHA_DIP := 0.4  # visual-only cue that i-frames are active, no new art needed
 # (2026-07-16) 15.0->8.0 -- user playtest feedback: the multishot fan spread
 # too wide, especially once "+1 Arrow" stacked the shot count up (each extra
 # arrow added another full 15-degree step with no cap on the total spread).
@@ -136,6 +148,13 @@ var _sprite_base_position: Vector2
 var _sprite_base_scale: Vector2
 var _idle_tween: Tween
 var _recoil_tween: Tween
+var _dash_tween: Tween
+var _is_dashing := false
+var _is_invulnerable := false
+var _dash_time_remaining := 0.0
+var _dash_cooldown_remaining := 0.0
+var _last_move_dir := 1.0  # dash direction when stationary -- defaults facing right
+var _dash_key_was_down := false  # manual edge-detection, matching this file's raw is_key_pressed() polling convention rather than a new Input Map action
 
 signal hp_changed(current: float, max_hp: float)
 signal xp_changed(current: int, needed: int)
@@ -221,27 +240,72 @@ func _apply_run_modifier() -> void:
 func _physics_process(delta: float) -> void:
 	if is_dead or GameManager.state in [GameManager.State.LEVEL_UP, GameManager.State.WAVE_UPGRADE, GameManager.State.PAUSED, GameManager.State.GAME_OVER]:
 		return
-	
+
+	if _dash_cooldown_remaining > 0.0:
+		_dash_cooldown_remaining = maxf(_dash_cooldown_remaining - delta, 0.0)
+
+	if _is_dashing:
+		# Dash owns velocity.x for its whole duration -- normal movement input
+		# is ignored until it ends, so a dash always covers its full distance
+		# instead of being cut short by whatever direction is still held.
+		_dash_time_remaining -= delta
+		if _dash_time_remaining <= 0.0:
+			_end_dash()
+		velocity.y = 0.0
+		move_and_slide()
+		global_position.x = clampf(global_position.x, MIN_X, MAX_X)
+		return
+
 	var move_dir := 0.0
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
 		move_dir -= 1.0
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
 		move_dir += 1.0
-		
+
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		var mouse_pos := get_global_mouse_position()
 		var diff := mouse_pos.x - global_position.x
 		if abs(diff) > 5.0:
 			move_dir = sign(diff)
-			
+
 	if move_dir != 0.0:
 		velocity.x = move_dir * MOVEMENT_SPEED
+		_last_move_dir = move_dir
 	else:
 		velocity.x = 0.0
-		
+
+	var dash_key_down := Input.is_key_pressed(KEY_SPACE)
+	if dash_key_down and not _dash_key_was_down and _dash_cooldown_remaining <= 0.0:
+		_start_dash()
+	_dash_key_was_down = dash_key_down
+
 	velocity.y = 0.0
 	move_and_slide()
 	global_position.x = clampf(global_position.x, MIN_X, MAX_X)
+
+
+func _start_dash() -> void:
+	_is_dashing = true
+	_is_invulnerable = true
+	_dash_time_remaining = DASH_DURATION
+	_dash_cooldown_remaining = DASH_COOLDOWN
+	velocity.x = _last_move_dir * DASH_SPEED
+	_play_dash_visual()
+	SignalBus.player_dashed.emit()
+
+
+func _end_dash() -> void:
+	_is_dashing = false
+	_is_invulnerable = false
+
+
+func _play_dash_visual() -> void:
+	if _dash_tween:
+		_dash_tween.kill()
+	sprite.modulate.a = 1.0
+	_dash_tween = create_tween()
+	_dash_tween.tween_property(sprite, "modulate:a", DASH_ALPHA_DIP, DASH_DURATION * 0.4)
+	_dash_tween.tween_property(sprite, "modulate:a", 1.0, DASH_DURATION * 0.6)
 
 
 func xp_to_next_level() -> int:
@@ -790,6 +854,8 @@ func _on_animation_finished() -> void:
 
 
 func take_damage(amount: float) -> void:
+	if _is_invulnerable:
+		return
 	current_hp = maxf(current_hp - amount, 0.0)
 	hp_changed.emit(current_hp, max_hp)
 	SignalBus.player_damaged.emit(amount)
