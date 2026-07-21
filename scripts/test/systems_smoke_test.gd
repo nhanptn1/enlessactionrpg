@@ -16,6 +16,18 @@ func _find_upgrade(popup: WaveUpgradePopup, element: int, tier: int) -> UpgradeR
 	return null
 
 
+func _dismiss_class_select(main: Node) -> void:
+	# (2026-07-21) Every Main.tscn boot now opens the run-start class picker,
+	# which pauses the whole tree until a class is chosen -- and the pause
+	# source lives on the GameManager AUTOLOAD, so a test that frees Main
+	# without dismissing it would leave the tree paused for every test after
+	# it. Ranger is the explicit no-stat-change baseline, so picking it keeps
+	# all existing numeric assertions exactly as they were.
+	var popup = main.get_node_or_null("ClassSelectPopup")
+	if popup != null:
+		popup.select_class("ranger")
+
+
 func _ready() -> void:
 	_assert_autoloads()
 	_assert_skill_resources()
@@ -64,6 +76,8 @@ func _assert_save_roundtrip() -> void:
 	await _assert_run_modifiers()
 	await _assert_review_fixes()
 	await _assert_boss_affinities_and_events()
+	await _assert_character_classes()
+	await _assert_class_skill_trees()
 
 
 func _assert_meta_progression() -> void:
@@ -512,6 +526,7 @@ func _assert_maxed_element_still_offers_repeatable_cards() -> void:
 	add_child(main)
 	await get_tree().process_frame
 	await get_tree().process_frame
+	_dismiss_class_select(main)
 
 	var player: Player = get_tree().get_first_node_in_group("player")
 	var popup: WaveUpgradePopup = get_tree().get_first_node_in_group("wave_upgrade_popup")
@@ -591,6 +606,7 @@ func _assert_elemental_capstones() -> void:
 	add_child(main)
 	await get_tree().process_frame
 	await get_tree().process_frame
+	_dismiss_class_select(main)
 
 	var player: Player = get_tree().get_first_node_in_group("player")
 	var popup: WaveUpgradePopup = get_tree().get_first_node_in_group("wave_upgrade_popup")
@@ -838,5 +854,142 @@ func _assert_boss_affinities_and_events() -> void:
 	player.queue_free()
 	wm.queue_free()
 	spawner.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_character_classes() -> void:
+	# (2026-07-21) Phase 4, final pillar: character classes. Direct stat math
+	# on standalone players first, then the real run-start popup flow on a
+	# live Main.tscn (paused at boot, pick unpauses and applies).
+	var player_scene: PackedScene = load("res://scenes/player/Player.tscn")
+
+	# SaveManager meta bonuses would shift the baselines -- zero the relevant
+	# ranks so the multiplier math below is exact.
+	var saved_ranks: Dictionary = SaveManager.meta_upgrades.duplicate()
+	for key in SaveManager.meta_upgrades:
+		SaveManager.meta_upgrades[key] = 0
+
+	var sniper: Player = player_scene.instantiate()
+	add_child(sniper)
+	sniper.active_run_modifier_id = ""
+	var crit_before: float = sniper.crit_chance
+	var hp_before: float = sniper.max_hp
+	var proj_before: float = sniper.projectile_speed_mult
+	sniper.apply_class("sniper")
+	assert(sniper.active_class_id == "sniper")
+	assert(is_equal_approx(sniper.crit_chance, crit_before + 0.15), "sniper should add crit chance")
+	assert(is_equal_approx(sniper.max_hp, hp_before * 0.85), "sniper should trade max HP away")
+	assert(is_equal_approx(sniper.projectile_speed_mult, proj_before * 1.15), "sniper should speed up projectiles")
+	sniper.queue_free()
+
+	var elementalist: Player = player_scene.instantiate()
+	add_child(elementalist)
+	var fire_before: float = elementalist.fire_skill_dmg_mult
+	var dmg_before: float = elementalist.damage_mult
+	elementalist.apply_class("elementalist")
+	assert(is_equal_approx(elementalist.fire_skill_dmg_mult, fire_before * 1.25), "elementalist should boost elemental damage")
+	assert(is_equal_approx(elementalist.frost_skill_dmg_mult, 1.25) and is_equal_approx(elementalist.lightning_skill_dmg_mult, 1.25), "all 3 elements should get the boost")
+	assert(is_equal_approx(elementalist.damage_mult, dmg_before * 0.85), "elementalist should trade physical damage away")
+	elementalist.queue_free()
+
+	var ranger: Player = player_scene.instantiate()
+	add_child(ranger)
+	var r_hp: float = ranger.max_hp
+	var r_dmg: float = ranger.damage_mult
+	var r_crit: float = ranger.crit_chance
+	ranger.apply_class("ranger")
+	assert(ranger.max_hp == r_hp and ranger.damage_mult == r_dmg and ranger.crit_chance == r_crit, "ranger must be a true stat no-op")
+	ranger.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	# Real popup flow on a live Main.tscn.
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert(get_tree().paused, "the run-start class picker should hold the game paused")
+	var popup = main.get_node("ClassSelectPopup")
+	assert(popup.panel.visible, "class picker should be visible at run start")
+	var live_player: Player = get_tree().get_first_node_in_group("player")
+	var live_hp: float = live_player.max_hp
+	popup.select_class("juggernaut")
+	assert(not get_tree().paused, "picking a class should unpause the run")
+	assert(not popup.panel.visible, "picker should hide after the pick")
+	assert(is_equal_approx(live_player.max_hp, live_hp * 1.4), "juggernaut pick should apply through the real popup path")
+	main.queue_free()
+
+	SaveManager.meta_upgrades = saved_ranks
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_class_skill_trees() -> void:
+	# (2026-07-21) Per-class ACTIVE skill trees: a 4th auto-firing attack
+	# line, 3 tiers, class-gated cards through the real wave-clear pool.
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var class_popup = main.get_node("ClassSelectPopup")
+	class_popup.select_class("sniper")
+
+	var player: Player = get_tree().get_first_node_in_group("player")
+	var popup: WaveUpgradePopup = get_tree().get_first_node_in_group("wave_upgrade_popup")
+
+	# Class gating: only the player's own class's card is ever offered.
+	for _i in 20:
+		var offer := popup._get_offerable_upgrades(UpgradeResource.ElementType.CLASS)
+		assert(offer.size() == 1, "class tree should offer exactly 1 card, got %d" % offer.size())
+		assert(offer[0].id == "class_sniper_t1", "a sniper must only ever see sniper class cards, got %s" % offer[0].id)
+
+	# Tier climb through the real apply path.
+	player.apply_element_upgrade(load("res://resources/upgrades/class_sniper_t1.tres"))
+	assert(player.class_skill_level == 1 and player._current_class_skill.id == "class_power_shot")
+	assert(not player.class_skill_timer.is_stopped(), "class skill timer should start on the tier-1 pick")
+	player.apply_element_upgrade(load("res://resources/upgrades/class_sniper_t2.tres"))
+	player.apply_element_upgrade(load("res://resources/upgrades/class_sniper_t3.tres"))
+	assert(player.class_skill_level == 3 and player._current_class_skill.id == "class_railshot", "tier picks should swap the class skill wholesale")
+	assert(popup._get_offerable_upgrades(UpgradeResource.ElementType.CLASS).is_empty(), "a maxed class tree (no repeatables) should offer nothing")
+
+	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	# Juggernaut's SELF_BURST mechanics on a standalone player: pulse damages
+	# what's in range, Second Wind heals, and it refuses to fire (no heal)
+	# with nothing in range.
+	var player_scene: PackedScene = load("res://scenes/player/Player.tscn")
+	var jugg: Player = player_scene.instantiate()
+	add_child(jugg)
+	jugg.apply_class("juggernaut")
+	jugg.apply_element_upgrade(load("res://resources/upgrades/class_juggernaut_t1.tres"))
+	jugg.apply_element_upgrade(load("res://resources/upgrades/class_juggernaut_t2.tres"))
+	jugg.apply_element_upgrade(load("res://resources/upgrades/class_juggernaut_t3.tres"))
+	assert(jugg._current_class_skill.id == "class_second_wind")
+
+	var slime: EnemyData = load("res://resources/enemies/slime_scout.tres")
+	var enemy: EnemyBase = slime.scene.instantiate()
+	enemy.setup(slime, 100.0)
+	add_child(enemy)
+	enemy.activate()
+	jugg.global_position = Vector2(300, 1000)
+	enemy.global_position = jugg.global_position + Vector2(0, -100)  # inside the 170px pulse radius
+
+	jugg.take_damage(2.0)
+	var hp_after_hit: float = jugg.current_hp
+	var enemy_hp: float = enemy.current_hp
+	assert(jugg._fire_self_burst(jugg._current_class_skill), "pulse should fire with an enemy in range")
+	assert(enemy.current_hp < enemy_hp, "pulse should damage enemies in range")
+	assert(is_equal_approx(jugg.current_hp, hp_after_hit + 1.0), "Second Wind should heal 1 HP per successful cast")
+
+	enemy.global_position = jugg.global_position + Vector2(0, -2000)  # far outside
+	var hp_before_idle: float = jugg.current_hp
+	assert(not jugg._fire_self_burst(jugg._current_class_skill), "pulse must refuse to fire with nothing in range")
+	assert(jugg.current_hp == hp_before_idle, "no free Second Wind healing while idle")
+
+	enemy.queue_free()
+	jugg.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame

@@ -81,6 +81,7 @@ const UPGRADE_POOL: Array[String] = [
 @onready var fire_skill_timer: Timer = $FireSkillTimer
 @onready var frost_skill_timer: Timer = $FrostSkillTimer
 @onready var lightning_skill_timer: Timer = $LightningSkillTimer
+@onready var class_skill_timer: Timer = $ClassSkillTimer  # the class skill line's own auto-fire loop, mirroring the elemental timers
 
 @export var basic_shot: SkillData
 @export var multishot: SkillData
@@ -109,6 +110,8 @@ var projectile_speed_mult := 1.0
 var crit_chance := 0.0
 var xp_gain_mult := 1.0
 var active_run_modifier_id: String = ""  # set once in _apply_run_modifier() -- see RunModifiers.MODIFIERS
+var active_class_id: String = "ranger"  # set once by ClassSelectPopup at run start via apply_class() -- see CharacterClasses.CLASSES
+var class_skill_level := 0  # class skill tree tier reached (0-3) -- see apply_element_upgrade()'s CLASS branch
 var fire_level := 0  # highest tier reached (0-3), not a pick count
 var lightning_level := 0
 var frost_level := 0
@@ -159,6 +162,7 @@ var physical_trap_detonate_mult := 0.0  # 0 = off; accumulates across tiers 4-6 
 
 var is_dead := false
 var _current_skill: SkillData  # the single active attack; upgrades wholesale at fixed levels
+var _current_class_skill: SkillData  # null until class_skill_level >= 1; the active class-line skill
 var _current_fire_skill: SkillData  # null until fire_level >= 1; see _update_elemental_skill()
 var _current_frost_skill: SkillData
 var _current_lightning_skill: SkillData
@@ -223,6 +227,7 @@ func _ready() -> void:
 	fire_skill_timer.timeout.connect(_on_fire_skill_timeout)
 	frost_skill_timer.timeout.connect(_on_frost_skill_timeout)
 	lightning_skill_timer.timeout.connect(_on_lightning_skill_timeout)
+	class_skill_timer.timeout.connect(_on_class_skill_timeout)
 	sprite.animation_finished.connect(_on_animation_finished)
 	SignalBus.enemy_died.connect(_on_enemy_died_charge_ultimate)
 	_sprite_base_position = sprite.position
@@ -257,6 +262,31 @@ func _apply_run_modifier() -> void:
 	max_hp *= RunModifiers.get_mult(active_run_modifier_id, "player_max_hp_mult")
 	current_hp = max_hp
 	xp_gain_mult *= RunModifiers.get_mult(active_run_modifier_id, "player_xp_gain_mult")
+
+
+# Called once by ClassSelectPopup after the player picks -- runs AFTER
+# _ready()'s meta/run-modifier application (the popup can't exist before the
+# player does), so class multipliers compose onto that baseline the same way
+# the run modifier composes onto meta bonuses. Ranger's entry has no stat
+# keys, so picking it is a true no-op beyond recording the id.
+func apply_class(class_id: String) -> void:
+	if not CharacterClasses.CLASSES.has(class_id):
+		return
+	active_class_id = class_id
+	crit_chance = clampf(crit_chance + CharacterClasses.get_value(class_id, "crit_chance_bonus", 0.0), 0.0, 1.0)
+	projectile_speed_mult *= CharacterClasses.get_value(class_id, "projectile_speed_mult")
+	damage_mult *= CharacterClasses.get_value(class_id, "physical_dmg_mult")
+	var elemental_mult := CharacterClasses.get_value(class_id, "elemental_dmg_mult")
+	fire_skill_dmg_mult *= elemental_mult
+	frost_skill_dmg_mult *= elemental_mult
+	lightning_skill_dmg_mult *= elemental_mult
+	max_hp *= CharacterClasses.get_value(class_id, "max_hp_mult")
+	current_hp = max_hp
+	hp_changed.emit(current_hp, max_hp)
+	# Class-colored tint on the shared archer art -- the same technique
+	# elites/mutations/affinities already use, per the "tint first, real
+	# per-class sprites later as a pure art pass" decision.
+	sprite.modulate = sprite.modulate * CharacterClasses.get_color(class_id)
 
 
 func _physics_process(delta: float) -> void:
@@ -487,6 +517,27 @@ func apply_upgrade(upgrade_id: String) -> void:
 
 
 func apply_element_upgrade(upgrade: UpgradeResource) -> void:
+	if upgrade.element == UpgradeResource.ElementType.CLASS:
+		# (2026-07-21) Class skill line: a 4th auto-firing attack source,
+		# tiered 1-3, skills defined per class in CharacterClasses.CLASSES
+		# ("skills" array, index = tier - 1). Loaded lazily -- only the
+		# picked class's skills ever load in a run. Mirrors the elemental
+		# lines' tier-swap convention exactly.
+		class_skill_level += 1
+		var skill_paths: Array = CharacterClasses.CLASSES.get(active_class_id, {}).get("skills", [])
+		if class_skill_level <= skill_paths.size():
+			_current_class_skill = load(skill_paths[class_skill_level - 1])
+			_refresh_class_skill_timer()
+			if class_skill_timer.is_stopped():
+				class_skill_timer.start()
+		_apply_upgrade_stats(upgrade)
+		# Deliberately NOT emitting the player's own skill_unlocked signal --
+		# HUD routes that to the basic-line label (its elemental filter only
+		# knows the 3 element arrays), so a class skill would wrongly
+		# overwrite the basic skill display. SignalBus alone covers the
+		# audio cue.
+		SignalBus.skill_unlocked.emit(_current_class_skill)
+		return
 	if upgrade.element == UpgradeResource.ElementType.PHYSICAL:
 		physical_level += 1
 		match physical_level:
@@ -723,6 +774,90 @@ func _fire_elemental_rain(skill: SkillData, dmg_mult: float, status_rolls: Array
 
 func _refresh_timer_cooldowns() -> void:
 	attack_timer.wait_time = _current_skill.cooldown * cooldown_mult
+	_refresh_class_skill_timer()  # class line shares the basic line's cooldown_mult, so a Reduce Cooldown pick reaches it too
+
+
+func _refresh_class_skill_timer() -> void:
+	if _current_class_skill != null:
+		class_skill_timer.wait_time = maxf(_current_class_skill.cooldown * cooldown_mult, 0.05)
+
+
+func _on_class_skill_timeout() -> void:
+	_fire_class_skill(_current_class_skill)
+
+
+func _fire_class_skill(skill: SkillData) -> void:
+	if skill == null:
+		return
+	var no_status: Array[Dictionary] = []
+	match skill.fire_mode:
+		SkillData.FireMode.ARROW_RAIN:
+			if _get_nearest_enemies(1).is_empty():
+				return
+			_fire_area_strike(skill, damage_mult, no_status, AREA_STRIKE_COLOR_BASIC)
+		SkillData.FireMode.SELF_BURST:
+			if not _fire_self_burst(skill):
+				return
+		_:
+			if not _fire_class_projectile(skill):
+				return
+	_stop_idle_bob()
+	_play_recoil(_recoil_intensity_for(skill))
+	if sprite.animation != "attack":
+		sprite.play("attack")
+	SignalBus.player_shot.emit()
+
+
+func _fire_class_projectile(skill: SkillData) -> bool:
+	# Class-line projectiles: pure physical (no status rolls, untyped damage,
+	# so boss affinities never touch them), scaled by damage_mult + crit like
+	# the basic line, center shot homing like the elemental lines.
+	var targets := _get_nearest_enemies(1)
+	if targets.is_empty():
+		return false
+	var pool := get_tree().get_first_node_in_group("projectile_pool")
+	if not is_instance_valid(pool):
+		return false
+	var no_status: Array[Dictionary] = []
+	var proj_speed: float = BASE_PROJECTILE_SPEED * projectile_speed_mult
+	var aim_point := _predict_intercept(attack_origin.global_position, targets[0], proj_speed)
+	var base_dir := (aim_point - attack_origin.global_position).normalized()
+	for i in skill.projectile_count:
+		var dir := base_dir.rotated(_spread_offset(i, skill.projectile_count))
+		var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
+		var proj: Projectile = pool.acquire(skill.projectile_scene)
+		var homing_target: Node2D = targets[0] if i == 0 else null
+		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, no_status, skill.burst_radius, skill.chain_count, skill.visual_scale, skill.burst_vfx_id, homing_target)
+	return true
+
+
+func _fire_self_burst(skill: SkillData) -> bool:
+	# Juggernaut's Shockwave/Quake/Second Wind: an AoE pulse centered on the
+	# PLAYER (trap_radius = pulse radius), not on enemies. Only fires when
+	# something is actually in range -- same no-wasted-cast rule as every
+	# other fire mode -- which doubles as the heal gate: Second Wind can't be
+	# idled for free HP with no enemies near.
+	var radius: float = skill.trap_radius
+	var in_range: Array = []
+	for enemy in get_tree().get_nodes_in_group("enemy"):
+		if not is_instance_valid(enemy) or not enemy.has_method("take_damage"):
+			continue
+		if enemy.global_position.distance_to(global_position) <= radius:
+			in_range.append(enemy)
+	if in_range.is_empty():
+		return false
+	if skill.burst_vfx_id == "quake":
+		ImpactVFX.ground_spikes(global_position, radius, self)
+	else:
+		ImpactVFX.ground_shockwave(global_position, radius, self)
+	var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
+	for enemy in in_range:
+		enemy.take_damage(dmg)
+	if skill.heal_on_cast > 0.0 and current_hp < max_hp:
+		current_hp = minf(current_hp + skill.heal_on_cast, max_hp)
+		hp_changed.emit(current_hp, max_hp)
+		SignalBus.player_healed.emit(skill.heal_on_cast)
+	return true
 
 
 func _on_attack_timeout() -> void:

@@ -98,3 +98,5 @@ autostart = true
 [node name="FrostSkillTimer" type="Timer" parent="."]
 
 [node name="LightningSkillTimer" type="Timer" parent="."]
+
+[node name="ClassSkillTimer" type="Timer" parent="."]

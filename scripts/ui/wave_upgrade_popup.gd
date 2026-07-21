@@ -13,6 +13,9 @@ const CARD_FRAME_PATHS := {
 	# extraction -- green was open hue space (Fire=red/orange, Frost=blue,
 	# Lightning=purple/gold) and fits the archer's forest-ranger theme.
 	UpgradeResource.ElementType.PHYSICAL: "res://art/ui/card_frame_physical.png",
+	# Class-skill cards reuse the physical frame -- class skills are untyped/
+	# physical damage, and a 5th bespoke frame recolor isn't worth it yet.
+	UpgradeResource.ElementType.CLASS: "res://art/ui/card_frame_physical.png",
 }
 const CARD_TEXTURE_MARGIN := 40.0  # 9-slice margin so corner flourishes don't stretch when the button isn't the source's exact size
 
@@ -62,7 +65,7 @@ func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
 	# a linear chain with no forks, so its "unit" is always exactly 1 card.
 	# It still has no per-skill icon art, so its cards fall back to SkillIcon's
 	# procedural glyph (see skill_icon.gd).
-	var element_order: Array = [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING, UpgradeResource.ElementType.PHYSICAL]
+	var element_order: Array = [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING, UpgradeResource.ElementType.PHYSICAL, UpgradeResource.ElementType.CLASS]
 	element_order.shuffle()
 	_pending_choices.clear()
 	for element in element_order:
@@ -114,8 +117,13 @@ func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Arr
 	var tier_up: Array[UpgradeResource] = []
 	if next_tier <= max_tier:
 		for upgrade in upgrade_pool:
-			if upgrade.element == target_element and upgrade.tier == next_tier:
-				tier_up.append(upgrade)
+			if upgrade.element != target_element or upgrade.tier != next_tier:
+				continue
+			# CLASS-element cards are per-class exclusives -- only the card
+			# matching the player's own picked class is ever offerable.
+			if upgrade.element == UpgradeResource.ElementType.CLASS and upgrade.required_class != player.active_class_id:
+				continue
+			tier_up.append(upgrade)
 	# (2026-07-17) Deliberately NOT gated on current_tier < max_tier -- an
 	# earlier pass cut these off once an element hit max_tier, on the mistaken
 	# assumption they'd become "a genuinely dead choice with nothing left to
@@ -163,6 +171,8 @@ func _current_level_for(element: UpgradeResource.ElementType) -> int:
 			return player.frost_level
 		UpgradeResource.ElementType.PHYSICAL:
 			return player.physical_level
+		UpgradeResource.ElementType.CLASS:
+			return player.class_skill_level
 	return 0
 
 
@@ -182,6 +192,8 @@ func _max_tier_for(element: UpgradeResource.ElementType) -> int:
 	# generic pool (damage/cooldown/etc.), which was never tier-capped.
 	if element == UpgradeResource.ElementType.PHYSICAL:
 		return 6
+	if element == UpgradeResource.ElementType.CLASS:
+		return 3  # (2026-07-21) the per-class active skill line -- see CharacterClasses.CLASSES "skills"
 	return 5
 
 

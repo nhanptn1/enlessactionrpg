@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_explosive_volley.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "class_elementalist_t1"
+element = 4
+icon = ExtResource("2")
+title = "Arcane Bolt"
+description = "Class skill: a raw magic bolt with splash damage, every 3.2s."
+stat_to_modify = ""
+modification_value = 0.0
+tier = 1
+exclusive_group = ""
+required_class = "elementalist"

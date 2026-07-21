@@ -162,7 +162,9 @@ func _core_stat_lines(player: Node) -> Array[String]:
 
 func _run_modifier_stat_lines(player: Node) -> Array[String]:
 	var m: Dictionary = RunModifiers.MODIFIERS.get(player.active_run_modifier_id, {})
-	var lines: Array[String] = [m.get("display_name", "")]
+	var c: Dictionary = CharacterClasses.CLASSES.get(player.active_class_id, {})
+	var lines: Array[String] = ["Class: %s (%s)" % [c.get("display_name", "?"), c.get("description", "")]]
+	lines.append(m.get("display_name", ""))
 	if m.has("description"):
 		lines.append(m["description"])
 	return lines

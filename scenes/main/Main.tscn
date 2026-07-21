@@ -87,6 +87,19 @@
 [ext_resource type="Resource" path="res://resources/upgrades/fire_t5_inferno_heart.tres" id="108"]
 [ext_resource type="Resource" path="res://resources/upgrades/frost_t5_absolute_zero.tres" id="109"]
 [ext_resource type="Resource" path="res://resources/upgrades/lightning_t5_overcharge.tres" id="110"]
+[ext_resource type="PackedScene" path="res://scenes/ui/ClassSelectPopup.tscn" id="111"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_ranger_t1.tres" id="112"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_ranger_t2.tres" id="113"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_ranger_t3.tres" id="114"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_sniper_t1.tres" id="115"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_sniper_t2.tres" id="116"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_sniper_t3.tres" id="117"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_elementalist_t1.tres" id="118"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_elementalist_t2.tres" id="119"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_elementalist_t3.tres" id="120"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_juggernaut_t1.tres" id="121"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_juggernaut_t2.tres" id="122"]
+[ext_resource type="Resource" path="res://resources/upgrades/class_juggernaut_t3.tres" id="123"]
 
 [sub_resource type="Environment" id="Environment1"]
 background_mode = 3
@@ -138,8 +151,10 @@ item_pool = [ExtResource("18"), ExtResource("19"), ExtResource("20"), ExtResourc
 [node name="LevelUpPopup" parent="." instance=ExtResource("9")]
 
 [node name="WaveUpgradePopup" parent="." instance=ExtResource("51")]
-upgrade_pool = [ExtResource("55"), ExtResource("60"), ExtResource("65"), ExtResource("70"), ExtResource("71"), ExtResource("72"), ExtResource("73"), ExtResource("74"), ExtResource("75"), ExtResource("76"), ExtResource("77"), ExtResource("78"), ExtResource("79"), ExtResource("89"), ExtResource("90"), ExtResource("91"), ExtResource("92"), ExtResource("93"), ExtResource("94"), ExtResource("95"), ExtResource("96"), ExtResource("97"), ExtResource("98"), ExtResource("99"), ExtResource("100"), ExtResource("101"), ExtResource("102"), ExtResource("108"), ExtResource("109"), ExtResource("110")]
+upgrade_pool = [ExtResource("55"), ExtResource("60"), ExtResource("65"), ExtResource("70"), ExtResource("71"), ExtResource("72"), ExtResource("73"), ExtResource("74"), ExtResource("75"), ExtResource("76"), ExtResource("77"), ExtResource("78"), ExtResource("79"), ExtResource("89"), ExtResource("90"), ExtResource("91"), ExtResource("92"), ExtResource("93"), ExtResource("94"), ExtResource("95"), ExtResource("96"), ExtResource("97"), ExtResource("98"), ExtResource("99"), ExtResource("100"), ExtResource("101"), ExtResource("102"), ExtResource("108"), ExtResource("109"), ExtResource("110"), ExtResource("112"), ExtResource("113"), ExtResource("114"), ExtResource("115"), ExtResource("116"), ExtResource("117"), ExtResource("118"), ExtResource("119"), ExtResource("120"), ExtResource("121"), ExtResource("122"), ExtResource("123")]
 
 [node name="GameOverScreen" parent="." instance=ExtResource("17")]
 
 [node name="PauseMenu" parent="." instance=ExtResource("46")]
+
+[node name="ClassSelectPopup" parent="." instance=ExtResource("111")]

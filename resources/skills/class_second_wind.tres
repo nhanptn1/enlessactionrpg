@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SkillData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/effects/Projectile.tscn" id="2"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_trap_shot.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+id = "class_second_wind"
+display_name = "Second Wind"
+icon = ExtResource("3")
+base_damage = 14.0
+cooldown = 4.5
+projectile_scene = ExtResource("2")
+pierce_count = 0
+projectile_count = 1
+fire_mode = 3
+trap_radius = 170.0
+burst_vfx_id = "quake"
+heal_on_cast = 1.0

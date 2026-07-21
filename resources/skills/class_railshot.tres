@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SkillData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/skill_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/effects/Projectile.tscn" id="2"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_piercing_arrow.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+id = "class_railshot"
+display_name = "Railshot"
+icon = ExtResource("3")
+base_damage = 45.0
+cooldown = 4.0
+projectile_scene = ExtResource("2")
+pierce_count = 99
+projectile_count = 1
+fire_mode = 0
+visual_scale = 1.7

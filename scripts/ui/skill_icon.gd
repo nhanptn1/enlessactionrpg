@@ -34,6 +34,8 @@ func _draw() -> void:
 			_draw_bolt()
 		3:
 			_draw_arrow()
+		_:
+			_draw_arrow()  # CLASS (4) and anything future: class skills are untyped/physical, the arrow glyph fits
 
 
 func _draw_flame() -> void:

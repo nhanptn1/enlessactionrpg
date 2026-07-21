@@ -63,7 +63,7 @@ func is_paused_by(source: String) -> bool:
 func can_toggle_pause() -> bool:
 	if state == State.GAME_OVER:
 		return false
-	if is_paused_by("level_up") or is_paused_by("wave_upgrade") or is_paused_by("game_over"):
+	if is_paused_by("level_up") or is_paused_by("wave_upgrade") or is_paused_by("game_over") or is_paused_by("class_select"):
 		return false
 	return state in [State.PLAYING, State.BOSS, State.PAUSED]
 

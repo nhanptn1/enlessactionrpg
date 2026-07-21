@@ -78,12 +78,18 @@ func show_all() -> void:
 	if not is_instance_valid(_player):
 		return
 
-	var col_width: float = AREA_WIDTH / COLUMN_ORDER.size()
+	# (2026-07-21) 5th column: the player's own class-skill tree. Only the
+	# active class's column ever shows (its upgrades are class-gated in
+	# _tier_sorted_upgrades below), headed by the class's name/color instead
+	# of a fixed element label.
+	var columns: Array = COLUMN_ORDER.duplicate()
+	columns.append(UpgradeResource.ElementType.CLASS)
+	var col_width: float = AREA_WIDTH / columns.size()
 	custom_minimum_size.x = AREA_WIDTH
 	var max_row_count := 0
 
-	for col_index in COLUMN_ORDER.size():
-		var element: int = COLUMN_ORDER[col_index]
+	for col_index in columns.size():
+		var element: int = columns[col_index]
 		var center_x: float = col_index * col_width + col_width / 2.0
 		var upgrades := _tier_sorted_upgrades(element)
 		max_row_count = maxi(max_row_count, upgrades.size())
@@ -109,17 +115,27 @@ func show_all() -> void:
 func _tier_sorted_upgrades(element: int) -> Array[UpgradeResource]:
 	var result: Array[UpgradeResource] = []
 	for upgrade in _upgrade_pool:
-		if upgrade.element == element and upgrade.tier >= 1:
-			result.append(upgrade)
+		if upgrade.element != element or upgrade.tier < 1:
+			continue
+		# The CLASS column shows only the player's own class's tree.
+		if element == UpgradeResource.ElementType.CLASS and upgrade.required_class != _player.active_class_id:
+			continue
+		result.append(upgrade)
 	result.sort_custom(func(a, b): return a.tier < b.tier)
 	return result
 
 
 func _build_header(element: int, center_x: float) -> void:
 	var label := Label.new()
-	label.text = COLUMN_NAMES[element]
+	if element == UpgradeResource.ElementType.CLASS:
+		var c: Dictionary = CharacterClasses.CLASSES.get(_player.active_class_id, {})
+		label.text = c.get("display_name", "Class")
+		var col: Color = c.get("color", Color.WHITE)
+		label.add_theme_color_override("font_color", Color(col.r, col.g, col.b, 1.0))
+	else:
+		label.text = COLUMN_NAMES[element]
+		label.add_theme_color_override("font_color", COLUMN_COLORS[element])
 	label.add_theme_font_size_override("font_size", 22)
-	label.add_theme_color_override("font_color", COLUMN_COLORS[element])
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.position = Vector2(center_x - 70.0, TOP_PADDING - HEADER_HEIGHT)
 	label.size = Vector2(140.0, HEADER_HEIGHT)
@@ -129,6 +145,8 @@ func _build_header(element: int, center_x: float) -> void:
 func _current_tier_for(element: int) -> int:
 	if element == UpgradeResource.ElementType.PHYSICAL:
 		return _player.get_physical_tier()
+	if element == UpgradeResource.ElementType.CLASS:
+		return _player.class_skill_level
 	return _player.get_element_tier(element)
 
 

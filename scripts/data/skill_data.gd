@@ -1,7 +1,10 @@
 extends Resource
 class_name SkillData
 
-enum FireMode { PROJECTILE, ARROW_RAIN, TRAP_SHOT }
+# SELF_BURST (2026-07-21): class-skill fire mode -- an AoE pulse centered on
+# the PLAYER (Juggernaut's Shockwave/Quake), unlike ARROW_RAIN's zones at
+# enemy positions. Reuses trap_radius as the pulse radius.
+enum FireMode { PROJECTILE, ARROW_RAIN, TRAP_SHOT, SELF_BURST }
 
 @export var id: String
 @export var display_name: String
@@ -21,4 +24,5 @@ enum FireMode { PROJECTILE, ARROW_RAIN, TRAP_SHOT }
 @export var burst_radius: float = 0.0  # 0 = off; on hit, splash damage+status to enemies within this radius (Frozen Burst, Ice Wall Nova, Explosive Volley)
 @export var chain_count: int = 0  # 0 = off; on hit, chain to N additional nearest distinct enemies in sequence (Chain Spark)
 @export var visual_scale: float = 1.0  # multiplies the projectile's Visual node scale (bigger arrow for Explosive Volley)
-@export var burst_vfx_id: String = ""  # "" = element-default burst look; set to pick a dedicated ImpactVFX burst animation (e.g. "ice_burst", "ice_wall_nova") when a skill needs its own art instead of sharing its element's default
+@export var burst_vfx_id: String = ""  # "" = element-default burst look; set to pick a dedicated ImpactVFX burst animation (e.g. "ice_burst", "ice_wall_nova") when a skill needs its own art instead of sharing its element's default; SELF_BURST reads "quake" here for its tier-2+ look
+@export var heal_on_cast: float = 0.0  # 0 = off; HP restored to the player on each successful cast (Juggernaut's Second Wind)
