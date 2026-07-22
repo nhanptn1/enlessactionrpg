@@ -10,6 +10,7 @@ class_name HUD
 @onready var ultimate_label: Label = $Margin/VBox/UltimateLabel
 @onready var element_cycle_diagram: ElementCycleDiagram = $ElementCycleDiagram
 @onready var hint_banner: Button = $HintBanner
+@onready var hint_text_label: Label = $HintBanner/HintText
 @onready var dash_button: Button = $ActionButtons/DashCell/DashButton
 @onready var ultimate_cell: VBoxContainer = $ActionButtons/UltimateCell
 @onready var ultimate_button: Button = $ActionButtons/UltimateCell/UltimateButton
@@ -393,7 +394,7 @@ func _show_next_hint() -> void:
 	_hint_token += 1
 	var my_token := _hint_token
 	var id: String = _hint_queue.pop_front()
-	hint_banner.text = TutorialHints.HINTS[id]
+	hint_text_label.text = TutorialHints.HINTS[id]
 	hint_banner.visible = true
 	# Auto-dismiss after a read window; a tap dismisses early. The token guard
 	# makes a stale timer (fired after a tap already advanced) a no-op.
