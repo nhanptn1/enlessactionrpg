@@ -10,8 +10,8 @@ config_version=5
 
 [application]
 
-config/name="Endless Archer RPG"
-run/main_scene="res://scenes/main/Main.tscn"
+config/name="Arrowfall"
+run/main_scene="res://scenes/ui/TitleScreen.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 
 [autoload]
