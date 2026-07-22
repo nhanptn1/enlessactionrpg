@@ -34,9 +34,12 @@ const DASH_DURATION := 0.18
 const DASH_COOLDOWN := 1.8
 const DASH_ALPHA_DIP := 0.4  # visual-only cue that i-frames are active, no new art needed
 
-# (2026-07-21) Phase 4 pillar 2: late-run ultimate ability. Unlocked the
-# moment the ACTIVE element reaches its tier-5 capstone (read off
-# *_level >= 5, same convention status_effects.gd's capstone checks use);
+# (2026-07-21) Phase 4 pillar 2: late-run ultimate ability. (2026-07-22)
+# Unlocked the moment the ACTIVE element reaches ULTIMATE_UNLOCK_TIER (4, the
+# last active-skill tier -- what players read as "maxed"). Was tier 5 (the
+# capstone) but that was too deep to reach in most runs, so the ultimate felt
+# permanently locked -- user report. Still keyed off the active element's
+# *_level, so switching to a less-invested element re-locks it;
 # charged by kills (any source -- SignalBus.enemy_died is emitted at the
 # single death choke point, so trap/burst/chain/DOT kills all count), then
 # unleashed manually with Q: a screen-wide hit on every enemy in the "enemy"
@@ -45,6 +48,7 @@ const DASH_ALPHA_DIP := 0.4  # visual-only cue that i-frames are active, no new 
 # correct). Each element's ultimate carries its own identity: Fire burns
 # everything, Frost freezes everything, Lightning shocks everything -- the
 # guaranteed status is the real payoff, feeding spreads/combos/capstones.
+const ULTIMATE_UNLOCK_TIER := 4  # active element's tier that unlocks the ultimate (below CAPSTONE_TIER 5 on purpose -- see header)
 const ULTIMATE_KILLS_REQUIRED := 40
 const ULTIMATE_FIRE_DAMAGE := 30.0
 const ULTIMATE_FROST_DAMAGE := 15.0  # lowest raw hit -- a full-screen freeze is already the strongest control effect in the game
@@ -408,14 +412,14 @@ func _play_dash_visual() -> void:
 
 
 func _on_enemy_died_charge_ultimate() -> void:
-	# Charge accrues even before any capstone is reached -- reaching tier 5
-	# with a full bar already waiting is the reward for the long climb, not a
+	# Charge accrues even before the ultimate is unlocked -- reaching the unlock
+	# tier with a full bar already waiting is the reward for the climb, not a
 	# second grind stacked on top of it.
 	ultimate_charge = mini(ultimate_charge + 1, ULTIMATE_KILLS_REQUIRED)
 
 
 func is_ultimate_unlocked() -> bool:
-	return active_element != -1 and get_element_tier(active_element) >= StatusEffects.CAPSTONE_TIER
+	return active_element != -1 and get_element_tier(active_element) >= ULTIMATE_UNLOCK_TIER
 
 
 func can_use_ultimate() -> bool:

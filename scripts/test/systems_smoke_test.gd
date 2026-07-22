@@ -403,21 +403,24 @@ func _assert_ultimate_ability() -> void:
 	var player_scene = load("res://scenes/player/Player.tscn")
 	var player = player_scene.instantiate()
 	add_child(player)
-	for path in [
-		"res://resources/upgrades/fire_t1_searing_shot.tres",
-		"res://resources/upgrades/fire_t2_inferno_growth.tres",
-		"res://resources/upgrades/fire_t3_burning_legacy.tres",
-		"res://resources/upgrades/fire_t4_inferno_mastery.tres",
-		"res://resources/upgrades/fire_t5_inferno_heart.tres",
-	]:
-		player.apply_element_upgrade(load(path))
+	# (2026-07-22) Unlock gate lowered from tier 5 (capstone) to tier 4 -- the
+	# last active-skill tier, what players read as "maxed" -- since tier 5 was
+	# too deep to reach in most runs and the ultimate felt permanently locked.
+	# Check the boundary: locked through tier 3, unlocks exactly at tier 4.
+	player.apply_element_upgrade(load("res://resources/upgrades/fire_t1_searing_shot.tres"))
+	player.apply_element_upgrade(load("res://resources/upgrades/fire_t2_inferno_growth.tres"))
+	player.apply_element_upgrade(load("res://resources/upgrades/fire_t3_burning_legacy.tres"))
+	assert(not player.is_ultimate_unlocked(), "ultimate must stay locked below the unlock tier (tier 3)")
+	player.apply_element_upgrade(load("res://resources/upgrades/fire_t4_inferno_mastery.tres"))
+	assert(player.is_ultimate_unlocked(), "reaching the unlock tier (4) should unlock the ultimate")
+	player.apply_element_upgrade(load("res://resources/upgrades/fire_t5_inferno_heart.tres"))
 	# No projectile_pool here -- stop auto-fire so it can't error mid-test.
 	player.attack_timer.stop()
 	var fire_timer: Timer = player.get_elemental_timer_by_element(UpgradeResource.ElementType.FIRE)
 	if is_instance_valid(fire_timer):
 		fire_timer.stop()
 
-	assert(player.is_ultimate_unlocked(), "fire capstone should unlock the ultimate")
+	assert(player.is_ultimate_unlocked(), "a maxed element should keep the ultimate unlocked")
 	assert(not player.can_use_ultimate(), "uncharged ultimate must not be usable")
 
 	for _i in player.ULTIMATE_KILLS_REQUIRED + 10:

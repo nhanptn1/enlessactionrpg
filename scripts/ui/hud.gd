@@ -167,6 +167,15 @@ func _process(_delta: float) -> void:
 		var icon_texture: Texture2D = skill.icon if skill != null else null
 		if ultimate_button_icon.texture != icon_texture:
 			ultimate_button_icon.texture = icon_texture
+	else:
+		# Locked-state hint: once the player has an element in play, tell them
+		# the ultimate exists and how to unlock it (max that element to
+		# ULTIMATE_UNLOCK_TIER) with a live tier readout -- rather than showing
+		# nothing, which reads as "there is no ultimate".
+		var active_el: int = _player.active_element
+		ultimate_label.visible = active_el != -1
+		if active_el != -1:
+			ultimate_label.text = "Ultimate locked — max your element (tier %d/%d)" % [_player.get_element_tier(active_el), _player.ULTIMATE_UNLOCK_TIER]
 
 
 func _on_ultimate_button_pressed() -> void:
