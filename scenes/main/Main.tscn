@@ -88,6 +88,7 @@
 [ext_resource type="Resource" path="res://resources/upgrades/frost_t5_absolute_zero.tres" id="109"]
 [ext_resource type="Resource" path="res://resources/upgrades/lightning_t5_overcharge.tres" id="110"]
 [ext_resource type="PackedScene" path="res://scenes/ui/ClassSelectPopup.tscn" id="111"]
+[ext_resource type="PackedScene" path="res://scenes/ui/ContinuePopup.tscn" id="124"]
 [ext_resource type="Resource" path="res://resources/upgrades/class_ranger_t1.tres" id="112"]
 [ext_resource type="Resource" path="res://resources/upgrades/class_ranger_t2.tres" id="113"]
 [ext_resource type="Resource" path="res://resources/upgrades/class_ranger_t3.tres" id="114"]
@@ -158,3 +159,5 @@ upgrade_pool = [ExtResource("55"), ExtResource("60"), ExtResource("65"), ExtReso
 [node name="PauseMenu" parent="." instance=ExtResource("46")]
 
 [node name="ClassSelectPopup" parent="." instance=ExtResource("111")]
+
+[node name="ContinuePopup" parent="." instance=ExtResource("124")]

@@ -161,6 +161,14 @@ var lightning_combo_bonus_mult := 0.0
 var physical_trap_detonate_mult := 0.0  # 0 = off; accumulates across tiers 4-6 (Rigged Trap/Volatile Trap/Trap Mastery, +0.3/+0.3/+0.4); trap deals bonus damage (base_damage * this) in a wider blast on a kill or on expiry
 
 var is_dead := false
+# (2026-07-21) Continue/revive: the player can get back up twice per run --
+# the 1st time free, the 2nd time for essence (see ContinuePopup). A 3rd death
+# is the real game over. Reset every run since a restart reloads the scene.
+const MAX_CONTINUES := 2
+const REVIVE_INVULN_TIME := 3.0  # breathing room after a revive so you don't instantly die again
+var continues_used := 0
+var _run_over := false  # guards the final game-over signal against a double fire
+var _revive_invuln := false  # separate from _is_invulnerable (dash) so a dash ending can't clear revive i-frames
 var _current_skill: SkillData  # the single active attack; upgrades wholesale at fixed levels
 var _current_class_skill: SkillData  # null until class_skill_level >= 1; the active class-line skill
 var _current_fire_skill: SkillData  # null until fire_level >= 1; see _update_elemental_skill()
@@ -1131,7 +1139,7 @@ func _on_animation_finished() -> void:
 
 
 func take_damage(amount: float) -> void:
-	if _is_invulnerable:
+	if _is_invulnerable or _revive_invuln:
 		return
 	current_hp = maxf(current_hp - amount, 0.0)
 	hp_changed.emit(current_hp, max_hp)
@@ -1140,24 +1148,84 @@ func take_damage(amount: float) -> void:
 	if is_instance_valid(cam) and cam.has_method("shake"):
 		cam.shake(6.0, 0.18)
 	if current_hp <= 0.0 and not is_dead:
-		is_dead = true
-		died.emit()
-		SignalBus.player_died.emit()
+		_go_down()
 
 
 # (2026-07-16) A loss condition that isn't damage-based -- an advancing boss
 # (Corrupted Forest Guardian) reaching its lose line calls this directly
 # instead of dealing lethal damage, so GameOverScreen (which only listens for
 # the `died` signal) doesn't need its own separate "boss reached the bottom"
-# path.
+# path. Routes through the same continue flow (revive pushes the boss back
+# up off the lose line, see _revive_clear_field()).
 func force_defeat() -> void:
 	if is_dead:
 		return
 	current_hp = 0.0
 	hp_changed.emit(current_hp, max_hp)
+	_go_down()
+
+
+func _go_down() -> void:
+	# HP hit 0. Offer a continue if one's left; otherwise it's the real end.
 	is_dead = true
+	if continues_used < MAX_CONTINUES:
+		SignalBus.player_downed.emit(continues_used)
+	else:
+		_die_final()
+
+
+func _die_final() -> void:
+	if _run_over:
+		return
+	_run_over = true
 	died.emit()
 	SignalBus.player_died.emit()
+
+
+func revive() -> void:
+	# Called by ContinuePopup when the player accepts a continue (the popup has
+	# already charged essence for the paid one). Full HP, a window of
+	# invulnerability, and a cleared field so you don't die again on frame 1.
+	continues_used += 1
+	is_dead = false
+	current_hp = max_hp
+	hp_changed.emit(current_hp, max_hp)
+	_revive_clear_field()
+	_grant_revive_invuln()
+	SignalBus.player_healed.emit(max_hp)
+
+
+func decline_continue() -> void:
+	# Player chose to give up (or couldn't afford the paid continue).
+	_die_final()
+
+
+func _revive_clear_field() -> void:
+	# Regular enemies get sent back to the top so they must fall again; a boss
+	# that had advanced onto the lose line is nudged back to its engage line so
+	# the revive doesn't instantly re-trigger force_defeat(). No kills (avoids
+	# XP/essence-reward spam) -- just breathing room.
+	for enemy in get_tree().get_nodes_in_group("enemy"):
+		if not is_instance_valid(enemy):
+			continue
+		if enemy is BossBase:
+			if enemy.global_position.y > enemy.engage_y:
+				enemy.global_position.y = enemy.engage_y
+		else:
+			enemy.global_position.y = -40.0
+
+
+func _grant_revive_invuln() -> void:
+	_revive_invuln = true
+	var blink := create_tween()
+	blink.set_loops(int(REVIVE_INVULN_TIME / 0.2))
+	blink.tween_property(sprite, "modulate:a", 0.3, 0.1)
+	blink.tween_property(sprite, "modulate:a", 1.0, 0.1)
+	get_tree().create_timer(REVIVE_INVULN_TIME, false).timeout.connect(func():
+		if is_instance_valid(self):
+			_revive_invuln = false
+			sprite.modulate.a = 1.0
+	)
 
 
 func apply_item(item: ItemData) -> void:

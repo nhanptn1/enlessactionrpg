@@ -14,6 +14,11 @@ signal wave_cleared(wave_number: int, was_boss: bool)
 signal level_up(level: int)
 signal skill_unlocked(skill: SkillData)
 signal player_died
+# (2026-07-21) Emitted when the player's HP hits 0 but a continue is still
+# available (see Player.MAX_CONTINUES) -- ContinuePopup offers a revive
+# instead of letting player_died (the final game-over) fire. `continues_used`
+# is how many have already been spent this run (0 = the first, free one).
+signal player_downed(continues_used: int)
 signal player_dashed
 signal player_ultimate_used
 signal game_paused(source: String)

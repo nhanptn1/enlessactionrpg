@@ -78,6 +78,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_boss_affinities_and_events()
 	await _assert_character_classes()
 	await _assert_class_skill_trees()
+	await _assert_continue_revive()
 
 
 func _assert_meta_progression() -> void:
@@ -921,6 +922,61 @@ func _assert_character_classes() -> void:
 	main.queue_free()
 
 	SaveManager.meta_upgrades = saved_ranks
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_continue_revive() -> void:
+	# (2026-07-21) Continue system: 2 revives per run (1 free + 1 paid), then
+	# the real game over. Drives the Player's own death/revive path directly and
+	# captures the SignalBus signals a ContinuePopup / GameOverScreen react to.
+	var downed_events: Array = []
+	var final_deaths: Array = []
+	var on_downed := func(n: int): downed_events.append(n)
+	var on_died := func(): final_deaths.append(true)
+	SignalBus.player_downed.connect(on_downed)
+	SignalBus.player_died.connect(on_died)
+
+	var player_scene: PackedScene = load("res://scenes/player/Player.tscn")
+	var player: Player = player_scene.instantiate()
+	add_child(player)
+	assert(player.continues_used == 0, "a fresh run starts with 0 continues used")
+
+	# 1st death -> offers the free continue, no final death yet.
+	player.take_damage(99999.0)
+	assert(downed_events.size() == 1 and downed_events[0] == 0, "1st death should offer the free (index 0) continue")
+	assert(final_deaths.is_empty(), "no game over while a continue is still available")
+	assert(player.is_dead, "player is down until revived")
+
+	player.revive()
+	assert(not player.is_dead and player.continues_used == 1, "revive clears death + spends a continue")
+	assert(is_equal_approx(player.current_hp, player.max_hp), "revive restores full HP")
+	player._revive_invuln = false  # skip the i-frame window so the next hit lands
+
+	# 2nd death -> offers the paid continue.
+	player.take_damage(99999.0)
+	assert(downed_events.size() == 2 and downed_events[1] == 1, "2nd death should offer the paid (index 1) continue")
+	assert(final_deaths.is_empty(), "still no game over on the 2nd down")
+	player.revive()
+	assert(player.continues_used == 2, "2nd revive brings continues used to the max")
+	player._revive_invuln = false
+
+	# 3rd death -> the real game over (no more continue offers).
+	player.take_damage(99999.0)
+	assert(downed_events.size() == 2, "no 3rd continue offer past the max")
+	assert(final_deaths.size() == 1, "the 3rd death is the real game over (player_died fires)")
+
+	# Essence sink used by the paid continue.
+	var before: int = SaveManager.essence
+	SaveManager.add_essence(100)
+	assert(SaveManager.spend_essence(30), "spend should succeed when affordable")
+	assert(SaveManager.essence == before + 70, "spend should deduct exactly")
+	assert(not SaveManager.spend_essence(999999), "spend should refuse (and not deduct) when unaffordable")
+	assert(SaveManager.essence == before + 70, "a refused spend must not change essence")
+
+	SignalBus.player_downed.disconnect(on_downed)
+	SignalBus.player_died.disconnect(on_died)
+	player.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
 

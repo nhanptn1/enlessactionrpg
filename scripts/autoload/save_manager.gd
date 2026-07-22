@@ -70,6 +70,16 @@ func add_essence(amount: int) -> void:
 	save_to_disk()
 
 
+func spend_essence(amount: int) -> bool:
+	# Generic essence sink (used by the paid continue) -- returns false without
+	# spending if the player can't afford it, so callers can gate a button on it.
+	if amount < 0 or essence < amount:
+		return false
+	essence -= amount
+	save_to_disk()
+	return true
+
+
 func get_meta_rank(id: String) -> int:
 	return meta_upgrades.get(id, 0)
 
