@@ -40,6 +40,17 @@ const SUPERCONDUCTOR_DAMAGE := 25.0
 const SUPERCONDUCTOR_SPLASH_DAMAGE := 15.0
 const SUPERCONDUCTOR_SPLASH_RADIUS := 80.0
 
+# (2026-07-22) Overload: the Fire+Lightning combo, the third pair, only made
+# reachable by the late-game fusion that applies both statuses (before fusions
+# existed there was no way to reliably stack fire+lightning, so this pair had
+# no combo at all). A burning + shocked enemy discharges -- a burst plus a wider
+# splash than Superconductor, fitting a fire/lightning "explosion" read.
+const OVERLOAD_DAMAGE := 30.0
+const OVERLOAD_SPLASH_DAMAGE := 18.0
+const OVERLOAD_SPLASH_RADIUS := 110.0
+const OVERLOAD_SHAKE_INTENSITY := 7.0
+const OVERLOAD_SHAKE_DURATION := 0.2
+
 const SPREAD_RADIUS := 90.0  # Ignite Trail / Ice Wall Nova / Chain Resonance
 const EXPLODE_DAMAGE := 20.0
 const EXPLODE_RADIUS := 90.0  # Explosive Volley
@@ -56,14 +67,34 @@ const LIGHTNING_CAPSTONE_COMBO_MULT := 2.0  # Superconductor only -- Lightning h
 const TINT_PRIORITY := [FROST, LIGHTNING, FIRE]  # first active status in this order wins the tint
 
 
-static func apply(target: Node, element: String, duration: float, allow_spread: bool = true) -> void:
+static func apply(target: Node, element: String, duration: float, allow_spread: bool = true, from_fusion: bool = false) -> void:
 	if not is_instance_valid(target):
 		return
 	target.status[element] = duration
 	_refresh_tint(target)
-	_evaluate_combos(target)
+	_evaluate_combos(target)  # may deal combo damage + _clear_all, possibly freeing target
+	if not is_instance_valid(target):
+		return
 	if allow_spread:
 		_try_spread(target, element, duration)
+		if not is_instance_valid(target):
+			return
+	# (2026-07-22) Elemental fusion: if the player has maxed the two lines of a
+	# fusion involving `element`, their attacks also carry the partner status --
+	# so applying `element` here also applies the partner, which makes the pair's
+	# combo (evaluated in the recursive apply below) fire reliably. `from_fusion`
+	# guards against infinite ping-pong (partner re-triggering the original).
+	if from_fusion:
+		return
+	var player := _get_player(target)
+	if not is_instance_valid(player):
+		return
+	for partner_el in player.get_fusion_partners(element):
+		if not is_instance_valid(target):
+			return
+		if target.status.has(partner_el):
+			continue
+		apply(target, partner_el, duration, false, true)
 
 
 static func tick(target: Node, delta: float) -> void:
@@ -197,11 +228,26 @@ static func _evaluate_combos(target: Node) -> void:
 			if player.lightning_level >= CAPSTONE_TIER:
 				combo_mult *= LIGHTNING_CAPSTONE_COMBO_MULT
 		target.take_damage(SUPERCONDUCTOR_DAMAGE * combo_mult)
-		_splash_nearby(target)
+		_splash_nearby(target, SUPERCONDUCTOR_SPLASH_DAMAGE, SUPERCONDUCTOR_SPLASH_RADIUS)
+		_clear_all(target)
+	elif target.status.has(FIRE) and target.status.has(LIGHTNING):
+		# Overload -- the Fire+Lightning combo (fusion-only, see the consts above).
+		var overload_mult: float = 1.0
+		if is_instance_valid(player):
+			overload_mult += player.lightning_combo_bonus_mult
+			if player.fire_level >= CAPSTONE_TIER:
+				overload_mult *= FIRE_CAPSTONE_DPS_MULT
+			if player.lightning_level >= CAPSTONE_TIER:
+				overload_mult *= LIGHTNING_CAPSTONE_COMBO_MULT
+		target.take_damage(OVERLOAD_DAMAGE * overload_mult)
+		_splash_nearby(target, OVERLOAD_SPLASH_DAMAGE, OVERLOAD_SPLASH_RADIUS)
+		var cam := target.get_viewport().get_camera_2d()
+		if is_instance_valid(cam) and cam.has_method("shake"):
+			cam.shake(OVERLOAD_SHAKE_INTENSITY, OVERLOAD_SHAKE_DURATION)
 		_clear_all(target)
 
 
-static func _splash_nearby(target: Node) -> void:
+static func _splash_nearby(target: Node, damage: float, radius: float) -> void:
 	if not is_instance_valid(target):
 		return
 	for enemy in target.get_tree().get_nodes_in_group("enemy"):
@@ -209,8 +255,8 @@ static func _splash_nearby(target: Node) -> void:
 			continue
 		if not enemy.has_method("take_damage"):
 			continue
-		if target.global_position.distance_to(enemy.global_position) <= SUPERCONDUCTOR_SPLASH_RADIUS:
-			enemy.take_damage(SUPERCONDUCTOR_SPLASH_DAMAGE)
+		if target.global_position.distance_to(enemy.global_position) <= radius:
+			enemy.take_damage(damage)
 
 
 static func _clear_all(target: Node) -> void:

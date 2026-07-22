@@ -127,6 +127,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_elemental_homing_never_misses()
 	await _assert_maxed_element_still_offers_repeatable_cards()
 	await _assert_arrow_cap_stops_plus_one_arrow()
+	await _assert_element_fusion()
 	await _assert_boss_mutations()
 	await _assert_elemental_capstones()
 	await _assert_run_modifiers()
@@ -655,6 +656,88 @@ func _assert_arrow_cap_stops_plus_one_arrow() -> void:
 	assert(not ("projectile_count" in popup._eligible_upgrade_ids()), "+1 Arrow must not be offered once arrows are capped at MAX_SHOT_COUNT")
 
 	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_element_fusion() -> void:
+	# (2026-07-22) Late-game elemental fusion: maxing two element lines to the
+	# capstone tier unlocks a fusion so the player's attacks carry BOTH statuses,
+	# firing that pair's combo reliably. Standalone player so the tier climb and
+	# active_fusions state are deterministic (no live wave picker in the loop).
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var player: Player = load("res://scenes/player/Player.tscn").instantiate()
+	add_child(player)
+	await get_tree().process_frame
+	assert(get_tree().get_first_node_in_group("player") == player, "test player must be the sole node in the player group")
+
+	var fire_paths := [
+		"res://resources/upgrades/fire_t1_searing_shot.tres",
+		"res://resources/upgrades/fire_t2_inferno_growth.tres",
+		"res://resources/upgrades/fire_t3_burning_legacy.tres",
+		"res://resources/upgrades/fire_t4_inferno_mastery.tres",
+		"res://resources/upgrades/fire_t5_inferno_heart.tres",
+	]
+	var frost_paths := [
+		"res://resources/upgrades/frost_t1_glacial_spike.tres",
+		"res://resources/upgrades/frost_t2_deep_freeze.tres",
+		"res://resources/upgrades/frost_t3_glacial_resonance.tres",
+		"res://resources/upgrades/frost_t4_frozen_mastery.tres",
+		"res://resources/upgrades/frost_t5_absolute_zero.tres",
+	]
+
+	var fusion_signal := {"fired": false}
+	player.fusion_unlocked.connect(func(_pid, _name): fusion_signal["fired"] = true)
+
+	# Max Fire alone first -> no fusion yet (needs a second maxed line).
+	for path in fire_paths:
+		player.apply_element_upgrade(load(path))
+	assert(player.fire_level == 5, "fire should be maxed, got %d" % player.fire_level)
+	assert(player.active_fusions.is_empty(), "one maxed line must not unlock any fusion yet")
+
+	# Max Frost too -> Frostfire (fire_frost) unlocks.
+	for path in frost_paths:
+		player.apply_element_upgrade(load(path))
+	assert(player.frost_level == 5, "frost should be maxed, got %d" % player.frost_level)
+	assert("fire_frost" in player.active_fusions, "maxing fire + frost must unlock the fire_frost fusion")
+	assert(fusion_signal["fired"], "fusion_unlocked signal should have fired")
+	assert(player.get_fusion_partners("fire").has("frost") and player.get_fusion_partners("fire").size() == 1, "fire's fusion partner should be exactly frost")
+	assert(player.get_fusion_partners("frost").has("fire"), "frost's fusion partner should be fire")
+
+	# Spawn setup for the apply mechanic.
+	var spawner := EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	var enemy_pool := EnemyPool.new()
+	add_child(enemy_pool)
+	var goblin = load("res://resources/enemies/goblin_runner.tres")
+
+	# Frostfire: applying only fire, with the fusion active, also applies frost
+	# and fires the combo (so the enemy takes the burst -- damage or death).
+	var e1: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 900.0, false)
+	e1.global_position = Vector2(360, 400)
+	var hp1: float = e1.current_hp
+	e1.apply_status(StatusEffects.FIRE, 2.0)
+	assert(not is_instance_valid(e1) or e1.current_hp < hp1, "with Frostfire active, a fire hit alone must trigger the combo and damage the enemy")
+	assert(not is_instance_valid(e1) or not (e1.status.has(StatusEffects.FIRE) and e1.status.has(StatusEffects.FROST)), "the combo should have consumed both statuses")
+	if is_instance_valid(e1):
+		e1.queue_free()
+
+	# Overload: the NEW Fire+Lightning combo, reachable only via fusion. Force
+	# just that fusion and confirm a fire hit alone discharges it.
+	player.active_fusions = ["fire_lightning"]
+	var e2: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 900.0, false)
+	e2.global_position = Vector2(360, 400)
+	var hp2: float = e2.current_hp
+	e2.apply_status(StatusEffects.FIRE, 2.0)
+	assert(not is_instance_valid(e2) or e2.current_hp < hp2, "with Overload active, a fire hit alone must trigger the fire+lightning combo")
+	if is_instance_valid(e2):
+		e2.queue_free()
+
+	player.queue_free()
+	spawner.queue_free()
+	enemy_pool.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
 

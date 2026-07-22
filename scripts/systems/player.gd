@@ -136,6 +136,13 @@ var physical_level := 0
 # each run with the player.
 var repeatable_stacks: Dictionary = {}
 
+# (2026-07-22) Unlocked late-game elemental fusions (ElementFusions pair ids,
+# e.g. "fire_frost"). Auto-unlocked when two element lines both reach max tier
+# -- see _maybe_unlock_fusions(). While a fusion is active, the player's
+# attacks also apply the partner element's status (see StatusEffects.apply()),
+# so the pair's combo fires reliably. Per-run, not persisted.
+var active_fusions: Array[String] = []
+
 # Only one elemental skill auto-fires at a time -- players can still invest
 # tiers into all 3 trees (see apply_element_upgrade()), but their timers stay
 # stopped unless active. -1 = no element unlocked yet. See select_active_element().
@@ -214,6 +221,10 @@ signal active_element_switched(element: int, skill: SkillData)
 # of apply_element_upgrade()). Distinct from skill_unlocked, which the HUD
 # routes to the basic-line label -- the class line gets its own top-left row.
 signal class_skill_changed(skill: SkillData)
+# (2026-07-22) Fires once when a late-game elemental fusion unlocks (two
+# element lines both hit max tier). Also mirrored onto SignalBus so the HUD
+# toast doesn't need a direct player reference. See _maybe_unlock_fusions().
+signal fusion_unlocked(pair_id: String, display_name: String)
 signal died
 signal item_collected(item: ItemData)
 # Fires whenever a weapon/armor/accessory slot's contents change (equip or
@@ -590,6 +601,7 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 			UpgradeResource.ElementType.FROST:
 				frost_level += 1
 		_update_elemental_skill(upgrade.element)
+		_maybe_unlock_fusions(upgrade.element)
 	_apply_upgrade_stats(upgrade)
 	_refresh_elemental_timer(upgrade.element)
 
@@ -669,6 +681,53 @@ func get_element_tier(element: int) -> int:
 		UpgradeResource.ElementType.LIGHTNING:
 			return lightning_level
 	return 0
+
+
+# --- Elemental fusions (late-game: max two element lines) -----------------------
+
+func _element_status_name(element: int) -> String:
+	# Maps an UpgradeResource.ElementType enum to StatusEffects' status-name
+	# string ("fire"/"frost"/"lightning"); "" for non-status lines.
+	match element:
+		UpgradeResource.ElementType.FIRE:
+			return StatusEffects.FIRE
+		UpgradeResource.ElementType.FROST:
+			return StatusEffects.FROST
+		UpgradeResource.ElementType.LIGHTNING:
+			return StatusEffects.LIGHTNING
+	return ""
+
+
+func _maybe_unlock_fusions(element: int) -> void:
+	# Called after an element line levels up. If this line just reached max tier,
+	# pair it with any OTHER already-maxed element line into a fusion (once per
+	# pair). Requiring both at CAPSTONE_TIER makes fusion a genuine deep-run
+	# reward -- it's one knob if that proves too steep.
+	var el := _element_status_name(element)
+	if el == "" or get_element_tier(element) < StatusEffects.CAPSTONE_TIER:
+		return
+	for other in [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING]:
+		if other == element or get_element_tier(other) < StatusEffects.CAPSTONE_TIER:
+			continue
+		var pid := ElementFusions.pair_id(el, _element_status_name(other))
+		if pid in active_fusions:
+			continue
+		active_fusions.append(pid)
+		var fname: String = ElementFusions.FUSIONS[pid]["name"]
+		fusion_unlocked.emit(pid, fname)
+		SignalBus.fusion_unlocked.emit(pid, fname)
+
+
+func get_fusion_partners(element: String) -> Array[String]:
+	# The partner status-name(s) an active fusion adds to attacks that apply
+	# `element` -- e.g. with Frostfire unlocked, a fire hit also applies frost.
+	# Usually 0 or 1; can be 2 if all three lines are maxed (all fusions active).
+	var partners: Array[String] = []
+	for pid in active_fusions:
+		var p := ElementFusions.partner(pid, element)
+		if p != "":
+			partners.append(p)
+	return partners
 
 
 func get_current_physical_skill() -> SkillData:

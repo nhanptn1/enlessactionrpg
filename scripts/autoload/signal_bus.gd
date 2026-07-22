@@ -34,3 +34,7 @@ signal boss_mutation_announced(mutation_name: String)
 # either way (same contract as boss_mutation_announced above). HUD uses it to
 # show/hide the element-counter cycle reference. See boss_base.gd::AFFINITIES.
 signal boss_affinity_announced(affinity_id: String)
+# (2026-07-22) Emitted once when a late-game elemental fusion unlocks (two
+# element lines both hit max tier) -- HUD shows a toast. See ElementFusions
+# and Player._maybe_unlock_fusions().
+signal fusion_unlocked(pair_id: String, display_name: String)

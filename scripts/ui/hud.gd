@@ -99,6 +99,7 @@ func _ready() -> void:
 	SignalBus.boss_hp_changed.connect(_on_boss_hp_changed)
 	SignalBus.boss_mutation_announced.connect(_on_boss_mutation_announced)
 	SignalBus.boss_affinity_announced.connect(_on_boss_affinity_announced)
+	SignalBus.fusion_unlocked.connect(_on_fusion_unlocked)
 	# Touch/mobile-friendly entry point for pausing -- the "pause" input
 	# action (Escape) still works too, this is the on-screen equivalent.
 	# No unpause branch needed here: while paused, HUD is frozen along with
@@ -368,6 +369,34 @@ func _on_boss_affinity_announced(affinity_id: String) -> void:
 	element_cycle_diagram.queue_redraw()
 	if affinity_id != "":
 		_queue_hint("affinity")
+
+
+func _on_fusion_unlocked(_pair_id: String, display_name: String) -> void:
+	# Transient gold toast celebrating a late-game fusion unlock (two element
+	# lines maxed). Built in code -- it's a rare, self-clearing one-shot, not
+	# worth a permanent .tscn node. Fades out and frees itself.
+	var toast := Label.new()
+	toast.text = "⚡ FUSION UNLOCKED\n%s" % display_name.to_upper()
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	toast.autowrap_mode = TextServer.AUTOWRAP_WORD
+	toast.add_theme_font_size_override("font_size", 34)
+	toast.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4))
+	toast.add_theme_color_override("font_outline_color", Color(0.2, 0.08, 0.0))
+	toast.add_theme_constant_override("outline_size", 8)
+	toast.anchor_left = 0.5
+	toast.anchor_right = 0.5
+	toast.anchor_top = 0.34
+	toast.anchor_bottom = 0.34
+	toast.offset_left = -200.0
+	toast.offset_right = 200.0
+	toast.offset_top = -60.0
+	toast.offset_bottom = 60.0
+	add_child(toast)
+	var tween := create_tween()
+	tween.tween_interval(2.2)
+	tween.tween_property(toast, "modulate:a", 0.0, 0.8)
+	tween.tween_callback(toast.queue_free)
 
 
 # --- One-time onboarding hints -------------------------------------------------
