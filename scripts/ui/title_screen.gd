@@ -1,10 +1,11 @@
 extends Control
 class_name TitleScreen
 
-# The game's front end. Handles local account + character selection (up to 3
-# characters per account, per-character progression -- see SaveManager), then
-# Start jumps into a run as the active character. Upgrades opens the meta shop;
-# How to Play shows the controls. Accounts are on-device only (no server).
+# The game's front end. Handles local character selection (up to 3 characters,
+# per-character progression -- see SaveManager). No accounts/login: the
+# character name is the identity, stored on-device only. Start jumps into a run
+# as the active character; Upgrades opens the meta shop; How to Play shows the
+# controls.
 
 const GAME_SCENE := "res://scenes/main/Main.tscn"
 const META_IDS: Array[String] = ["vitality", "power", "quickdraw", "insight"]
@@ -21,55 +22,41 @@ const META_IDS: Array[String] = ["vitality", "power", "quickdraw", "insight"]
 @onready var shop_close_button: Button = $ShopPanel/ShopVBox/CloseButton
 @onready var howto_panel: Control = $HowToPanel
 @onready var howto_close_button: Button = $HowToPanel/HowToVBox/CloseButton
-# Account panel
-@onready var account_panel: Control = $AccountPanel
-@onready var accounts_list: VBoxContainer = $AccountPanel/AccountVBox/AccountsList
-@onready var account_name_edit: LineEdit = $AccountPanel/AccountVBox/CreateRow/NameEdit
-@onready var create_account_button: Button = $AccountPanel/AccountVBox/CreateRow/CreateAccountButton
-@onready var account_cancel_button: Button = $AccountPanel/AccountVBox/AccountCancelButton
 # Character panel
 @onready var character_panel: Control = $CharacterPanel
 @onready var chars_list: VBoxContainer = $CharacterPanel/CharVBox/CharsList
-@onready var char_account_label: Label = $CharacterPanel/CharVBox/CharAccountLabel
 @onready var char_name_edit: LineEdit = $CharacterPanel/CharVBox/CharCreateRow/CharNameEdit
 @onready var create_char_button: Button = $CharacterPanel/CharVBox/CharCreateRow/CreateCharButton
-@onready var char_back_button: Button = $CharacterPanel/CharVBox/CharBackButton
+@onready var char_close_button: Button = $CharacterPanel/CharVBox/CharCloseButton
 
 var _shop_rows: Array = []
-var _selected_account: String = ""
 
 
 func _ready() -> void:
 	shop_panel.visible = false
 	howto_panel.visible = false
-	account_panel.visible = false
 	character_panel.visible = false
 	start_button.pressed.connect(_on_start_pressed)
-	switch_char_button.pressed.connect(_open_account_panel)
+	switch_char_button.pressed.connect(_open_character_panel)
 	upgrades_button.pressed.connect(_on_upgrades_pressed)
 	howto_button.pressed.connect(func(): AudioManager.play_ui("ui_open"); howto_panel.visible = true)
 	howto_close_button.pressed.connect(func(): AudioManager.play_ui("ui_close"); howto_panel.visible = false)
 	shop_close_button.pressed.connect(func(): AudioManager.play_ui("ui_close"); shop_panel.visible = false)
-	create_account_button.pressed.connect(_on_create_account)
-	account_cancel_button.pressed.connect(_on_account_cancel)
 	create_char_button.pressed.connect(_on_create_character)
-	char_back_button.pressed.connect(_open_account_panel)
+	char_close_button.pressed.connect(_on_char_close)
 	_build_shop_rows()
 	_refresh_main()
 	AudioManager.play_music("gameplay")
-	# No character yet (fresh install / just deleted) -> force selection first.
+	# No character yet (fresh install) -> force selection first.
 	if not SaveManager.has_active_character():
-		_open_account_panel()
+		_open_character_panel()
 
 
 func _refresh_main() -> void:
 	var active := SaveManager.has_active_character()
 	start_button.disabled = not active
 	upgrades_button.disabled = not active
-	if active:
-		playing_as_label.text = "Playing as: %s  (%s)" % [SaveManager.current_character_name(), SaveManager.current_account_name()]
-	else:
-		playing_as_label.text = "No character selected"
+	playing_as_label.text = "Playing as: %s" % SaveManager.current_character_name() if active else "No character selected"
 	best_label.text = "Best: Wave %d  —  Level %d\nEssence: %d" % [SaveManager.best_wave, SaveManager.best_level, SaveManager.essence]
 
 
@@ -80,71 +67,32 @@ func _on_start_pressed() -> void:
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 
-# --- Account selection ---------------------------------------------------------
-
-func _open_account_panel() -> void:
-	AudioManager.play_ui("ui_open")
-	character_panel.visible = false
-	account_name_edit.text = ""
-	_refresh_accounts_list()
-	# Cancel only makes sense if the player already has a character to fall back on.
-	account_cancel_button.visible = SaveManager.has_active_character()
-	account_panel.visible = true
-
-
-func _refresh_accounts_list() -> void:
-	for c in accounts_list.get_children():
-		c.queue_free()
-	for name in SaveManager.list_accounts():
-		var b := Button.new()
-		b.text = "%s  (%d/%d)" % [name, SaveManager.character_count(name), SaveManager.MAX_CHARACTERS]
-		b.custom_minimum_size = Vector2(0, 46)
-		b.add_theme_font_size_override("font_size", 18)
-		b.pressed.connect(_open_character_panel.bind(name))
-		accounts_list.add_child(b)
-
-
-func _on_create_account() -> void:
-	if SaveManager.create_account(account_name_edit.text):
-		AudioManager.play_ui("ui_click")
-		_open_character_panel(SaveManager._sanitize_name(account_name_edit.text))
-	# else: name empty or already taken -- the field just stays for a retry.
-
-
-func _on_account_cancel() -> void:
-	AudioManager.play_ui("ui_close")
-	account_panel.visible = false
-
-
 # --- Character selection -------------------------------------------------------
 
-func _open_character_panel(account: String) -> void:
+func _open_character_panel() -> void:
 	AudioManager.play_ui("ui_open")
-	_selected_account = account
-	account_panel.visible = false
-	char_account_label.text = "Account: %s" % account
 	char_name_edit.text = ""
 	_refresh_chars_list()
+	# Close only makes sense if the player already has a character to fall back on.
+	char_close_button.visible = SaveManager.has_active_character()
 	character_panel.visible = true
 
 
 func _refresh_chars_list() -> void:
 	for c in chars_list.get_children():
 		c.queue_free()
-	var chars: Array = SaveManager.list_characters(_selected_account)
+	var chars: Array = SaveManager.list_characters()
 	for i in chars.size():
 		var ch: Dictionary = chars[i]
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
-		var lbl := Label.new()
-		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl.add_theme_font_size_override("font_size", 18)
-		lbl.text = "%s   —   Best W%d L%d" % [ch.get("name", "?"), int(ch.get("best_wave", 0)), int(ch.get("best_level", 0))]
 		var play := Button.new()
-		play.text = "Play"
-		play.custom_minimum_size = Vector2(96, 44)
+		play.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		play.custom_minimum_size = Vector2(0, 46)
+		play.add_theme_font_size_override("font_size", 18)
+		var marker := "  ✓" if i == SaveManager.current_character else ""
+		play.text = "%s   (Best W%d L%d)%s" % [ch.get("name", "?"), int(ch.get("best_wave", 0)), int(ch.get("best_level", 0)), marker]
 		play.pressed.connect(_on_play_character.bind(i))
-		row.add_child(lbl)
 		row.add_child(play)
 		chars_list.add_child(row)
 	var full: bool = chars.size() >= SaveManager.MAX_CHARACTERS
@@ -154,21 +102,25 @@ func _refresh_chars_list() -> void:
 
 
 func _on_create_character() -> void:
-	if SaveManager.create_character(_selected_account, char_name_edit.text) >= 0:
+	if SaveManager.create_character(char_name_edit.text) >= 0:
 		AudioManager.play_ui("ui_click")
 		char_name_edit.text = ""
 		_close_selection()
 
 
 func _on_play_character(index: int) -> void:
-	if SaveManager.select_character(_selected_account, index):
+	if SaveManager.select_character(index):
 		AudioManager.play_ui("ui_click")
 		_close_selection()
 
 
+func _on_char_close() -> void:
+	AudioManager.play_ui("ui_close")
+	character_panel.visible = false
+
+
 func _close_selection() -> void:
 	character_panel.visible = false
-	account_panel.visible = false
 	_refresh_main()
 
 

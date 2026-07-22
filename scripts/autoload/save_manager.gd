@@ -1,21 +1,20 @@
 extends Node
-## Persists local accounts + characters to user://save.json.
+## Persists up to MAX_CHARACTERS local characters to user://save.json.
 ##
-## Structure (v3): { accounts: { <username>: { characters: [ <char>, ... up to
-## MAX_CHARACTERS ] } }, current_account, current_character }. Each <char> is a
-## full progression profile (name + best_wave/best_level/essence/meta_upgrades/
-## seen_hints). The currently-selected character's stats are mirrored into the
-## flat fields below, which stay the single source of truth the rest of the game
-## reads/writes -- select_character() loads a character INTO them, save_to_disk()
-## writes them BACK before persisting. This keeps all existing gameplay code
-## (Player/HUD/shops) unchanged; only the front end knows about accounts.
+## Structure (v4): { characters: [ <char>, ... ], current_character }. Each
+## <char> is a full progression profile (name + best_wave/best_level/essence/
+## meta_upgrades/seen_hints). No accounts/login -- it's local storage only, so
+## the character name IS the identity. The selected character's stats mirror
+## into the flat fields below, which stay the single source of truth the rest
+## of the game reads/writes -- select_character() loads a character INTO them,
+## save_to_disk() writes them BACK first. Gameplay code is untouched; only the
+## title screen knows about character selection.
 ##
-## Accounts are LOCAL/on-device only (a client game -- no server). Old v1/v2
-## flat saves migrate into a single "Player"/"Archer" character so a returning
-## player keeps their progress.
+## Migration: v3 (accounts) flattens to the character list; v1/v2 (flat) becomes
+## a single "Archer" character -- returning players keep their progress.
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 3
+const SAVE_VERSION := 4
 const MAX_CHARACTERS := 3
 const MAX_NAME_LEN := 16
 
@@ -34,9 +33,8 @@ var essence := 0
 var meta_upgrades: Dictionary = {}  # id -> rank
 var seen_hints: Array = []           # one-time tutorial hint ids
 
-# --- Account/character store ---
-var accounts: Dictionary = {}        # username -> { "characters": Array[char dict] }
-var current_account: String = ""
+# --- Character store ---
+var characters: Array = []           # list of character dicts (max MAX_CHARACTERS)
 var current_character: int = -1
 
 
@@ -44,81 +42,48 @@ func _ready() -> void:
 	load_save()
 
 
-# --- Accounts & characters -----------------------------------------------------
+# --- Characters ----------------------------------------------------------------
 
-func list_accounts() -> Array:
-	var names := accounts.keys()
-	names.sort()
-	return names
+func list_characters() -> Array:
+	return characters
 
 
-func account_exists(username: String) -> bool:
-	return accounts.has(_sanitize_name(username))
+func character_count() -> int:
+	return characters.size()
 
 
-func create_account(username: String) -> bool:
-	var name := _sanitize_name(username)
-	if name == "" or accounts.has(name):
-		return false
-	accounts[name] = {"characters": []}
-	save_to_disk()
-	return true
-
-
-func character_count(username: String) -> int:
-	var acct: Dictionary = accounts.get(_sanitize_name(username), {})
-	return acct.get("characters", []).size()
-
-
-func list_characters(username: String) -> Array:
-	var acct: Dictionary = accounts.get(_sanitize_name(username), {})
-	return acct.get("characters", [])
-
-
-func create_character(username: String, char_name: String) -> int:
+func create_character(char_name: String) -> int:
 	# Returns the new character's index (and selects it), or -1 on failure
-	# (unknown account, already at MAX_CHARACTERS, or invalid name).
-	var acct_name := _sanitize_name(username)
-	if not accounts.has(acct_name):
-		return -1
-	var chars: Array = accounts[acct_name]["characters"]
-	if chars.size() >= MAX_CHARACTERS:
+	# (already at MAX_CHARACTERS or invalid/empty name).
+	if characters.size() >= MAX_CHARACTERS:
 		return -1
 	var cname := _sanitize_name(char_name)
 	if cname == "":
 		return -1
-	chars.append(_new_character(cname))
-	var idx := chars.size() - 1
-	select_character(acct_name, idx)  # save_to_disk happens here
+	characters.append(_new_character(cname))
+	var idx := characters.size() - 1
+	select_character(idx)  # save_to_disk happens here
 	return idx
 
 
-func delete_character(username: String, index: int) -> bool:
-	var acct_name := _sanitize_name(username)
-	if not accounts.has(acct_name):
+func select_character(index: int) -> bool:
+	if index < 0 or index >= characters.size():
 		return false
-	var chars: Array = accounts[acct_name]["characters"]
-	if index < 0 or index >= chars.size():
-		return false
-	chars.remove_at(index)
-	if current_account == acct_name and current_character == index:
-		current_account = ""
-		current_character = -1
-		_reset_active_fields()
+	current_character = index
+	_load_active_fields()
 	save_to_disk()
 	return true
 
 
-func select_character(username: String, index: int) -> bool:
-	var acct_name := _sanitize_name(username)
-	if not accounts.has(acct_name):
+func delete_character(index: int) -> bool:
+	if index < 0 or index >= characters.size():
 		return false
-	var chars: Array = accounts[acct_name]["characters"]
-	if index < 0 or index >= chars.size():
-		return false
-	current_account = acct_name
-	current_character = index
-	_load_active_fields()
+	characters.remove_at(index)
+	if current_character == index:
+		current_character = -1
+		_reset_active_fields()
+	elif current_character > index:
+		current_character -= 1
 	save_to_disk()
 	return true
 
@@ -130,10 +95,6 @@ func has_active_character() -> bool:
 func current_character_name() -> String:
 	var ch = _active_character()
 	return ch["name"] if ch != null else ""
-
-
-func current_account_name() -> String:
-	return current_account
 
 
 # --- Live-stat API (unchanged for the rest of the game) ------------------------
@@ -211,8 +172,7 @@ func purchase_meta_upgrade(id: String) -> bool:
 # --- Persistence ---------------------------------------------------------------
 
 func load_save() -> bool:
-	accounts = {}
-	current_account = ""
+	characters = []
 	current_character = -1
 	_reset_active_fields()
 	if not FileAccess.file_exists(SAVE_PATH):
@@ -223,18 +183,35 @@ func load_save() -> bool:
 	var parsed = JSON.parse_string(file.get_as_text())
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return false
-	if parsed.has("accounts") and typeof(parsed["accounts"]) == TYPE_DICTIONARY:
-		accounts = parsed["accounts"]
-		current_account = str(parsed.get("current_account", ""))
+	if parsed.has("characters") and typeof(parsed["characters"]) == TYPE_ARRAY:
+		characters = parsed["characters"]
 		current_character = int(parsed.get("current_character", -1))
 		if _active_character() != null:
 			_load_active_fields()
 		else:
-			current_account = ""
 			current_character = -1
 		return true
-	# Legacy v1/v2 flat save -> migrate into one default character so the
-	# returning player keeps their progress.
+	# v3 accounts -> flatten into the character list (use the last-selected
+	# account, else the first non-empty one).
+	if parsed.has("accounts") and typeof(parsed["accounts"]) == TYPE_DICTIONARY:
+		var accts: Dictionary = parsed["accounts"]
+		var chosen: Array = []
+		var cur_acct := str(parsed.get("current_account", ""))
+		if accts.has(cur_acct):
+			chosen = accts[cur_acct].get("characters", [])
+		if chosen.is_empty():
+			for k in accts:
+				var cc: Array = accts[k].get("characters", [])
+				if not cc.is_empty():
+					chosen = cc
+					break
+		characters = chosen.slice(0, MAX_CHARACTERS)
+		current_character = clampi(int(parsed.get("current_character", -1)), -1, characters.size() - 1)
+		if _active_character() != null:
+			_load_active_fields()
+		save_to_disk()
+		return true
+	# v1/v2 flat save -> one default character.
 	if parsed.has("best_wave"):
 		var ch := _new_character("Archer")
 		ch["best_wave"] = int(parsed.get("best_wave", 0))
@@ -242,8 +219,7 @@ func load_save() -> bool:
 		ch["essence"] = int(parsed["essence"]) if _is_num(parsed.get("essence")) else 0
 		ch["meta_upgrades"] = parsed["meta_upgrades"] if typeof(parsed.get("meta_upgrades")) == TYPE_DICTIONARY else {}
 		ch["seen_hints"] = parsed["seen_hints"] if typeof(parsed.get("seen_hints")) == TYPE_ARRAY else []
-		accounts = {"Player": {"characters": [ch]}}
-		current_account = "Player"
+		characters = [ch]
 		current_character = 0
 		_load_active_fields()
 		save_to_disk()
@@ -254,8 +230,7 @@ func save_to_disk() -> bool:
 	_writeback_active_fields()
 	var data := {
 		"version": SAVE_VERSION,
-		"accounts": accounts,
-		"current_account": current_account,
+		"characters": characters,
 		"current_character": current_character,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -279,12 +254,9 @@ func _new_character(char_name: String) -> Dictionary:
 
 
 func _active_character():
-	if not accounts.has(current_account):
+	if current_character < 0 or current_character >= characters.size():
 		return null
-	var chars: Array = accounts[current_account].get("characters", [])
-	if current_character < 0 or current_character >= chars.size():
-		return null
-	return chars[current_character]
+	return characters[current_character]
 
 
 func _load_active_fields() -> void:

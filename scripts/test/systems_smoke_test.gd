@@ -52,45 +52,48 @@ func _assert_skill_resources() -> void:
 
 
 func _assert_accounts_and_characters() -> void:
-	# (2026-07-21) Local accounts + up to 3 characters each, per-character
-	# progression. Uses a throwaway account name so it doesn't disturb any real
-	# save; cleaned up at the end.
-	var acct := "SmokeAcct_%d" % (Time.get_ticks_usec() % 100000)
-	assert(not SaveManager.account_exists(acct))
-	assert(SaveManager.create_account(acct), "should create a fresh account")
-	assert(not SaveManager.create_account(acct), "duplicate account must be refused")
-	assert(SaveManager.character_count(acct) == 0)
+	# (2026-07-21) Local characters, up to 3, per-character progression, no
+	# accounts. Works on a scratch state and restores whatever was there after.
+	var saved_chars: Array = SaveManager.characters.duplicate(true)
+	var saved_cur: int = SaveManager.current_character
+	SaveManager.characters = []
+	SaveManager.current_character = -1
+	SaveManager._reset_active_fields()
 
-	var i0 := SaveManager.create_character(acct, "Alpha")
+	assert(SaveManager.character_count() == 0)
+	var i0 := SaveManager.create_character("Alpha")
 	assert(i0 == 0 and SaveManager.has_active_character(), "creating a character selects it")
 	assert(SaveManager.current_character_name() == "Alpha")
+	assert(SaveManager.create_character("") == -1, "an empty name is refused")
 	# Per-character progression: Alpha earns essence.
 	SaveManager.add_essence(50)
 	assert(SaveManager.essence >= 50)
 
-	var i1 := SaveManager.create_character(acct, "Beta")
-	assert(i1 == 1, "second character")
-	# Selecting Beta gives a FRESH profile (per-character, not shared).
-	assert(SaveManager.current_character_name() == "Beta")
+	var i1 := SaveManager.create_character("Beta")
+	assert(i1 == 1 and SaveManager.current_character_name() == "Beta", "second character, selected")
+	# Beta gets a FRESH profile (per-character, not shared).
 	assert(SaveManager.essence == 0, "a new character starts with its own 0 essence, not Alpha's")
 
-	var i2 := SaveManager.create_character(acct, "Gamma")
-	assert(i2 == 2)
-	assert(SaveManager.create_character(acct, "Delta") == -1, "at most %d characters" % SaveManager.MAX_CHARACTERS)
+	assert(SaveManager.create_character("Gamma") == 2)
+	assert(SaveManager.create_character("Delta") == -1, "at most %d characters" % SaveManager.MAX_CHARACTERS)
 
 	# Switch back to Alpha -> her essence is restored (persisted separately).
-	assert(SaveManager.select_character(acct, 0))
+	assert(SaveManager.select_character(0))
 	assert(SaveManager.essence >= 50, "Alpha's own essence should be intact after switching")
 
 	# Survives a reload from disk.
-	assert(SaveManager.load_save())
-	assert(SaveManager.account_exists(acct) and SaveManager.character_count(acct) == 3, "accounts persist through a save reload")
+	assert(SaveManager.save_to_disk() and SaveManager.load_save())
+	assert(SaveManager.character_count() == 3, "characters persist through a save reload")
 
-	# Cleanup so the real save file isn't polluted with the throwaway account.
-	SaveManager.accounts.erase(acct)
-	if SaveManager.current_account == acct:
-		SaveManager.current_account = ""
-		SaveManager.current_character = -1
+	# delete_character removes one and fixes up the selection.
+	assert(SaveManager.delete_character(1))
+	assert(SaveManager.character_count() == 2, "delete removes a character")
+
+	# Restore whatever real state existed before the test.
+	SaveManager.characters = saved_chars
+	SaveManager.current_character = saved_cur
+	if SaveManager._active_character() != null:
+		SaveManager._load_active_fields()
 	SaveManager.save_to_disk()
 
 
@@ -100,12 +103,7 @@ func _assert_save_roundtrip() -> void:
 	# unit the flat stat fields persist into). Migration or the account test
 	# above usually leaves one selected; guarantee it either way.
 	if not SaveManager.has_active_character():
-		if not SaveManager.account_exists("Tester"):
-			SaveManager.create_account("Tester")
-		if SaveManager.character_count("Tester") == 0:
-			SaveManager.create_character("Tester", "Test")
-		else:
-			SaveManager.select_character("Tester", 0)
+		SaveManager.create_character("Tester")  # creates + selects
 	assert(SaveManager.has_active_character(), "a character must be active for the save tests")
 
 	var before_wave := SaveManager.best_wave
