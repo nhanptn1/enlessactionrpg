@@ -51,11 +51,68 @@ func _assert_skill_resources() -> void:
 	assert(load(MAIN_SCENE) != null, "Main.tscn failed to load")
 
 
+func _assert_accounts_and_characters() -> void:
+	# (2026-07-21) Local accounts + up to 3 characters each, per-character
+	# progression. Uses a throwaway account name so it doesn't disturb any real
+	# save; cleaned up at the end.
+	var acct := "SmokeAcct_%d" % (Time.get_ticks_usec() % 100000)
+	assert(not SaveManager.account_exists(acct))
+	assert(SaveManager.create_account(acct), "should create a fresh account")
+	assert(not SaveManager.create_account(acct), "duplicate account must be refused")
+	assert(SaveManager.character_count(acct) == 0)
+
+	var i0 := SaveManager.create_character(acct, "Alpha")
+	assert(i0 == 0 and SaveManager.has_active_character(), "creating a character selects it")
+	assert(SaveManager.current_character_name() == "Alpha")
+	# Per-character progression: Alpha earns essence.
+	SaveManager.add_essence(50)
+	assert(SaveManager.essence >= 50)
+
+	var i1 := SaveManager.create_character(acct, "Beta")
+	assert(i1 == 1, "second character")
+	# Selecting Beta gives a FRESH profile (per-character, not shared).
+	assert(SaveManager.current_character_name() == "Beta")
+	assert(SaveManager.essence == 0, "a new character starts with its own 0 essence, not Alpha's")
+
+	var i2 := SaveManager.create_character(acct, "Gamma")
+	assert(i2 == 2)
+	assert(SaveManager.create_character(acct, "Delta") == -1, "at most %d characters" % SaveManager.MAX_CHARACTERS)
+
+	# Switch back to Alpha -> her essence is restored (persisted separately).
+	assert(SaveManager.select_character(acct, 0))
+	assert(SaveManager.essence >= 50, "Alpha's own essence should be intact after switching")
+
+	# Survives a reload from disk.
+	assert(SaveManager.load_save())
+	assert(SaveManager.account_exists(acct) and SaveManager.character_count(acct) == 3, "accounts persist through a save reload")
+
+	# Cleanup so the real save file isn't polluted with the throwaway account.
+	SaveManager.accounts.erase(acct)
+	if SaveManager.current_account == acct:
+		SaveManager.current_account = ""
+		SaveManager.current_character = -1
+	SaveManager.save_to_disk()
+
+
 func _assert_save_roundtrip() -> void:
+	_assert_accounts_and_characters()
+	# The save-persistence tests below need an active character (that's now the
+	# unit the flat stat fields persist into). Migration or the account test
+	# above usually leaves one selected; guarantee it either way.
+	if not SaveManager.has_active_character():
+		if not SaveManager.account_exists("Tester"):
+			SaveManager.create_account("Tester")
+		if SaveManager.character_count("Tester") == 0:
+			SaveManager.create_character("Tester", "Test")
+		else:
+			SaveManager.select_character("Tester", 0)
+	assert(SaveManager.has_active_character(), "a character must be active for the save tests")
+
 	var before_wave := SaveManager.best_wave
 	SaveManager.record_run(before_wave + 1, SaveManager.best_level + 1)
 	assert(SaveManager.best_wave >= before_wave + 1)
 	assert(SaveManager.load_save())
+	assert(SaveManager.best_wave >= before_wave + 1, "recorded best should survive a reload (per-character persistence)")
 	_assert_meta_progression()
 	_assert_equipment_slots()
 	_assert_audio_depth()

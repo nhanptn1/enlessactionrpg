@@ -53,12 +53,21 @@ text = "Endless Siege"
 [node name="CenterBox" type="VBoxContainer" parent="."]
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -180.0
-offset_top = 560.0
-offset_right = 180.0
-offset_bottom = 900.0
-theme_override_constants/separation = 24
+offset_left = -190.0
+offset_top = 520.0
+offset_right = 190.0
+offset_bottom = 940.0
+theme_override_constants/separation = 20
 alignment = 1
+
+[node name="PlayingAsLabel" type="Label" parent="CenterBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.86, 0.5, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+text = "No character selected"
 
 [node name="BestLabel" type="Label" parent="CenterBox"]
 layout_mode = 2
@@ -76,18 +85,25 @@ size_flags_horizontal = 4
 theme_override_font_sizes/font_size = 30
 text = "Start"
 
-[node name="UpgradesButton" type="Button" parent="CenterBox"]
-custom_minimum_size = Vector2(300, 56)
+[node name="SwitchCharButton" type="Button" parent="CenterBox"]
+custom_minimum_size = Vector2(300, 50)
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 20
+text = "Characters"
+
+[node name="UpgradesButton" type="Button" parent="CenterBox"]
+custom_minimum_size = Vector2(300, 50)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 20
 text = "Upgrades"
 
 [node name="HowToButton" type="Button" parent="CenterBox"]
-custom_minimum_size = Vector2(300, 56)
+custom_minimum_size = Vector2(300, 50)
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 20
 text = "How to Play"
 
 [node name="ShopPanel" type="Control" parent="."]
@@ -191,3 +207,133 @@ layout_mode = 2
 size_flags_horizontal = 4
 theme_override_font_sizes/font_size = 18
 text = "Close"
+
+[node name="AccountPanel" type="Control" parent="."]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 0
+
+[node name="AccountDim" type="ColorRect" parent="AccountPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.92)
+
+[node name="AccountVBox" type="VBoxContainer" parent="AccountPanel"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -240.0
+offset_top = -240.0
+offset_right = 240.0
+offset_bottom = 240.0
+theme_override_constants/separation = 14
+
+[node name="AccountTitle" type="Label" parent="AccountPanel/AccountVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+theme_override_font_sizes/font_size = 30
+horizontal_alignment = 1
+text = "Choose Account"
+
+[node name="AccountsHint" type="Label" parent="AccountPanel/AccountVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.72, 0.78, 1)
+theme_override_font_sizes/font_size = 15
+horizontal_alignment = 1
+text = "Pick an account, or make a new one below."
+
+[node name="AccountsList" type="VBoxContainer" parent="AccountPanel/AccountVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="CreateRow" type="HBoxContainer" parent="AccountPanel/AccountVBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="NameEdit" type="LineEdit" parent="AccountPanel/AccountVBox/CreateRow"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+size_flags_horizontal = 3
+max_length = 16
+placeholder_text = "New username"
+
+[node name="CreateAccountButton" type="Button" parent="AccountPanel/AccountVBox/CreateRow"]
+custom_minimum_size = Vector2(120, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Create"
+
+[node name="AccountCancelButton" type="Button" parent="AccountPanel/AccountVBox"]
+custom_minimum_size = Vector2(150, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 16
+text = "Cancel"
+
+[node name="CharacterPanel" type="Control" parent="."]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 0
+
+[node name="CharDim" type="ColorRect" parent="CharacterPanel"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.92)
+
+[node name="CharVBox" type="VBoxContainer" parent="CharacterPanel"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -250.0
+offset_top = -250.0
+offset_right = 250.0
+offset_bottom = 250.0
+theme_override_constants/separation = 14
+
+[node name="CharTitle" type="Label" parent="CharacterPanel/CharVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+theme_override_font_sizes/font_size = 30
+horizontal_alignment = 1
+text = "Characters"
+
+[node name="CharAccountLabel" type="Label" parent="CharacterPanel/CharVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.85, 0.9, 1)
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+text = "Account:"
+
+[node name="CharsList" type="VBoxContainer" parent="CharacterPanel/CharVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="CharCreateRow" type="HBoxContainer" parent="CharacterPanel/CharVBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="CharNameEdit" type="LineEdit" parent="CharacterPanel/CharVBox/CharCreateRow"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+size_flags_horizontal = 3
+max_length = 16
+placeholder_text = "New character name"
+
+[node name="CreateCharButton" type="Button" parent="CharacterPanel/CharVBox/CharCreateRow"]
+custom_minimum_size = Vector2(120, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Create"
+
+[node name="CharBackButton" type="Button" parent="CharacterPanel/CharVBox"]
+custom_minimum_size = Vector2(150, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 16
+text = "Back"
