@@ -24,9 +24,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -300.0
-offset_top = -230.0
+offset_top = -220.0
 offset_right = 300.0
-offset_bottom = 230.0
+offset_bottom = 220.0
 theme_override_constants/separation = 14
 
 [node name="Title" type="Label" parent="Panel/VBox"]
@@ -43,93 +43,126 @@ alignment = 1
 
 [node name="Choice1" type="Button" parent="Panel/VBox/HBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(178, 260)
+custom_minimum_size = Vector2(184, 344)
 theme_override_font_sizes/font_size = 18
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_color = Color(1, 0.92, 0.7, 1)
-autowrap_mode = 2
-text_overrun_behavior = 3
 
 [node name="Icon" type="Control" parent="Panel/VBox/HBox/Choice1"]
 layout_mode = 0
-offset_left = 44.0
-offset_top = 44.0
-offset_right = 134.0
-offset_bottom = 134.0
+offset_left = 47.0
+offset_top = 24.0
+offset_right = 137.0
+offset_bottom = 114.0
 mouse_filter = 2
 script = ExtResource("2")
 
 [node name="TitleLabel" type="Label" parent="Panel/VBox/HBox/Choice1"]
 layout_mode = 0
-offset_left = 40.0
-offset_top = 140.0
-offset_right = 138.0
-offset_bottom = 216.0
+offset_left = 6.0
+offset_top = 120.0
+offset_right = 178.0
+offset_bottom = 160.0
 mouse_filter = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
-vertical_alignment = 0
+vertical_alignment = 1
 autowrap_mode = 2
+
+[node name="DescLabel" type="Label" parent="Panel/VBox/HBox/Choice1"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 166.0
+offset_right = 172.0
+offset_bottom = 336.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.82, 0.85, 0.9, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+vertical_alignment = 0
+autowrap_mode = 3
 
 [node name="Choice2" type="Button" parent="Panel/VBox/HBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(178, 260)
+custom_minimum_size = Vector2(184, 344)
 theme_override_font_sizes/font_size = 18
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_color = Color(1, 0.92, 0.7, 1)
-autowrap_mode = 2
-text_overrun_behavior = 3
 
 [node name="Icon" type="Control" parent="Panel/VBox/HBox/Choice2"]
 layout_mode = 0
-offset_left = 44.0
-offset_top = 44.0
-offset_right = 134.0
-offset_bottom = 134.0
+offset_left = 47.0
+offset_top = 24.0
+offset_right = 137.0
+offset_bottom = 114.0
 mouse_filter = 2
 script = ExtResource("2")
 
 [node name="TitleLabel" type="Label" parent="Panel/VBox/HBox/Choice2"]
 layout_mode = 0
-offset_left = 40.0
-offset_top = 140.0
-offset_right = 138.0
-offset_bottom = 216.0
+offset_left = 6.0
+offset_top = 120.0
+offset_right = 178.0
+offset_bottom = 160.0
 mouse_filter = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
-vertical_alignment = 0
+vertical_alignment = 1
 autowrap_mode = 2
+
+[node name="DescLabel" type="Label" parent="Panel/VBox/HBox/Choice2"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 166.0
+offset_right = 172.0
+offset_bottom = 336.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.82, 0.85, 0.9, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+vertical_alignment = 0
+autowrap_mode = 3
 
 [node name="Choice3" type="Button" parent="Panel/VBox/HBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(178, 260)
+custom_minimum_size = Vector2(184, 344)
 theme_override_font_sizes/font_size = 18
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_hover_color = Color(1, 0.92, 0.7, 1)
-autowrap_mode = 2
-text_overrun_behavior = 3
 
 [node name="Icon" type="Control" parent="Panel/VBox/HBox/Choice3"]
 layout_mode = 0
-offset_left = 44.0
-offset_top = 44.0
-offset_right = 134.0
-offset_bottom = 134.0
+offset_left = 47.0
+offset_top = 24.0
+offset_right = 137.0
+offset_bottom = 114.0
 mouse_filter = 2
 script = ExtResource("2")
 
 [node name="TitleLabel" type="Label" parent="Panel/VBox/HBox/Choice3"]
 layout_mode = 0
-offset_left = 40.0
-offset_top = 140.0
-offset_right = 138.0
-offset_bottom = 216.0
+offset_left = 6.0
+offset_top = 120.0
+offset_right = 178.0
+offset_bottom = 160.0
 mouse_filter = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
-vertical_alignment = 0
+vertical_alignment = 1
 autowrap_mode = 2
+
+[node name="DescLabel" type="Label" parent="Panel/VBox/HBox/Choice3"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 166.0
+offset_right = 172.0
+offset_bottom = 336.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.82, 0.85, 0.9, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+vertical_alignment = 0
+autowrap_mode = 3

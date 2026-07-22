@@ -1,28 +1,22 @@
 extends CanvasLayer
 class_name WaveUpgradePopup
 
-# Ornate per-element card frames (art/ui/card_frame_*.png, cropped from a
-# supplied reference sheet) applied as each button's background via
-# StyleBoxTexture -- built once in _ready() and reused, not recreated per card.
-const CARD_FRAME_PATHS := {
-	UpgradeResource.ElementType.FIRE: "res://art/ui/card_frame_fire.png",
-	UpgradeResource.ElementType.FROST: "res://art/ui/card_frame_frost.png",
-	UpgradeResource.ElementType.LIGHTNING: "res://art/ui/card_frame_lightning.png",
-	# Recolored from card_frame_fire.png (hue-rotated warm red/orange -> green,
-	# same ornate frame shape reused) rather than a fresh reference-sheet
-	# extraction -- green was open hue space (Fire=red/orange, Frost=blue,
-	# Lightning=purple/gold) and fits the archer's forest-ranger theme.
-	UpgradeResource.ElementType.PHYSICAL: "res://art/ui/card_frame_physical.png",
-}
+# (2026-07-21) One consistent ornate card frame for every line, recolored per
+# element via modulate, per direct user request (the old per-element painted
+# PNGs had different shapes, which read as inconsistent). `card_frame_base.png`
+# is a greyscale (alpha-preserved) desaturation of the physical frame -- the
+# shape the user preferred -- so a single StyleBoxTexture tinted by
+# CARD_FRAME_TINT gives each line its own colour off the same shape. Values
+# can exceed 1.0 to keep the frame vivid after the multiply.
+const CARD_FRAME_BASE := "res://art/ui/card_frame_base.png"
 const CARD_TEXTURE_MARGIN := 40.0  # 9-slice margin so corner flourishes don't stretch when the button isn't the source's exact size
-# (2026-07-21) Class-skill cards get a single unified light-yellow border for
-# every class (per direct user request), distinct from the ornate per-element
-# painted frames. A flat styled border rather than a tinted PNG: the element
-# frames are strongly hue'd (physical green, fire red, etc.) and multiply-tint
-# can't turn green into a clean yellow, so a dedicated StyleBoxFlat is the only
-# way to get a consistent light-yellow regardless of class.
-const CLASS_CARD_BORDER := Color(1.0, 0.95, 0.55, 1.0)  # light yellow
-const CLASS_CARD_FILL := Color(0.12, 0.11, 0.05, 0.9)   # dark warm backing so the title stays readable
+const CARD_FRAME_TINT := {
+	UpgradeResource.ElementType.PHYSICAL: Color(0.5, 1.15, 0.5, 1.0),    # green
+	UpgradeResource.ElementType.FIRE: Color(1.35, 0.5, 0.2, 1.0),        # red-orange
+	UpgradeResource.ElementType.FROST: Color(0.45, 0.85, 1.35, 1.0),     # blue frost
+	UpgradeResource.ElementType.LIGHTNING: Color(0.95, 0.6, 1.35, 1.0),  # purple
+	UpgradeResource.ElementType.CLASS: Color(1.35, 1.05, 0.35, 1.0),     # golden
+}
 
 @export var upgrade_pool: Array[UpgradeResource] = []
 
@@ -30,11 +24,11 @@ const CLASS_CARD_FILL := Color(0.12, 0.11, 0.05, 0.9)   # dark warm backing so t
 @onready var choice_buttons: Array[Button] = [$Panel/VBox/HBox/Choice1, $Panel/VBox/HBox/Choice2, $Panel/VBox/HBox/Choice3]
 @onready var choice_icons: Array[SkillIcon] = [$Panel/VBox/HBox/Choice1/Icon, $Panel/VBox/HBox/Choice2/Icon, $Panel/VBox/HBox/Choice3/Icon]
 @onready var choice_labels: Array[Label] = [$Panel/VBox/HBox/Choice1/TitleLabel, $Panel/VBox/HBox/Choice2/TitleLabel, $Panel/VBox/HBox/Choice3/TitleLabel]
+@onready var choice_descs: Array[Label] = [$Panel/VBox/HBox/Choice1/DescLabel, $Panel/VBox/HBox/Choice2/DescLabel, $Panel/VBox/HBox/Choice3/DescLabel]
 
 var player: Node
 var _pending_choices: Array[UpgradeResource] = []
-var _card_styles: Dictionary = {}  # UpgradeResource.ElementType -> StyleBoxTexture
-var _class_card_style: StyleBoxFlat  # shared light-yellow border for every class-skill card, built in _ready()
+var _card_styles: Dictionary = {}  # UpgradeResource.ElementType -> StyleBoxTexture (same base texture, different modulate)
 
 
 func _ready() -> void:
@@ -45,19 +39,18 @@ func _ready() -> void:
 	SignalBus.wave_cleared.connect(_on_wave_cleared)
 	for i in 3:
 		choice_buttons[i].pressed.connect(_on_choice_selected.bind(i))
-	for element in CARD_FRAME_PATHS:
+	# One shared base texture, one StyleBoxTexture per element differing only in
+	# modulate_color -- same ornate frame shape, recolored per line.
+	var base_tex: Texture2D = load(CARD_FRAME_BASE)
+	for element in CARD_FRAME_TINT:
 		var stylebox := StyleBoxTexture.new()
-		stylebox.texture = load(CARD_FRAME_PATHS[element])
+		stylebox.texture = base_tex
 		stylebox.texture_margin_left = CARD_TEXTURE_MARGIN
 		stylebox.texture_margin_right = CARD_TEXTURE_MARGIN
 		stylebox.texture_margin_top = CARD_TEXTURE_MARGIN
 		stylebox.texture_margin_bottom = CARD_TEXTURE_MARGIN
+		stylebox.modulate_color = CARD_FRAME_TINT[element]
 		_card_styles[element] = stylebox
-	_class_card_style = StyleBoxFlat.new()
-	_class_card_style.bg_color = CLASS_CARD_FILL
-	_class_card_style.set_border_width_all(4)
-	_class_card_style.border_color = CLASS_CARD_BORDER
-	_class_card_style.set_corner_radius_all(10)
 
 
 func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
@@ -92,6 +85,7 @@ func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
 		if i < _pending_choices.size():
 			var upgrade: UpgradeResource = _pending_choices[i]
 			choice_labels[i].text = upgrade.title
+			choice_descs[i].text = upgrade.description  # shown on the card now, not just as a hover tooltip
 			choice_buttons[i].tooltip_text = upgrade.description
 			_apply_card_style(choice_buttons[i], upgrade.element)
 			choice_icons[i].texture = upgrade.icon
@@ -105,12 +99,7 @@ func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
 
 
 func _apply_card_style(button: Button, element: UpgradeResource.ElementType) -> void:
-	# Every class-skill card gets the same light-yellow border, regardless of
-	# which class it belongs to.
-	if element == UpgradeResource.ElementType.CLASS:
-		for state in ["normal", "hover", "pressed", "focus"]:
-			button.add_theme_stylebox_override(state, _class_card_style)
-		return
+	# Every line uses the same ornate frame, tinted to its own colour (class = gold).
 	var stylebox: StyleBoxTexture = _card_styles.get(element)
 	if stylebox == null:
 		return
