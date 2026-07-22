@@ -146,6 +146,13 @@ func _get_offerable_upgrades(target_element: UpgradeResource.ElementType) -> Arr
 	if current_tier >= 1:
 		for upgrade in upgrade_pool:
 			if upgrade.element == target_element and upgrade.tier == 0:
+				# (2026-07-22) Skip a stat card once it's hit its per-run cap
+				# (max_stacks). When the tree is maxed (no tier_up) AND every
+				# stat card is capped, this element yields nothing, so it drops
+				# out of the picker -- and when all lines are maxed the popup
+				# stops appearing entirely (see _on_wave_cleared's empty guard).
+				if upgrade.max_stacks > 0 and int(player.repeatable_stacks.get(upgrade.id, 0)) >= upgrade.max_stacks:
+					continue
 				var single: Array[UpgradeResource] = [upgrade]
 				repeatables.append(single)
 	if tier_up.is_empty() and repeatables.is_empty():

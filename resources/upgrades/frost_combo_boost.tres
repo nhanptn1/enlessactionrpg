@@ -13,4 +13,5 @@ description = "Frostfire Shatter and Superconductor Surge deal 15% more damage."
 stat_to_modify = "frost_combo_bonus_mult"
 modification_value = 0.15
 tier = 0
+max_stacks = 5
 exclusive_group = ""

@@ -13,4 +13,5 @@ description = "Frost skill fires 8% faster (reduced cooldown)."
 stat_to_modify = "frost_skill_cd_mult"
 modification_value = -0.08
 tier = 0
+max_stacks = 5
 exclusive_group = ""

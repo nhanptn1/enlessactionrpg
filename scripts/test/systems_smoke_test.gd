@@ -601,8 +601,25 @@ func _assert_maxed_element_still_offers_repeatable_cards() -> void:
 	assert(player.fire_level == 5, "fire should be fully maxed, got tier %d" % player.fire_level)
 
 	var offer := popup._get_offerable_upgrades(UpgradeResource.ElementType.FIRE)
-	assert(not offer.is_empty(), "a maxed Fire should still offer its repeatable boost cards, not go silent for the rest of the run")
+	assert(not offer.is_empty(), "a maxed Fire whose stat cards aren't capped yet should still offer its repeatable boost cards")
 	assert(offer[0].tier == 0, "a maxed element should only ever offer tier=0 repeatable cards now, got tier %d" % offer[0].tier)
+
+	# (2026-07-22) ...but once the skill tier is maxed AND every repeatable stat
+	# card has hit its max_stacks, the line must go silent -- so a fully-finished
+	# element drops out of the picker (and when all lines are done, the popup
+	# stops appearing). Cap every Fire tier-0 card by applying it max_stacks times.
+	var fire_repeatables: Array = []
+	for candidate in popup.upgrade_pool:
+		if candidate.element == UpgradeResource.ElementType.FIRE and candidate.tier == 0:
+			fire_repeatables.append(candidate)
+	assert(fire_repeatables.size() > 0, "Fire should have repeatable tier-0 cards to cap")
+	for card in fire_repeatables:
+		assert(card.max_stacks > 0, "%s must declare a max_stacks cap" % card.id)
+		for _s in card.max_stacks:
+			player.apply_element_upgrade(card)
+		assert(int(player.repeatable_stacks.get(card.id, 0)) == card.max_stacks, "%s should be capped at %d stacks" % [card.id, card.max_stacks])
+	var offer_capped := popup._get_offerable_upgrades(UpgradeResource.ElementType.FIRE)
+	assert(offer_capped.is_empty(), "a fully-maxed Fire (skill maxed AND all stat cards capped) must offer nothing -- it should drop out of the picker")
 
 	main.queue_free()
 	await get_tree().process_frame

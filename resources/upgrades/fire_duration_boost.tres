@@ -13,4 +13,5 @@ description = "Burn lasts 0.4s longer."
 stat_to_modify = "fire_duration_bonus"
 modification_value = 0.4
 tier = 0
+max_stacks = 5
 exclusive_group = ""

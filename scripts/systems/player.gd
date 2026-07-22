@@ -129,6 +129,13 @@ var frost_level := 0
 # physical_trap_detonate_mult below.
 var physical_level := 0
 
+# Per-run pick counts for repeatable tier-0 stat cards (upgrade id -> times
+# picked). Lets the wave picker stop offering a card once it hits the
+# resource's max_stacks, so a fully-maxed line (skill tier maxed AND every
+# stat card capped) drops out of the picker entirely. Not persisted -- resets
+# each run with the player.
+var repeatable_stacks: Dictionary = {}
+
 # Only one elemental skill auto-fires at a time -- players can still invest
 # tiers into all 3 trees (see apply_element_upgrade()), but their timers stay
 # stopped unless active. -1 = no element unlocked yet. See select_active_element().
@@ -529,6 +536,11 @@ func apply_upgrade(upgrade_id: String) -> void:
 
 
 func apply_element_upgrade(upgrade: UpgradeResource) -> void:
+	# Track picks of capped repeatable (tier-0) stat cards so the wave picker can
+	# stop offering one once it reaches max_stacks (CLASS/PHYSICAL branches below
+	# are tier >= 1, so they never count here).
+	if upgrade.tier == 0 and upgrade.max_stacks > 0:
+		repeatable_stacks[upgrade.id] = int(repeatable_stacks.get(upgrade.id, 0)) + 1
 	if upgrade.element == UpgradeResource.ElementType.CLASS:
 		# (2026-07-21) Class skill line: a 4th auto-firing attack source,
 		# tiered 1-3, skills defined per class in CharacterClasses.CLASSES
