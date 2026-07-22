@@ -126,6 +126,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_stats_panel_renders()
 	await _assert_elemental_homing_never_misses()
 	await _assert_maxed_element_still_offers_repeatable_cards()
+	await _assert_arrow_cap_stops_plus_one_arrow()
 	await _assert_boss_mutations()
 	await _assert_elemental_capstones()
 	await _assert_run_modifiers()
@@ -620,6 +621,38 @@ func _assert_maxed_element_still_offers_repeatable_cards() -> void:
 		assert(int(player.repeatable_stacks.get(card.id, 0)) == card.max_stacks, "%s should be capped at %d stacks" % [card.id, card.max_stacks])
 	var offer_capped := popup._get_offerable_upgrades(UpgradeResource.ElementType.FIRE)
 	assert(offer_capped.is_empty(), "a fully-maxed Fire (skill maxed AND all stat cards capped) must offer nothing -- it should drop out of the picker")
+
+	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_arrow_cap_stops_plus_one_arrow() -> void:
+	# (2026-07-22) The "+1 Arrow" level-up card must stop being offered once the
+	# active cone skill is already firing MAX_SHOT_COUNT arrows (base + bonus) --
+	# past the cap another +1 is clamped away and does nothing.
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_dismiss_class_select(main)
+
+	var player: Player = get_tree().get_first_node_in_group("player")
+	var popup: LevelUpPopup = main.get_node_or_null("LevelUpPopup")
+	assert(is_instance_valid(player) and popup != null, "real Main.tscn should have a player + LevelUpPopup")
+
+	var skill := player.get_current_physical_skill()
+	assert(skill != null and skill.fire_mode != SkillData.FireMode.TRAP_SHOT, "baseline physical skill should be a cone for this test")
+	assert(skill.projectile_count < player.MAX_SHOT_COUNT, "baseline skill must start below the arrow cap")
+
+	# Below the cap -> +1 Arrow is offered.
+	player.bonus_projectile_count = 0
+	assert("projectile_count" in popup._eligible_upgrade_ids(), "+1 Arrow should be offered while below the arrow cap")
+
+	# Exactly at the cap -> +1 Arrow is dropped.
+	player.bonus_projectile_count = player.MAX_SHOT_COUNT - skill.projectile_count
+	assert(skill.projectile_count + player.bonus_projectile_count == player.MAX_SHOT_COUNT, "test should drive the shot count to exactly the cap")
+	assert(not ("projectile_count" in popup._eligible_upgrade_ids()), "+1 Arrow must not be offered once arrows are capped at MAX_SHOT_COUNT")
 
 	main.queue_free()
 	await get_tree().process_frame

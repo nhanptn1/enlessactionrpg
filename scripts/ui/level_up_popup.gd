@@ -28,15 +28,26 @@ func _ready() -> void:
 		choice_buttons[i].pressed.connect(_on_choice_selected.bind(i))
 
 
-func _on_level_up(_new_level: int) -> void:
-	_pending_ids = player.UPGRADE_POOL.duplicate()
-	# "+1 Arrow" (bonus_projectile_count) only affects skills that fire a
-	# multi-shot cone -- Trap Shot ignores it entirely (see
-	# player.gd::_fire_trap_shot()), so offering it once Trap Shot is the
-	# active physical skill would be a genuinely dead choice.
+func _eligible_upgrade_ids() -> Array[String]:
+	# Filters the generic level-up pool down to picks that would actually do
+	# something. "+1 Arrow" (bonus_projectile_count) is a dead pick in two cases,
+	# so drop it whenever it wouldn't actually add an arrow:
+	#   1. Trap Shot ignores projectile_count entirely (see _fire_trap_shot()).
+	#   2. The active cone skill is already firing the hard cap of MAX_SHOT_COUNT
+	#      arrows (base projectile_count + bonus), so another +1 gets clamped
+	#      away with zero effect (see the mini(..., MAX_SHOT_COUNT) in player.gd).
+	var ids: Array[String] = player.UPGRADE_POOL.duplicate()
 	var skill: SkillData = player.get_current_physical_skill()
-	if skill != null and skill.fire_mode == SkillData.FireMode.TRAP_SHOT:
-		_pending_ids.erase("projectile_count")
+	if skill != null:
+		var ignores_count: bool = skill.fire_mode == SkillData.FireMode.TRAP_SHOT
+		var at_arrow_cap: bool = skill.projectile_count + player.bonus_projectile_count >= player.MAX_SHOT_COUNT
+		if ignores_count or at_arrow_cap:
+			ids.erase("projectile_count")
+	return ids
+
+
+func _on_level_up(_new_level: int) -> void:
+	_pending_ids = _eligible_upgrade_ids()
 	_pending_ids.shuffle()
 	_pending_ids = _pending_ids.slice(0, 3)
 	for i in 3:
