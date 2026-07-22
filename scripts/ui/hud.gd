@@ -9,6 +9,7 @@ class_name HUD
 @onready var modifier_label: Label = $Margin/VBox/ModifierLabel
 @onready var ultimate_label: Label = $Margin/VBox/UltimateLabel
 @onready var element_cycle_diagram: ElementCycleDiagram = $ElementCycleDiagram
+@onready var hint_banner: Button = $HintBanner
 @onready var dash_button: Button = $ActionButtons/DashCell/DashButton
 @onready var ultimate_cell: VBoxContainer = $ActionButtons/UltimateCell
 @onready var ultimate_button: Button = $ActionButtons/UltimateCell/UltimateButton
@@ -42,6 +43,12 @@ var _elemental_rows: Dictionary = {}
 # label}. Never tappable (the class skill always auto-fires; there's no
 # "select active" for it, unlike the elemental rows above).
 var _class_row: Dictionary = {}
+# One-time onboarding hints, shown once ever (persisted via SaveManager).
+# Queued as they trigger and shown one at a time; see _queue_hint().
+var _hint_queue: Array[String] = []
+var _hint_showing := false
+var _hint_token := 0  # bumped on every show/dismiss so a stale auto-dismiss timer no-ops
+var _ultimate_was_ready := false  # edge-detect for the "ultimate charged" hint
 
 
 func _ready() -> void:
@@ -100,6 +107,11 @@ func _ready() -> void:
 	skill_button.pressed.connect(_on_skill_button_pressed)
 	ultimate_button.pressed.connect(_on_ultimate_button_pressed)
 	dash_button.pressed.connect(_on_dash_button_pressed)
+	hint_banner.pressed.connect(_dismiss_current_hint)
+	# Very first thing a new player sees, once ever: how to move + auto-fire,
+	# then how to dash. Queued right at HUD start (after the class picker).
+	_queue_hint("move")
+	_queue_hint("dash")
 
 
 func _process(_delta: float) -> void:
@@ -140,6 +152,9 @@ func _process(_delta: float) -> void:
 	ultimate_cell.visible = ult_unlocked
 	if ult_unlocked:
 		var ready: bool = _player.can_use_ultimate()
+		if ready and not _ultimate_was_ready:
+			_queue_hint("ultimate")  # first time it's usable
+		_ultimate_was_ready = ready
 		if ready:
 			ultimate_label.text = "ULTIMATE READY — press Q"
 		else:
@@ -213,6 +228,10 @@ func _on_elemental_skill_changed(element: int, skill: SkillData) -> void:
 		_elemental_rows[element].icon.texture = skill.icon
 	else:
 		_build_elemental_row(element, skill)
+	# Switching only matters once a 2nd element is unlocked (the 1st auto-
+	# activates) -- teach it the moment that happens.
+	if _elemental_rows.size() >= 2:
+		_queue_hint("switch_element")
 
 
 func _on_active_element_switched(element: int, _skill: SkillData) -> void:
@@ -324,6 +343,7 @@ func _on_signal_bus_wave_started(_wave_number: int, is_boss: bool) -> void:
 		# label could linger visibly into the next boss wave's opening seconds
 		# even if that one rolls no mutation or a different one.
 		boss_label.text = "BOSS"
+		_queue_hint("boss")
 
 
 func _on_boss_hp_changed(current: float, max_hp: float) -> void:
@@ -345,6 +365,53 @@ func _on_boss_affinity_announced(affinity_id: String) -> void:
 	# which counters it (green). "" clears back to the plain reference cycle.
 	element_cycle_diagram.active_affinity = affinity_id
 	element_cycle_diagram.queue_redraw()
+	if affinity_id != "":
+		_queue_hint("affinity")
+
+
+# --- One-time onboarding hints -------------------------------------------------
+
+func _queue_hint(id: String) -> void:
+	# Show once ever: mark seen immediately so it can never re-queue, even across
+	# runs. A non-blocking toast, shown one at a time.
+	if SaveManager.has_seen_hint(id) or id in _hint_queue:
+		return
+	if not TutorialHints.HINTS.has(id):
+		return
+	SaveManager.mark_hint_seen(id)
+	_hint_queue.append(id)
+	if not _hint_showing:
+		_show_next_hint()
+
+
+func _show_next_hint() -> void:
+	if _hint_queue.is_empty():
+		_hint_showing = false
+		hint_banner.visible = false
+		return
+	_hint_showing = true
+	_hint_token += 1
+	var my_token := _hint_token
+	var id: String = _hint_queue.pop_front()
+	hint_banner.text = TutorialHints.HINTS[id]
+	hint_banner.visible = true
+	# Auto-dismiss after a read window; a tap dismisses early. The token guard
+	# makes a stale timer (fired after a tap already advanced) a no-op.
+	# process_always=false: the read window only counts down during live play,
+	# so the very first move/dash hints (queued while the class picker still
+	# pauses the game) don't silently expire behind that popup before play.
+	get_tree().create_timer(6.0, false).timeout.connect(func():
+		if my_token == _hint_token:
+			_show_next_hint()
+	)
+
+
+func _dismiss_current_hint() -> void:
+	if not _hint_showing:
+		return
+	AudioManager.play_ui("ui_click")
+	_hint_token += 1  # invalidate the current hint's pending auto-dismiss timer
+	_show_next_hint()
 
 
 func _on_equipment_changed(slot: String, item: ItemData) -> void:

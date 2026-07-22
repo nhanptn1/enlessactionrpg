@@ -79,6 +79,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_character_classes()
 	await _assert_class_skill_trees()
 	await _assert_continue_revive()
+	_assert_tutorial_hints()
 
 
 func _assert_meta_progression() -> void:
@@ -924,6 +925,29 @@ func _assert_character_classes() -> void:
 	SaveManager.meta_upgrades = saved_ranks
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+
+func _assert_tutorial_hints() -> void:
+	# (2026-07-21) Onboarding hints: shown once ever, persisted across runs.
+	# Tests the SaveManager seen-hint sink + that the copy exists for every id
+	# the HUD triggers.
+	var saved: Array = SaveManager.seen_hints.duplicate()
+	SaveManager.seen_hints = []
+
+	assert(not SaveManager.has_seen_hint("move"), "a hint should be unseen before it's marked")
+	SaveManager.mark_hint_seen("move")
+	assert(SaveManager.has_seen_hint("move"), "marking a hint should make it seen")
+	assert(SaveManager.load_save(), "seen-hint state should round-trip through disk")
+	assert(SaveManager.has_seen_hint("move"), "a seen hint should persist across a save reload")
+	SaveManager.mark_hint_seen("move")  # idempotent -- no duplicate
+	assert(SaveManager.seen_hints.count("move") == 1, "marking twice must not duplicate")
+
+	# Every id the HUD can queue must have copy defined.
+	for id in ["move", "dash", "switch_element", "boss", "affinity", "ultimate"]:
+		assert(TutorialHints.HINTS.has(id), "missing tutorial copy for '%s'" % id)
+
+	SaveManager.seen_hints = saved
+	SaveManager.save_to_disk()
 
 
 func _assert_continue_revive() -> void:

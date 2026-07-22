@@ -23,6 +23,7 @@ var best_wave := 0
 var best_level := 0
 var essence := 0
 var meta_upgrades: Dictionary = {}  # id (String, key of META_UPGRADES) -> rank (int)
+var seen_hints: Array = []  # ids of one-time tutorial hints already shown (see TutorialHints) -- additive, defaults empty for old saves
 
 
 func _ready() -> void:
@@ -35,6 +36,7 @@ func load_save() -> bool:
 		best_level = 0
 		essence = 0
 		meta_upgrades = {}
+		seen_hints = []
 		return true
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
 	if file == null:
@@ -48,7 +50,19 @@ func load_save() -> bool:
 	best_level = int(parsed["best_level"])
 	essence = int(parsed["essence"]) if parsed.has("essence") and (typeof(parsed["essence"]) == TYPE_FLOAT or typeof(parsed["essence"]) == TYPE_INT) else 0
 	meta_upgrades = parsed["meta_upgrades"] if parsed.has("meta_upgrades") and typeof(parsed["meta_upgrades"]) == TYPE_DICTIONARY else {}
+	seen_hints = parsed["seen_hints"] if parsed.has("seen_hints") and typeof(parsed["seen_hints"]) == TYPE_ARRAY else []
 	return true
+
+
+func has_seen_hint(id: String) -> bool:
+	return id in seen_hints
+
+
+func mark_hint_seen(id: String) -> void:
+	if id in seen_hints:
+		return
+	seen_hints.append(id)
+	save_to_disk()
 
 
 func record_run(wave: int, level: int) -> void:
@@ -119,6 +133,7 @@ func save_to_disk() -> bool:
 		"best_level": best_level,
 		"essence": essence,
 		"meta_upgrades": meta_upgrades,
+		"seen_hints": seen_hints,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
