@@ -105,6 +105,7 @@ func _ready() -> void:
 	SignalBus.boss_mutation_announced.connect(_on_boss_mutation_announced)
 	SignalBus.boss_affinity_announced.connect(_on_boss_affinity_announced)
 	SignalBus.fusion_unlocked.connect(_on_fusion_unlocked)
+	SignalBus.boss_entrance.connect(_on_boss_entrance)
 	# Touch/mobile-friendly entry point for pausing -- the "pause" input
 	# action (Escape) still works too, this is the on-screen equivalent.
 	# No unpause branch needed here: while paused, HUD is frozen along with
@@ -383,6 +384,22 @@ func _on_boss_affinity_announced(affinity_id: String) -> void:
 	element_cycle_diagram.queue_redraw()
 	if affinity_id != "":
 		_queue_hint("affinity")
+
+
+func _on_boss_entrance(color: Color) -> void:
+	# A brief full-screen wash in the boss's own aura colour. Built in code and
+	# self-freeing: it's a one-shot per boss spawn, not worth a permanent node.
+	# mouse_filter IGNORE so it can never eat a tap during the fade.
+	var flash := ColorRect.new()
+	flash.color = Color(color.r, color.g, color.b, 0.0)
+	flash.anchor_right = 1.0
+	flash.anchor_bottom = 1.0
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(flash)
+	var tween := create_tween()
+	tween.tween_property(flash, "color:a", 0.45, 0.12)
+	tween.tween_property(flash, "color:a", 0.0, 0.5)
+	tween.tween_callback(flash.queue_free)
 
 
 func _add_fusion_row(pair_id: String) -> void:

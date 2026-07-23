@@ -38,3 +38,7 @@ signal boss_affinity_announced(affinity_id: String)
 # element lines both hit max tier) -- HUD shows a toast. See ElementFusions
 # and Player._maybe_unlock_fusions().
 signal fusion_unlocked(pair_id: String, display_name: String)
+# (2026-07-23) Emitted once when a boss spawns, carrying its aura colour --
+# HUD paints a brief full-screen flash so the arrival lands. See BossBase's
+# _play_entrance().
+signal boss_entrance(color: Color)

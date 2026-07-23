@@ -130,6 +130,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_element_fusion()
 	await _assert_status_control_effects()
 	await _assert_skill_panel_shows_live_stats()
+	await _assert_boss_presence()
 	await _assert_boss_mutations()
 	await _assert_elemental_capstones()
 	await _assert_run_modifiers()
@@ -923,6 +924,64 @@ func _assert_skill_panel_shows_live_stats() -> void:
 	assert(pause_menu.tree_tab.button_pressed and not pause_menu.stats_tab.button_pressed, "the tree tab should read as selected again")
 
 	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_boss_presence() -> void:
+	# (2026-07-23) Boss presence pass. Every boss reuses a REGULAR enemy's
+	# sprite (Fallen Knight and Dark Ranger Commander share the same skeleton
+	# frames), so presence has to come from code: a bigger silhouette, a
+	# procedural aura, and an entrance flash. No new art involved.
+	var boss_data = load("res://resources/enemies/fallen_knight.tres")
+
+	var entrance := {"fired": false, "color": Color.BLACK}
+	var cb := func(c: Color):
+		entrance["fired"] = true
+		entrance["color"] = c
+	SignalBus.boss_entrance.connect(cb)
+
+	var boss: BossBase = boss_data.scene.instantiate()
+	var authored_scale: Vector2 = boss.get_node("Sprite").scale
+	boss.setup(boss_data, 1.0, 1.0, 1.0)
+	add_child(boss)
+	await get_tree().process_frame
+
+	# Bigger silhouette -- and _base_scale (what every hit/lunge effect scales
+	# off) must be the BUMPED size, not the scene's authored one.
+	assert(boss._base_scale.is_equal_approx(authored_scale * BossBase.BOSS_VISUAL_SCALE), "boss sprite should be scaled up by BOSS_VISUAL_SCALE; got %s from %s" % [boss._base_scale, authored_scale])
+
+	# Aura exists, sits behind the sprite, and carries this boss's own colour.
+	var aura: BossAura = boss._aura
+	assert(is_instance_valid(aura), "a boss should spawn a BossAura")
+	assert(aura.get_parent() == boss, "the aura should be parented to the boss so it follows without per-frame code")
+	assert(aura.z_index < 0, "the aura must draw BEHIND the boss sprite")
+	assert(aura.color.is_equal_approx(BossBase.AURA_COLORS["fallen_knight"]), "fallen_knight should use its own aura colour")
+
+	# Phase 2 visibly escalates the aura rather than only moving the HP bar.
+	var base_intensity := aura.intensity
+	aura.set_phase(2)
+	assert(aura.intensity > base_intensity, "phase 2 should intensify the aura")
+	aura.set_phase(1)
+	assert(is_equal_approx(aura.intensity, base_intensity), "dropping back to phase 1 should restore the base intensity")
+
+	assert(entrance["fired"], "spawning a boss should emit boss_entrance for the HUD flash")
+	var flash_color: Color = entrance["color"]
+	assert(flash_color.is_equal_approx(BossBase.AURA_COLORS["fallen_knight"]), "the entrance flash should carry the boss's aura colour")
+	boss.queue_free()
+	await get_tree().process_frame
+
+	# An affinity outranks the per-boss colour -- while a boss resists an
+	# element, the colour is actionable (it matches the counter-cycle diagram).
+	var affinity_boss: BossBase = boss_data.scene.instantiate()
+	affinity_boss.affinity_id = "frost"
+	affinity_boss.setup(boss_data, 1.0, 1.0, 1.0)
+	add_child(affinity_boss)
+	await get_tree().process_frame
+	assert(affinity_boss._aura.color.is_equal_approx(BossBase.AURA_AFFINITY_COLORS["frost"]), "an affinity boss's aura should use the affinity colour, not the per-boss one")
+	affinity_boss.queue_free()
+
+	SignalBus.boss_entrance.disconnect(cb)
 	await get_tree().process_frame
 	await get_tree().process_frame
 

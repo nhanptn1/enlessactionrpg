@@ -300,6 +300,32 @@ const AFFINITY_RESIST_MULT := 0.5
 const AFFINITY_WEAK_MULT := 1.5
 var affinity_id: String = ""
 
+# (2026-07-23) Boss presence pass. Bosses reuse regular-enemy sprites (two of
+# them share the SAME skeleton frames), so they were separated from normal
+# enemies only by a modulate tint. These give the every-10-waves moment real
+# weight without any new art: a bigger silhouette, a procedural aura
+# (BossAura), and a scale-punch entrance with a screen flash + shake.
+const BOSS_VISUAL_SCALE := 1.55       # on top of whatever the boss scene authored
+const ENTRANCE_TIME := 0.55
+const ENTRANCE_OVERSHOOT := 1.35      # punches past full size, then settles
+const ENTRANCE_SHAKE_INTENSITY := 14.0
+const ENTRANCE_SHAKE_DURATION := 0.45
+# Per-boss aura colour, keyed by attack_pattern_id so each boss reads as its
+# own threat even while sharing sprite frames with another boss. An affinity
+# overrides it (the affinity colour is the actionable information).
+const AURA_COLORS := {
+	"forest_guardian": Color(0.45, 0.95, 0.45, 1.0),        # verdant
+	"dark_ranger_commander": Color(0.75, 0.45, 1.0, 1.0),   # violet
+	"fallen_knight": Color(1.0, 0.35, 0.30, 1.0),           # blood red
+	"demon_beast": Color(1.0, 0.55, 0.15, 1.0),             # ember orange
+}
+const AURA_AFFINITY_COLORS := {
+	"fire": Color(1.0, 0.45, 0.15, 1.0),
+	"frost": Color(0.45, 0.8, 1.0, 1.0),
+	"lightning": Color(0.8, 0.45, 1.0, 1.0),
+}
+var _aura: BossAura
+
 
 func setup(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0, damage_mult: float = 1.0, xp_override: int = -1) -> void:
 	data = enemy_data  # caller MUST call this before add_child()
@@ -324,8 +350,14 @@ func _ready() -> void:
 	# creep toward the lose line.
 	velocity = Vector2(0, data.base_speed * PRE_ENGAGE_SPEED_MULT * _speed_mult)
 	_base_modulate = sprite.modulate
+	# Bigger silhouette BEFORE _base_scale is captured, so every existing
+	# scale-relative effect (hit punch, attack lunge) keeps working off the new
+	# boss size instead of snapping back to the regular-enemy size.
+	sprite.scale *= BOSS_VISUAL_SCALE
 	_base_scale = sprite.scale
 	_sprite_base_position = sprite.position
+	_spawn_aura()
+	_play_entrance()
 	sprite.play("move")
 	_attack_loop_running = true
 	SignalBus.boss_hp_changed.emit(current_hp, _max_hp)
@@ -387,6 +419,38 @@ func _run_shield_loop() -> void:
 		if not is_instance_valid(self) or _is_dying:
 			return
 		_mutation_invulnerable = false
+
+
+func _aura_color() -> Color:
+	# An affinity outranks the per-boss colour: while a boss resists an element,
+	# the colour is actionable information (see the counter-cycle diagram), not
+	# just flavour.
+	if AURA_AFFINITY_COLORS.has(affinity_id):
+		return AURA_AFFINITY_COLORS[affinity_id]
+	return AURA_COLORS.get(attack_pattern_id, Color(0.9, 0.25, 0.25, 1.0))
+
+
+func _spawn_aura() -> void:
+	_aura = BossAura.new()
+	_aura.color = _aura_color()
+	add_child(_aura)
+
+
+func _play_entrance() -> void:
+	# Scale-punch in from nothing + a screen flash and shake, so a boss ARRIVES
+	# instead of just sliding on screen like another falling enemy.
+	var target := _base_scale
+	sprite.scale = target * 0.35
+	sprite.modulate.a = 0.0
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(sprite, "modulate:a", 1.0, ENTRANCE_TIME * 0.5)
+	tween.tween_property(sprite, "scale", target * ENTRANCE_OVERSHOOT, ENTRANCE_TIME * 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.chain().tween_property(sprite, "scale", target, ENTRANCE_TIME * 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var cam := get_viewport().get_camera_2d()
+	if is_instance_valid(cam) and cam.has_method("shake"):
+		cam.shake(ENTRANCE_SHAKE_INTENSITY, ENTRANCE_SHAKE_DURATION)
+	SignalBus.boss_entrance.emit(_aura_color())
 
 
 func _physics_process(delta: float) -> void:
@@ -457,6 +521,8 @@ func take_damage(amount: float, element: String = "") -> void:
 	_play_hit_reaction()
 	if current_phase == 1 and current_hp <= _max_hp * PHASE2_HP_RATIO:
 		current_phase = 2
+		if is_instance_valid(_aura):
+			_aura.set_phase(2)  # aura brightens + spins faster, so the escalation is visible, not just an HP-bar fact
 		SignalBus.boss_phase_changed.emit(current_phase)
 		var cam := get_viewport().get_camera_2d()
 		if is_instance_valid(cam) and cam.has_method("shake"):
