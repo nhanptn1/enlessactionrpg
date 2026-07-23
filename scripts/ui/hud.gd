@@ -71,7 +71,7 @@ func _ready() -> void:
 		for slot in _player.equipped:
 			if _player.equipped[slot] != null:
 				_on_equipment_changed(slot, _player.equipped[slot])
-		heart_hp.current_hp = roundi(_player.current_hp)
+		heart_hp.current_hp = _player.current_hp
 		hp_bar.max_value = _player.max_hp
 		hp_bar.value = _player.current_hp
 		xp_bar.max_value = _player.xp_to_next_level()
@@ -211,7 +211,7 @@ func _on_skill_button_pressed() -> void:
 
 
 func _on_player_hp_changed(current: float, max_hp: float) -> void:
-	heart_hp.current_hp = roundi(current)
+	heart_hp.current_hp = current
 	hp_bar.max_value = max_hp
 	hp_bar.value = current
 

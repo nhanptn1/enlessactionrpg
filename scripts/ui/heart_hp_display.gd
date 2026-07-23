@@ -10,9 +10,15 @@ const FILL_COLOR := Color(0.82, 0.14, 0.2, 1.0)
 const OUTLINE_COLOR := Color(0.32, 0.03, 0.05, 1.0)
 const EMPTY_FILL_COLOR := Color(0.3, 0.3, 0.3, 1.0)  # drawn when current_hp <= 0
 
-var current_hp: int = 10:
+# (2026-07-23) int -> float. Wave damage scaling makes enemy hits fractional
+# (e.g. 1.0 base x 1.5 = 1.5), so HP legitimately sits on halves. The HUD used
+# to push roundi(hp) in here, which meant a 0.5-damage hit could leave the
+# displayed number completely unchanged -- the player took damage and the
+# readout said otherwise (user report: "character not take hp reduce when
+# hit"). Storing the real value and formatting below makes every hit visible.
+var current_hp: float = 10.0:
 	set(v):
-		if v == current_hp:
+		if is_equal_approx(v, current_hp):
 			return
 		current_hp = v
 		_update_label()
@@ -26,8 +32,12 @@ func _ready() -> void:
 
 
 func _update_label() -> void:
-	if is_instance_valid(label):
-		label.text = str(maxi(current_hp, 0))
+	if not is_instance_valid(label):
+		return
+	var shown: float = maxf(current_hp, 0.0)
+	# Whole numbers stay clean ("7"); a half only appears when HP really is
+	# fractional ("7.5"), so the readout never contradicts what just happened.
+	label.text = "%d" % int(shown) if is_equal_approx(shown, round(shown)) else "%.1f" % shown
 
 
 func _draw() -> void:

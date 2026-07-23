@@ -951,7 +951,11 @@ func _assert_boss_presence() -> void:
 
 	# Bigger silhouette -- and _base_scale (what every hit/lunge effect scales
 	# off) must be the BUMPED size, not the scene's authored one.
-	assert(boss._base_scale.is_equal_approx(authored_scale * BossBase.BOSS_VISUAL_SCALE), "boss sprite should be scaled up by BOSS_VISUAL_SCALE; got %s from %s" % [boss._base_scale, authored_scale])
+	assert(boss._base_scale.is_equal_approx(authored_scale * BossBase.BOSS_VISUAL_SCALE), "boss sprite should be scaled by BOSS_VISUAL_SCALE; got %s from %s" % [boss._base_scale, authored_scale])
+	# The boss NODE is separately scaled by WaveManager.BOSS_VISUAL_SCALE at
+	# spawn, so this sprite bump must stay modest or the two stack into a
+	# ~2.3x boss (which is exactly what a playtest caught).
+	assert(BossBase.BOSS_VISUAL_SCALE * WaveManager.BOSS_VISUAL_SCALE <= 1.9, "combined boss scale must stay reasonable, got %.2f" % (BossBase.BOSS_VISUAL_SCALE * WaveManager.BOSS_VISUAL_SCALE))
 
 	# Aura exists, sits behind the sprite, and carries this boss's own colour.
 	var aura: BossAura = boss._aura

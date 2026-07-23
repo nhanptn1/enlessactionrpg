@@ -49,8 +49,13 @@ const BOSS_WAVE_MONSTER_MULT := 0.2
 const BOSS_WAVE_MONSTER_MIN := 10
 const BOSS_WAVE_MONSTER_MAX := 25
 # (2026-07-16) 15.0->75.0 (x5) per direct user request.
-const BOSS_HP_MULT_BASE := 75.0
-const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.2
+# (2026-07-23) 75.0->140.0 and growth 0.2->0.35 per user playtest: bosses died
+# too easily. The player's damage has grown a lot since 75.0 was set (5 skill
+# lines, fusions, capstones, ultimate), so the boss health pool had fallen
+# behind -- the per-cycle growth is raised too so later bosses keep pace rather
+# than only the first one feeling right.
+const BOSS_HP_MULT_BASE := 140.0
+const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.35
 const BOSS_DAMAGE_MULT := 2.0
 const BOSS_XP_REWARD := 100  # (2026-07-16) 200->100, halved alongside every regular enemy's xp_reward
 const BOSS_VISUAL_SCALE := 1.5

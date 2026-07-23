@@ -305,7 +305,11 @@ var affinity_id: String = ""
 # enemies only by a modulate tint. These give the every-10-waves moment real
 # weight without any new art: a bigger silhouette, a procedural aura
 # (BossAura), and a scale-punch entrance with a screen flash + shake.
-const BOSS_VISUAL_SCALE := 1.55       # on top of whatever the boss scene authored
+# (2026-07-23) 1.55 -> 1.15. WaveManager._spawn_boss() ALREADY scales the boss
+# NODE by its own BOSS_VISUAL_SCALE (1.5), so the original 1.55 here stacked on
+# top of that for a ~2.3x boss -- user reported the body was too big. This is
+# now a modest extra bump on the sprite only, for ~1.7x total.
+const BOSS_VISUAL_SCALE := 1.15
 const ENTRANCE_TIME := 0.55
 const ENTRANCE_OVERSHOOT := 1.35      # punches past full size, then settles
 const ENTRANCE_SHAKE_INTENSITY := 14.0
