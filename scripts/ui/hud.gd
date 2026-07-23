@@ -44,6 +44,11 @@ var _elemental_rows: Dictionary = {}
 # label}. Never tappable (the class skill always auto-fires; there's no
 # "select active" for it, unlike the elemental rows above).
 var _class_row: Dictionary = {}
+# (2026-07-22) Persistent top-left rows for unlocked elemental fusions, so a
+# fusion reads as a real skill the player owns rather than a one-off toast that
+# scrolls away. Built lazily on first unlock; pair_id -> row Control.
+var _fusion_rows: Dictionary = {}
+var _fusion_rows_box: VBoxContainer = null
 # One-time onboarding hints, shown once ever (persisted via SaveManager).
 # Queued as they trigger and shown one at a time; see _queue_hint().
 var _hint_queue: Array[String] = []
@@ -380,7 +385,45 @@ func _on_boss_affinity_announced(affinity_id: String) -> void:
 		_queue_hint("affinity")
 
 
-func _on_fusion_unlocked(_pair_id: String, display_name: String) -> void:
+func _add_fusion_row(pair_id: String) -> void:
+	# A permanent "you own this" row in the top-left skill list, mirroring the
+	# class-skill row's icon+label shape. No cooldown ring -- a fusion is a
+	# passive that rides every attack, it has no timer of its own.
+	if _fusion_rows.has(pair_id):
+		return
+	if _fusion_rows_box == null:
+		_fusion_rows_box = VBoxContainer.new()
+		_fusion_rows_box.add_theme_constant_override("separation", 2)
+		var parent := class_skill_row.get_parent()
+		parent.add_child(_fusion_rows_box)
+		# Sit directly under the class-skill row rather than at the end of the
+		# VBox (which would drop it below the boss HP bar).
+		parent.move_child(_fusion_rows_box, class_skill_row.get_index() + 1)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var icon := TextureRect.new()
+	icon.custom_minimum_size = Vector2(38, 38)
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon.stretch_mode = TextureRect.STRETCH_SCALE
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var icon_path := ElementFusions.icon_path(pair_id)
+	if icon_path != "":
+		icon.texture = load(icon_path)
+	var label := Label.new()
+	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_color_override("font_color", ElementFusions.FUSION_COLOR)
+	label.text = "Fusion: %s" % ElementFusions.display_name(pair_id)
+	label.tooltip_text = ElementFusions.description(pair_id)
+	row.add_child(icon)
+	row.add_child(label)
+	_fusion_rows_box.add_child(row)
+	_fusion_rows[pair_id] = row
+
+
+func _on_fusion_unlocked(pair_id: String, display_name: String) -> void:
+	_add_fusion_row(pair_id)
 	# Transient gold toast celebrating a late-game fusion unlock (two element
 	# lines maxed). Built in code -- it's a rare, self-clearing one-shot, not
 	# worth a permanent .tscn node. Fades out and frees itself.

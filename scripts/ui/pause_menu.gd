@@ -230,6 +230,21 @@ func _build_skill_rows() -> void:
 	for element in [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING]:
 		skill_rows_container.add_child(_build_element_row(player, element))
 	skill_rows_container.add_child(_build_class_row(player))
+	skill_rows_container.add_child(_build_stats_section("Elemental Fusions", _fusion_lines(player)))
+
+
+func _fusion_lines(player: Node) -> Array[String]:
+	# Lists all three fusions, unlocked or not -- the locked entries double as
+	# the only place the game explains how fusions are earned.
+	var lines: Array[String] = []
+	for pid in ElementFusions.FUSIONS:
+		var fusion_name: String = ElementFusions.display_name(pid)
+		if pid in player.active_fusions:
+			lines.append("%s (ACTIVE) — %s" % [fusion_name, ElementFusions.description(pid)])
+		else:
+			var els: Array = ElementFusions.FUSIONS[pid]["elements"]
+			lines.append("%s — locked: raise %s + %s to tier %d" % [fusion_name, str(els[0]).capitalize(), str(els[1]).capitalize(), player.FUSION_UNLOCK_TIER])
+	return lines
 
 
 func _build_physical_row(player: Node) -> Control:

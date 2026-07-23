@@ -394,6 +394,9 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(self):
 		return  # a Fire DOT tick can kill the boss mid-frame
 	if not _engaged:
+		# Recomputed from base every frame (not multiplied in place) so the
+		# status slow can't compound toward zero -- see boss_speed_multiplier().
+		velocity = Vector2(0, data.base_speed * PRE_ENGAGE_SPEED_MULT * _speed_mult * StatusEffects.boss_speed_multiplier(self))
 		move_and_slide()
 		if global_position.y >= engage_y:
 			global_position.y = engage_y
@@ -420,7 +423,7 @@ func _physics_process(delta: float) -> void:
 	# speed boost previously only ever applied to the brief pre-engage walk-in
 	# (see _ready()'s velocity line), making it invisible for the entire actual
 	# fight since this post-engage creep used to read the flat constant alone.
-	velocity = Vector2(0, POST_ENGAGE_WALK_SPEED * _speed_mult)
+	velocity = Vector2(0, POST_ENGAGE_WALK_SPEED * _speed_mult * StatusEffects.boss_speed_multiplier(self))
 	move_and_slide()
 	if global_position.y >= LOSE_LINE_Y:
 		global_position.y = LOSE_LINE_Y

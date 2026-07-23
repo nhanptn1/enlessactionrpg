@@ -21,10 +21,41 @@ const FROST := "frost"
 const LIGHTNING := "lightning"
 
 const FUSIONS := {
-	"fire_frost": {"name": "Frostfire", "elements": [FIRE, FROST]},
-	"frost_lightning": {"name": "Superconductor", "elements": [FROST, LIGHTNING]},
-	"fire_lightning": {"name": "Overload", "elements": [FIRE, LIGHTNING]},
+	"fire_frost": {
+		"name": "Frostfire",
+		"elements": [FIRE, FROST],
+		"icon": "res://art/ui/icons/icon_frozen_burst.png",
+		"description": "Attacks chill and burn at once — afflicted enemies detonate in a frost-fire blast.",
+	},
+	"frost_lightning": {
+		"name": "Superconductor",
+		"elements": [FROST, LIGHTNING],
+		"icon": "res://art/ui/icons/icon_chain_spark.png",
+		"description": "Attacks chill and shock at once — afflicted enemies discharge, arcing damage to nearby foes.",
+	},
+	"fire_lightning": {
+		"name": "Overload",
+		"elements": [FIRE, LIGHTNING],
+		"icon": "res://art/ui/icons/icon_storm_overload.png",
+		"description": "Attacks burn and shock at once — afflicted enemies overload in a wide explosive discharge.",
+	},
 }
+
+# Fusion-identity tint, distinct from the per-element label colours -- fusions
+# read as their own "combined" line in the HUD and pause menu.
+const FUSION_COLOR := Color(1.0, 0.72, 0.95, 1.0)
+
+
+static func display_name(pair: String) -> String:
+	return FUSIONS[pair]["name"] if FUSIONS.has(pair) else ""
+
+
+static func description(pair: String) -> String:
+	return FUSIONS[pair]["description"] if FUSIONS.has(pair) else ""
+
+
+static func icon_path(pair: String) -> String:
+	return FUSIONS[pair]["icon"] if FUSIONS.has(pair) else ""
 
 
 static func pair_id(a: String, b: String) -> String:

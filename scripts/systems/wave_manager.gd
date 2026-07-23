@@ -12,6 +12,13 @@ const BOSS_WAVE_INTERVAL := 10
 const HP_SCALING_PER_WAVE := 0.25
 const HP_MULT_CEILING := 12.0
 const SPEED_SCALING_PER_WAVE := 0.03
+# (2026-07-22) Speed used to climb forever while HP was capped at
+# HP_MULT_CEILING. Because Lightning's shock is a *multiplier* (0.45x), an
+# uncapped base speed meant a shocked wave-50 enemy still outran an unshocked
+# wave-1 one -- the slow was applied, it just couldn't keep up (user report:
+# "monsters don't stop when shocked" at wave 30+). Capped at 2.0x, reached
+# around wave 38, so control effects keep meaning something indefinitely.
+const SPEED_MULT_CEILING := 2.0
 # (2026-07-17) 1->10, plus a MAX_WAVE_MONSTER_COUNT ceiling -- Phase 2 pillar 6
 # ("bigger wave scale", plan/monster-waves-progression.txt) targets 50-100
 # total monsters by mid/late waves, not the previous ~1-per-wave crawl. Hand-
@@ -249,7 +256,7 @@ func _generate_wave(wave_number: int) -> WaveData:
 	# a hard difficulty wall. Starting the ramp fresh at wave 6 (1.25x) and
 	# climbing from there removes the cliff without touching waves 1-5.
 	_current_hp_mult = minf(1.0 + HP_SCALING_PER_WAVE * extra_waves, HP_MULT_CEILING)
-	_current_speed_mult = 1.0 + SPEED_SCALING_PER_WAVE * extra_waves
+	_current_speed_mult = minf(1.0 + SPEED_SCALING_PER_WAVE * extra_waves, SPEED_MULT_CEILING)
 	return wave
 
 

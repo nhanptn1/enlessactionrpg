@@ -28,6 +28,23 @@ const LIGHTNING_SLOW_MULT := 0.45
 const LIGHTNING_DURATION := 1.8
 const LIGHTNING_TICK_INTERVAL := 0.5  # only ticks damage if the player has lightning_dps > 0 (Static Charge)
 const LIGHTNING_COLOR := Color(1.6, 1.6, 0.45, 1.0)
+# (2026-07-22) Shock now opens with a brief hard stun before settling into the
+# slow above -- user report: at wave 30+ shocked enemies "don't stop". The slow
+# is a *multiplier*, so as wave speed scaling climbed it stopped reading as a
+# slow at all; a short guaranteed full stop makes a shock land visibly at any
+# wave, while the slow keeps Frost's full-freeze identity intact.
+const LIGHTNING_STUN_DURATION := 0.35
+# Stored in the same `status` dictionary as the elements, but it is NOT an
+# element: it never tints, never combos, and never spreads. Tracking it there
+# means tick() expires it for free with the same countdown as everything else.
+const STUN := "stun"
+
+# (2026-07-22) Bosses deliberately take no full movement lock (a stun-locked
+# boss would trivialize the fight), but total immunity made Frost/Lightning feel
+# useless in boss fights -- and every 10th wave is a boss. A single modest walk
+# slow while afflicted by either control element is the middle ground. Applies
+# to the walk only; attack moves (charge/leap) keep their telegraphed timing.
+const BOSS_STATUS_SLOW_MULT := 0.7
 
 const FROST_DURATION := 1.6
 const FROST_COLOR := Color(0.55, 0.85, 1.6, 1.0)
@@ -71,6 +88,10 @@ static func apply(target: Node, element: String, duration: float, allow_spread: 
 	if not is_instance_valid(target):
 		return
 	target.status[element] = duration
+	if element == LIGHTNING:
+		# Set directly rather than through apply() -- STUN is not an element, so
+		# it must not spread, tint, or take part in combo evaluation.
+		target.status[STUN] = LIGHTNING_STUN_DURATION
 	_refresh_tint(target)
 	_evaluate_combos(target)  # may deal combo damage + _clear_all, possibly freeing target
 	if not is_instance_valid(target):
@@ -119,7 +140,7 @@ static func tick(target: Node, delta: float) -> void:
 			var dps_mult: float = player.fire_dps_mult if is_instance_valid(player) else 1.0
 			if is_instance_valid(player) and player.fire_level >= CAPSTONE_TIER:
 				dps_mult *= FIRE_CAPSTONE_DPS_MULT
-			target.take_damage(FIRE_DPS * dps_mult * FIRE_TICK_INTERVAL, FIRE)
+			target.take_damage(FIRE_DPS * dps_mult * FIRE_TICK_INTERVAL * _burn_scale(target), FIRE)
 			if not is_instance_valid(target):
 				return  # the burn tick itself killed it
 	if lightning_old_remaining >= 0.0 and is_instance_valid(player) and player.lightning_dps > 0.0:
@@ -135,6 +156,33 @@ static func tick(target: Node, delta: float) -> void:
 
 static func is_frozen(target: Node) -> bool:
 	return target.status.has(FROST)
+
+
+static func is_stunned(target: Node) -> bool:
+	# Shock's opening hard stop (see LIGHTNING_STUN_DURATION). Regular enemies
+	# only -- BossBase never checks this, bosses just get the walk slow below.
+	return target.status.has(STUN)
+
+
+static func boss_speed_multiplier(target: Node) -> float:
+	# Bosses are never fully stopped; worst case they creep at BOSS_STATUS_SLOW_MULT
+	# while chilled or shocked. Callers must recompute velocity from its base each
+	# frame rather than multiplying in place, or this would compound to zero.
+	if target.status.has(FROST) or target.status.has(LIGHTNING):
+		return BOSS_STATUS_SLOW_MULT
+	return 1.0
+
+
+static func _burn_scale(target: Node) -> float:
+	# (2026-07-22) Burn was a flat FIRE_DPS while enemy HP scales up to
+	# WaveManager.HP_MULT_CEILING (12x), so a late-wave burn was proportionally
+	# negligible. Scaling the tick by the same multiplier the wave applied to
+	# that enemy's HP keeps burn exactly as effective at wave 60 as at wave 1
+	# (same number of ticks to kill) rather than making it stronger.
+	var m = target.get("_hp_mult")
+	if typeof(m) != TYPE_FLOAT and typeof(m) != TYPE_INT:
+		return 1.0
+	return maxf(float(m), 1.0)
 
 
 static func speed_multiplier(target: Node) -> float:

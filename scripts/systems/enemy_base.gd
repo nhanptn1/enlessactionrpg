@@ -122,7 +122,10 @@ func _physics_process(delta: float) -> void:
 	if data.movement_behavior:
 		data.movement_behavior.physics_process(self, delta)
 	_base_velocity = velocity
-	if StatusEffects.is_frozen(self):
+	# A Frost freeze or the opening moment of a shock (LIGHTNING_STUN_DURATION)
+	# is an absolute stop -- unlike the slow below it can't be eroded by wave
+	# speed scaling, so a shock still reads as a real hit at any wave.
+	if StatusEffects.is_frozen(self) or StatusEffects.is_stunned(self):
 		velocity = Vector2.ZERO
 	else:
 		velocity *= StatusEffects.speed_multiplier(self)

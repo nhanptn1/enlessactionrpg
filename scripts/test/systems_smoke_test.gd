@@ -128,6 +128,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_maxed_element_still_offers_repeatable_cards()
 	await _assert_arrow_cap_stops_plus_one_arrow()
 	await _assert_element_fusion()
+	await _assert_status_control_effects()
 	await _assert_boss_mutations()
 	await _assert_elemental_capstones()
 	await _assert_run_modifiers()
@@ -693,20 +694,38 @@ func _assert_element_fusion() -> void:
 	var fusion_signal := {"fired": false}
 	player.fusion_unlocked.connect(func(_pid, _name): fusion_signal["fired"] = true)
 
-	# Max Fire alone first -> no fusion yet (needs a second maxed line).
+	# Fire alone (even fully maxed) -> no fusion yet; a fusion needs TWO lines.
 	for path in fire_paths:
 		player.apply_element_upgrade(load(path))
 	assert(player.fire_level == 5, "fire should be maxed, got %d" % player.fire_level)
-	assert(player.active_fusions.is_empty(), "one maxed line must not unlock any fusion yet")
+	assert(player.active_fusions.is_empty(), "one line alone must not unlock any fusion")
 
-	# Max Frost too -> Frostfire (fire_frost) unlocks.
-	for path in frost_paths:
-		player.apply_element_upgrade(load(path))
+	# (2026-07-22) Gate is FUSION_UNLOCK_TIER (4), not the tier-5 capstone --
+	# requiring capstones on two lines made fusions effectively unreachable.
+	# Frost through tier 3 -> still locked; tier 4 -> Frostfire unlocks.
+	for i in 3:
+		player.apply_element_upgrade(load(frost_paths[i]))
+	assert(player.frost_level == 3 and player.active_fusions.is_empty(), "below the unlock tier the fusion must stay locked")
+	player.apply_element_upgrade(load(frost_paths[3]))
+	assert(player.frost_level == player.FUSION_UNLOCK_TIER, "frost should be at the unlock tier")
+	assert("fire_frost" in player.active_fusions, "reaching tier %d on a second line must unlock the fusion" % player.FUSION_UNLOCK_TIER)
+	# Pushing on to the capstone must not double-unlock or drop it.
+	player.apply_element_upgrade(load(frost_paths[4]))
 	assert(player.frost_level == 5, "frost should be maxed, got %d" % player.frost_level)
+	assert(player.active_fusions.count("fire_frost") == 1, "a fusion must unlock exactly once")
 	assert("fire_frost" in player.active_fusions, "maxing fire + frost must unlock the fire_frost fusion")
 	assert(fusion_signal["fired"], "fusion_unlocked signal should have fired")
 	assert(player.get_fusion_partners("fire").has("frost") and player.get_fusion_partners("fire").size() == 1, "fire's fusion partner should be exactly frost")
 	assert(player.get_fusion_partners("frost").has("fire"), "frost's fusion partner should be fire")
+
+	# Every fusion needs display data -- it's surfaced as an owned "skill" in the
+	# HUD row + pause-menu Fusions section, so a missing name/icon/description
+	# would render as a blank entry.
+	for pid in ElementFusions.FUSIONS:
+		assert(ElementFusions.display_name(pid) != "", "%s needs a display name" % pid)
+		assert(ElementFusions.description(pid) != "", "%s needs a description" % pid)
+		var ipath := ElementFusions.icon_path(pid)
+		assert(ipath != "" and ResourceLoader.exists(ipath), "%s needs an icon that actually exists (%s)" % [pid, ipath])
 
 	# Spawn setup for the apply mechanic.
 	var spawner := EnemySpawner.new()
@@ -739,6 +758,84 @@ func _assert_element_fusion() -> void:
 		e2.queue_free()
 
 	player.queue_free()
+	spawner.queue_free()
+	enemy_pool.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_status_control_effects() -> void:
+	# (2026-07-22) User report: at wave 30+ shocked monsters "don't stop".
+	# Four fixes, all checked here against real instances:
+	#   1. wave speed scaling is capped (was unbounded, eroding every slow)
+	#   2. shock opens with a real hard stun (absolute, can't be eroded)
+	#   3. bosses get a walk slow instead of total movement immunity
+	#   4. burn scales with the wave's HP multiplier so it stays relevant
+	await get_tree().process_frame
+
+	# 1. Speed scaling must stop climbing -- an uncapped multiplier is what made
+	#    the 0.45x slow stop reading as a slow at all in late waves.
+	var late := 1.0 + WaveManager.SPEED_SCALING_PER_WAVE * 500.0
+	assert(WaveManager.SPEED_MULT_CEILING < late, "sanity: 500 waves should exceed the ceiling")
+	assert(minf(late, WaveManager.SPEED_MULT_CEILING) == WaveManager.SPEED_MULT_CEILING, "speed scaling must clamp to SPEED_MULT_CEILING")
+	# A shocked enemy at the speed ceiling must still be slower than an
+	# un-shocked baseline enemy -- the whole point of capping.
+	assert(WaveManager.SPEED_MULT_CEILING * StatusEffects.LIGHTNING_SLOW_MULT < 1.0, "a shocked late-wave enemy must not outrun an unshocked wave-1 enemy")
+
+	var spawner := EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	var enemy_pool := EnemyPool.new()
+	add_child(enemy_pool)
+	var goblin = load("res://resources/enemies/goblin_runner.tres")
+
+	# 2. Shock = brief hard stun, then the slow. Frost = full stop throughout.
+	var shocked: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 300.0, false)
+	shocked.apply_status(StatusEffects.LIGHTNING, StatusEffects.LIGHTNING_DURATION)
+	assert(StatusEffects.is_stunned(shocked), "a fresh shock should stun")
+	assert(shocked.status.has(StatusEffects.STUN), "the stun is tracked in the status dict")
+	# The stun expires well before the shock does, leaving the slow behind.
+	StatusEffects.tick(shocked, StatusEffects.LIGHTNING_STUN_DURATION + 0.01)
+	assert(not StatusEffects.is_stunned(shocked), "the stun should expire after LIGHTNING_STUN_DURATION")
+	assert(shocked.status.has(StatusEffects.LIGHTNING), "the shock slow should outlast its opening stun")
+	assert(StatusEffects.speed_multiplier(shocked) < 1.0, "a shocked enemy should still be slowed after the stun")
+	shocked.queue_free()
+
+	var frozen: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 400.0, false)
+	frozen.apply_status(StatusEffects.FROST, StatusEffects.FROST_DURATION)
+	assert(StatusEffects.is_frozen(frozen), "frost should freeze")
+	assert(not StatusEffects.is_stunned(frozen), "frost freezes via is_frozen, it must not set the shock stun")
+	frozen.queue_free()
+
+	# Fire is deliberately a pure DOT -- it must never stop or slow anything.
+	var burning: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 500.0, false)
+	burning.apply_status(StatusEffects.FIRE, StatusEffects.FIRE_DURATION)
+	assert(not StatusEffects.is_frozen(burning) and not StatusEffects.is_stunned(burning), "fire must not apply a movement lock")
+	assert(is_equal_approx(StatusEffects.speed_multiplier(burning), 1.0), "fire must not slow")
+	burning.queue_free()
+
+	# 4. Burn scales with the enemy's own wave HP multiplier, so a tankier
+	#    late-wave enemy burns proportionally as fast as a wave-1 one.
+	var tanky: EnemyBase = spawner.spawn(goblin, 8.0, 1.0, 1.0, -1, 1.0, 600.0, false)
+	assert(is_equal_approx(StatusEffects._burn_scale(tanky), 8.0), "burn should scale by the enemy's hp_mult")
+	var plain: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 700.0, false)
+	assert(is_equal_approx(StatusEffects._burn_scale(plain), 1.0), "an unscaled enemy burns at the base rate")
+	tanky.queue_free()
+	plain.queue_free()
+
+	# 3. Bosses: slowed while chilled/shocked, but never fully stopped.
+	var boss_data = load("res://resources/enemies/fallen_knight.tres")
+	var boss: BossBase = boss_data.scene.instantiate()
+	boss.setup(boss_data, 1.0, 1.0, 1.0)
+	add_child(boss)
+	assert(is_equal_approx(StatusEffects.boss_speed_multiplier(boss), 1.0), "an unafflicted boss moves at full speed")
+	boss.apply_status(StatusEffects.FROST, StatusEffects.FROST_DURATION)
+	var boss_slow := StatusEffects.boss_speed_multiplier(boss)
+	assert(boss_slow < 1.0, "a chilled boss should be slowed")
+	assert(boss_slow > 0.0, "a boss must never be fully stopped -- that's the whole point of the boss carve-out")
+	assert(is_equal_approx(boss_slow, StatusEffects.BOSS_STATUS_SLOW_MULT), "boss slow should be BOSS_STATUS_SLOW_MULT")
+	boss.queue_free()
+
 	spawner.queue_free()
 	enemy_pool.queue_free()
 	await get_tree().process_frame

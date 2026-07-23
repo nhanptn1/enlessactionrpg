@@ -49,6 +49,13 @@ const DASH_ALPHA_DIP := 0.4  # visual-only cue that i-frames are active, no new 
 # everything, Frost freezes everything, Lightning shocks everything -- the
 # guaranteed status is the real payoff, feeding spreads/combos/capstones.
 const ULTIMATE_UNLOCK_TIER := 4  # active element's tier that unlocks the ultimate (below CAPSTONE_TIER 5 on purpose -- see header)
+# (2026-07-22) Tier each of TWO element lines must reach to fuse them. Lowered
+# 5 -> 4 alongside the ultimate: requiring the tier-5 capstone on two separate
+# lines was strictly harder than the ultimate gate the user already reported as
+# unreachable, so fusions would essentially never fire. At tier 4 the combos
+# land at base damage; pushing either line on to its tier-5 capstone then
+# doubles that combo's damage -- a natural two-stage payoff.
+const FUSION_UNLOCK_TIER := 4
 const ULTIMATE_KILLS_REQUIRED := 40
 const ULTIMATE_FIRE_DAMAGE := 30.0
 const ULTIMATE_FROST_DAMAGE := 15.0  # lowest raw hit -- a full-screen freeze is already the strongest control effect in the game
@@ -703,15 +710,14 @@ func _element_status_name(element: int) -> String:
 
 
 func _maybe_unlock_fusions(element: int) -> void:
-	# Called after an element line levels up. If this line just reached max tier,
-	# pair it with any OTHER already-maxed element line into a fusion (once per
-	# pair). Requiring both at CAPSTONE_TIER makes fusion a genuine deep-run
-	# reward -- it's one knob if that proves too steep.
+	# Called after an element line levels up. If this line just reached
+	# FUSION_UNLOCK_TIER, pair it with any OTHER line already at that tier into a
+	# fusion (once per pair).
 	var el := _element_status_name(element)
-	if el == "" or get_element_tier(element) < StatusEffects.CAPSTONE_TIER:
+	if el == "" or get_element_tier(element) < FUSION_UNLOCK_TIER:
 		return
 	for other in [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING]:
-		if other == element or get_element_tier(other) < StatusEffects.CAPSTONE_TIER:
+		if other == element or get_element_tier(other) < FUSION_UNLOCK_TIER:
 			continue
 		var pid := ElementFusions.pair_id(el, _element_status_name(other))
 		if pid in active_fusions:
