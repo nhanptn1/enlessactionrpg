@@ -24,7 +24,9 @@ const FUSIONS := {
 	"fire_frost": {
 		"name": "Frostfire",
 		"elements": [FIRE, FROST],
-		"icon": "res://art/ui/icons/icon_frozen_burst.png",
+		# (2026-07-23) Its own real art now -- frame 1 of the fused fire+frost
+		# bolt -- instead of borrowing Frost's icon_frozen_burst.
+		"icon": "res://art/vfx/frostfire_bolt_01.png",
 		"description": "Attacks chill and burn at once — afflicted enemies detonate in a frost-fire blast.",
 	},
 	"frost_lightning": {

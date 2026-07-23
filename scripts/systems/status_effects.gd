@@ -322,9 +322,10 @@ static func _combo_feedback(target: Node, amount: float, color: Color, kind: Str
 	ImpactVFX.flash_burst(pos, COMBO_FLASH_RADIUS, color, host)
 	match kind:
 		"frostfire":
-			# Ice shatter + fire bloom together -- the two elements colliding.
-			ImpactVFX.ice_burst(pos, COMBO_FLASH_RADIUS, host)
-			ImpactVFX.fire_explosion(pos, COMBO_FLASH_RADIUS * 0.8, host)
+			# (2026-07-23) Real fused art now (an ice bolt sheathed in flame),
+			# replacing the generic ice_burst + fire_explosion stack that read
+			# as ordinary chip damage. See ImpactVFX.frostfire_bolt().
+			ImpactVFX.frostfire_bolt(pos, COMBO_FLASH_RADIUS, host)
 		"superconductor":
 			ImpactVFX.spark_burst(pos, COMBO_FLASH_RADIUS, host)
 			ImpactVFX.ice_shards(pos, host)

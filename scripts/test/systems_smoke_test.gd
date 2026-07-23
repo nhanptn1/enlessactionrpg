@@ -757,6 +757,13 @@ func _assert_element_fusion() -> void:
 		var ipath := ElementFusions.icon_path(pid)
 		_expect(ipath != "" and ResourceLoader.exists(ipath), "%s needs an icon that actually exists (%s)" % [pid, ipath])
 
+	# (2026-07-23) Frostfire's real extracted art -- every frame of the fused
+	# bolt animation must be on disk, or the combo silently plays nothing.
+	for fpath in ImpactVFX.FROSTFIRE_BOLT_FRAME_PATHS:
+		_expect(ResourceLoader.exists(fpath), "frostfire bolt frame missing: %s" % fpath)
+	var ff_frames := ImpactVFX._get_frostfire_bolt_frames()
+	_expect(ff_frames != null and ff_frames.get_frame_count("burst") == ImpactVFX.FROSTFIRE_BOLT_FRAME_PATHS.size(), "the frostfire bolt animation should build all %d frames" % ImpactVFX.FROSTFIRE_BOLT_FRAME_PATHS.size())
+
 	# Spawn setup for the apply mechanic.
 	var spawner := EnemySpawner.new()
 	spawner.name = "EnemySpawner"

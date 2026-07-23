@@ -35,6 +35,20 @@ const ICE_WALL_NOVA_FRAME_PATHS := [
 	"res://art/vfx/ice_wall_nova_04.png",
 	"res://art/vfx/ice_wall_nova_05.png",
 ]
+# (2026-07-23) Frostfire fusion, extracted from the user-supplied
+# "fire_frost.png" sheet by scripts/tools/extract_frostfire.gd. Real art for
+# the Fire+Frost combo, which until now resolved with a generic
+# flash_burst + ice_burst + fire_explosion stack that looked like ordinary chip
+# damage. Like the ice_burst sheet this is DIRECTIONAL (an ice bolt sheathed in
+# flame, travelling rightward), so it gets the same -90 degrees correction to
+# erupt upward from the impact point rather than smear sideways.
+const FROSTFIRE_BOLT_FRAME_PATHS := [
+	"res://art/vfx/frostfire_bolt_01.png",
+	"res://art/vfx/frostfire_bolt_02.png",
+	"res://art/vfx/frostfire_bolt_03.png",
+	"res://art/vfx/frostfire_bolt_04.png",
+]
+const FROSTFIRE_BOLT_SPEED := 15.0  # 4 frames, ~0.27s -- a snappy detonation, not a lingering effect
 const ICE_BURST_SPEED := 14.0       # 4 frames read as one quick radiating spike burst (~0.3s)
 const ICE_WALL_NOVA_SPEED := 13.0   # 5 frames read as a bigger "spin-up then shatter" (~0.4s)
 const BURST_TARGET_DIAMETER_MULT := 2.2  # matches fire_explosion()'s own radius-to-sprite-width ratio
@@ -217,6 +231,19 @@ static func ice_burst(pos: Vector2, radius: float, host: Node) -> void:
 	# intentional in this vertical shooter (enemies are always above) rather
 	# than a random sideways smear.
 	_play_burst_animation(_get_ice_burst_frames(), pos, radius, host, -PI / 2.0)
+
+
+static func frostfire_bolt(pos: Vector2, radius: float, host: Node) -> void:
+	# The Frostfire fusion's own signature detonation. Rotated -90 degrees for
+	# the same reason ice_burst() is: the source sheet is a rightward-travelling
+	# bolt, and left unrotated it reads as a sideways smear regardless of where
+	# the hit landed. Erupting upward suits this vertical shooter (enemies are
+	# always above the player).
+	_play_burst_animation(_get_frostfire_bolt_frames(), pos, radius, host, -PI / 2.0)
+
+
+static func _get_frostfire_bolt_frames() -> SpriteFrames:
+	return _build_burst_frames(FROSTFIRE_BOLT_FRAME_PATHS, FROSTFIRE_BOLT_SPEED)
 
 
 static func ice_wall_nova_burst(pos: Vector2, radius: float, host: Node) -> void:
