@@ -50,8 +50,6 @@ const FROST_DURATION := 1.6
 const FROST_COLOR := Color(0.55, 0.85, 1.6, 1.0)
 
 const FROSTFIRE_DAMAGE := 40.0
-const FROSTFIRE_SHAKE_INTENSITY := 8.0
-const FROSTFIRE_SHAKE_DURATION := 0.2
 
 const SUPERCONDUCTOR_DAMAGE := 25.0
 const SUPERCONDUCTOR_SPLASH_DAMAGE := 15.0
@@ -65,8 +63,6 @@ const SUPERCONDUCTOR_SPLASH_RADIUS := 80.0
 const OVERLOAD_DAMAGE := 30.0
 const OVERLOAD_SPLASH_DAMAGE := 18.0
 const OVERLOAD_SPLASH_RADIUS := 110.0
-const OVERLOAD_SHAKE_INTENSITY := 7.0
-const OVERLOAD_SHAKE_DURATION := 0.2
 
 const SPREAD_RADIUS := 90.0  # Ignite Trail / Ice Wall Nova / Chain Resonance
 const EXPLODE_DAMAGE := 20.0
@@ -264,9 +260,6 @@ static func _evaluate_combos(target: Node) -> void:
 			frost_mult *= FROST_CAPSTONE_COMBO_MULT
 		_combo_feedback(target, FROSTFIRE_DAMAGE * frost_mult, FROSTFIRE_COLOR, "frostfire")
 		target.take_damage(FROSTFIRE_DAMAGE * frost_mult)
-		var cam := target.get_viewport().get_camera_2d()
-		if is_instance_valid(cam) and cam.has_method("shake"):
-			cam.shake(FROSTFIRE_SHAKE_INTENSITY, FROSTFIRE_SHAKE_DURATION)
 		_clear_all(target)
 	elif target.status.has(FROST) and target.status.has(LIGHTNING):
 		var combo_mult: float = 1.0
@@ -292,9 +285,6 @@ static func _evaluate_combos(target: Node) -> void:
 		_combo_feedback(target, OVERLOAD_DAMAGE * overload_mult, OVERLOAD_COLOR, "overload")
 		target.take_damage(OVERLOAD_DAMAGE * overload_mult)
 		_splash_nearby(target, OVERLOAD_SPLASH_DAMAGE, OVERLOAD_SPLASH_RADIUS)
-		var cam := target.get_viewport().get_camera_2d()
-		if is_instance_valid(cam) and cam.has_method("shake"):
-			cam.shake(OVERLOAD_SHAKE_INTENSITY, OVERLOAD_SHAKE_DURATION)
 		_clear_all(target)
 
 
@@ -306,8 +296,21 @@ static func _evaluate_combos(target: Node) -> void:
 const FROSTFIRE_COLOR := Color(0.75, 0.9, 1.0, 1.0)
 const SUPERCONDUCTOR_COLOR := Color(0.7, 0.85, 1.0, 1.0)
 const OVERLOAD_COLOR := Color(1.0, 0.65, 0.25, 1.0)
-const COMBO_FLASH_RADIUS := 78.0
-const COMBO_HITSTOP := 0.07
+# (2026-07-23) 78 -> 200. A fusion is the reward for maxing TWO lines, but its
+# detonation was drawn SMALLER than an ordinary elemental burst (skill
+# burst_radius runs 50-170, so Ice Wall Nova alone out-sized every fusion).
+# 200 puts a fusion clearly above the largest normal effect in the game, which
+# is what the user asked for -- fusions should out-highlight element skills,
+# not blend in with them.
+const COMBO_FLASH_RADIUS := 200.0
+const COMBO_HITSTOP := 0.09
+# One shared impact profile for all three fusions, rather than each combo
+# picking its own (Frostfire 8.0, Overload 7.0, Superconductor none at all --
+# so the fusions didn't even feel consistent with each other). Sits below the
+# boss entrance's 14.0 so a fusion proc still reads as smaller than a boss
+# arriving.
+const COMBO_SHAKE_INTENSITY := 11.0
+const COMBO_SHAKE_DURATION := 0.24
 
 
 static func _combo_feedback(target: Node, amount: float, color: Color, kind: String) -> void:
@@ -337,6 +340,11 @@ static func _combo_feedback(target: Node, amount: float, color: Color, kind: Str
 			ImpactVFX.overload_burst(pos, COMBO_FLASH_RADIUS, host)
 			ImpactVFX.ground_shockwave(pos, OVERLOAD_SPLASH_RADIUS, host)
 	DamageNumber.spawn(amount, pos, color, host, true)
+	# Shake here rather than per-combo, so all three fusions land with the same
+	# weight (Superconductor previously had no shake at all).
+	var cam := target.get_viewport().get_camera_2d()
+	if is_instance_valid(cam) and cam.has_method("shake"):
+		cam.shake(COMBO_SHAKE_INTENSITY, COMBO_SHAKE_DURATION)
 	GameManager.hitstop(COMBO_HITSTOP)
 
 

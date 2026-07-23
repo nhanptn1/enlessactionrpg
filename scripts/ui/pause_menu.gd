@@ -256,21 +256,59 @@ func _build_skill_rows() -> void:
 	for element in [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING]:
 		skill_rows_container.add_child(_build_element_row(player, element))
 	skill_rows_container.add_child(_build_class_row(player))
-	skill_rows_container.add_child(_build_stats_section("Elemental Fusions", _fusion_lines(player)))
-
-
-func _fusion_lines(player: Node) -> Array[String]:
-	# Lists all three fusions, unlocked or not -- the locked entries double as
-	# the only place the game explains how fusions are earned.
-	var lines: Array[String] = []
+	# (2026-07-23) Fusions were a plain text section; now that each one has real
+	# art they get proper icon rows like every other line, so a fusion reads as
+	# a skill the player owns rather than a footnote.
+	var fusion_header := Label.new()
+	fusion_header.add_theme_font_size_override("font_size", ROW_NAME_FONT_SIZE)
+	fusion_header.add_theme_color_override("font_color", ElementFusions.FUSION_COLOR)
+	fusion_header.text = "Elemental Fusions"
+	skill_rows_container.add_child(fusion_header)
 	for pid in ElementFusions.FUSIONS:
-		var fusion_name: String = ElementFusions.display_name(pid)
-		if pid in player.active_fusions:
-			lines.append("%s (ACTIVE) — %s" % [fusion_name, ElementFusions.description(pid)])
-		else:
-			var els: Array = ElementFusions.FUSIONS[pid]["elements"]
-			lines.append("%s — locked: raise %s + %s to tier %d" % [fusion_name, str(els[0]).capitalize(), str(els[1]).capitalize(), player.FUSION_UNLOCK_TIER])
-	return lines
+		skill_rows_container.add_child(_build_fusion_row(player, pid))
+
+
+func _build_fusion_row(player: Node, pair_id: String) -> Control:
+	# Mirrors _build_row()'s icon + name + detail shape, but a fusion has no
+	# tiers and no SkillData -- it's on or off -- so it's built directly.
+	var unlocked: bool = pair_id in player.active_fusions
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 12)
+	var icon := TextureRect.new()
+	icon.custom_minimum_size = Vector2(ROW_ICON_SIZE, ROW_ICON_SIZE)
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	var ipath := ElementFusions.icon_path(pair_id)
+	if ipath != "":
+		icon.texture = load(ipath)
+	# Locked fusions show their art dimmed, so the player can see what they're
+	# working toward instead of a blank slot.
+	icon.modulate = Color(1, 1, 1, 1) if unlocked else Color(0.4, 0.4, 0.45, 0.6)
+	header.add_child(icon)
+
+	var name_label := Label.new()
+	name_label.add_theme_font_size_override("font_size", ROW_NAME_FONT_SIZE)
+	name_label.text = "%s%s" % [ElementFusions.display_name(pair_id), "  (Active)" if unlocked else ""]
+	name_label.add_theme_color_override("font_color", ElementFusions.FUSION_COLOR if unlocked else LOCKED_ROW_COLOR)
+	header.add_child(name_label)
+	row.add_child(header)
+
+	var detail := Label.new()
+	detail.add_theme_font_size_override("font_size", ROW_STAT_FONT_SIZE)
+	detail.add_theme_color_override("font_color", STAT_LABEL_COLOR)
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD
+	if unlocked:
+		detail.text = ElementFusions.description(pair_id)
+	else:
+		# The locked line is the only place the game explains how fusions are
+		# earned, so it names both required lines and the exact tier.
+		var els: Array = ElementFusions.FUSIONS[pair_id]["elements"]
+		detail.text = "Locked — raise %s and %s to tier %d" % [str(els[0]).capitalize(), str(els[1]).capitalize(), player.FUSION_UNLOCK_TIER]
+	row.add_child(detail)
+	return row
 
 
 func _build_physical_row(player: Node) -> Control:
