@@ -327,8 +327,9 @@ static func _combo_feedback(target: Node, amount: float, color: Color, kind: Str
 			# as ordinary chip damage. See ImpactVFX.frostfire_bolt().
 			ImpactVFX.frostfire_bolt(pos, COMBO_FLASH_RADIUS, host)
 		"superconductor":
-			ImpactVFX.spark_burst(pos, COMBO_FLASH_RADIUS, host)
-			ImpactVFX.ice_shards(pos, host)
+			# (2026-07-23) Real fused art (ice crystals caged in lightning),
+			# replacing the generic spark_burst + ice_shards stack.
+			ImpactVFX.superconductor_arc(pos, COMBO_FLASH_RADIUS, host)
 		"overload":
 			ImpactVFX.fire_explosion(pos, COMBO_FLASH_RADIUS, host)
 			ImpactVFX.spark_burst(pos, COMBO_FLASH_RADIUS * 0.9, host)

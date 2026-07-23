@@ -757,12 +757,18 @@ func _assert_element_fusion() -> void:
 		var ipath := ElementFusions.icon_path(pid)
 		_expect(ipath != "" and ResourceLoader.exists(ipath), "%s needs an icon that actually exists (%s)" % [pid, ipath])
 
-	# (2026-07-23) Frostfire's real extracted art -- every frame of the fused
-	# bolt animation must be on disk, or the combo silently plays nothing.
-	for fpath in ImpactVFX.FROSTFIRE_BOLT_FRAME_PATHS:
-		_expect(ResourceLoader.exists(fpath), "frostfire bolt frame missing: %s" % fpath)
-	var ff_frames := ImpactVFX._get_frostfire_bolt_frames()
-	_expect(ff_frames != null and ff_frames.get_frame_count("burst") == ImpactVFX.FROSTFIRE_BOLT_FRAME_PATHS.size(), "the frostfire bolt animation should build all %d frames" % ImpactVFX.FROSTFIRE_BOLT_FRAME_PATHS.size())
+	# (2026-07-23) Real extracted fusion art -- every frame must be on disk, or
+	# the combo silently plays nothing.
+	var fusion_anims := {
+		"frostfire bolt": [ImpactVFX.FROSTFIRE_BOLT_FRAME_PATHS, ImpactVFX._get_frostfire_bolt_frames()],
+		"superconductor arc": [ImpactVFX.SUPERCONDUCTOR_ARC_FRAME_PATHS, ImpactVFX._get_superconductor_arc_frames()],
+	}
+	for anim_name in fusion_anims:
+		var paths: Array = fusion_anims[anim_name][0]
+		var frames: SpriteFrames = fusion_anims[anim_name][1]
+		for fpath in paths:
+			_expect(ResourceLoader.exists(fpath), "%s frame missing: %s" % [anim_name, fpath])
+		_expect(frames != null and frames.get_frame_count("burst") == paths.size(), "the %s animation should build all %d frames" % [anim_name, paths.size()])
 
 	# Spawn setup for the apply mechanic.
 	var spawner := EnemySpawner.new()

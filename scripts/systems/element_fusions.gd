@@ -32,7 +32,9 @@ const FUSIONS := {
 	"frost_lightning": {
 		"name": "Superconductor",
 		"elements": [FROST, LIGHTNING],
-		"icon": "res://art/ui/icons/icon_chain_spark.png",
+		# (2026-07-23) Own real art now, instead of borrowing Lightning's
+		# icon_chain_spark.
+		"icon": "res://art/vfx/superconductor_arc_01.png",
 		"description": "Attacks chill and shock at once — afflicted enemies discharge, arcing damage to nearby foes.",
 	},
 	"fire_lightning": {

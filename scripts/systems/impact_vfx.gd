@@ -49,6 +49,17 @@ const FROSTFIRE_BOLT_FRAME_PATHS := [
 	"res://art/vfx/frostfire_bolt_04.png",
 ]
 const FROSTFIRE_BOLT_SPEED := 15.0  # 4 frames, ~0.27s -- a snappy detonation, not a lingering effect
+# (2026-07-23) Superconductor fusion, extracted from "frost_lightning.png"
+# (a 2x2 sheet -- see extract_vfx_sheet.gd). Unlike the Frostfire bolt this art
+# is radially symmetric (ice crystals caged in arcs that reach out in every
+# direction), so it needs NO rotation correction.
+const SUPERCONDUCTOR_ARC_FRAME_PATHS := [
+	"res://art/vfx/superconductor_arc_01.png",
+	"res://art/vfx/superconductor_arc_02.png",
+	"res://art/vfx/superconductor_arc_03.png",
+	"res://art/vfx/superconductor_arc_04.png",
+]
+const SUPERCONDUCTOR_ARC_SPEED := 15.0
 const ICE_BURST_SPEED := 14.0       # 4 frames read as one quick radiating spike burst (~0.3s)
 const ICE_WALL_NOVA_SPEED := 13.0   # 5 frames read as a bigger "spin-up then shatter" (~0.4s)
 const BURST_TARGET_DIAMETER_MULT := 2.2  # matches fire_explosion()'s own radius-to-sprite-width ratio
@@ -244,6 +255,16 @@ static func frostfire_bolt(pos: Vector2, radius: float, host: Node) -> void:
 
 static func _get_frostfire_bolt_frames() -> SpriteFrames:
 	return _build_burst_frames(FROSTFIRE_BOLT_FRAME_PATHS, FROSTFIRE_BOLT_SPEED)
+
+
+static func superconductor_arc(pos: Vector2, radius: float, host: Node) -> void:
+	# The Superconductor fusion's signature detonation. Radially symmetric, so
+	# unlike frostfire_bolt()/ice_burst() it is drawn unrotated.
+	_play_burst_animation(_get_superconductor_arc_frames(), pos, radius, host)
+
+
+static func _get_superconductor_arc_frames() -> SpriteFrames:
+	return _build_burst_frames(SUPERCONDUCTOR_ARC_FRAME_PATHS, SUPERCONDUCTOR_ARC_SPEED)
 
 
 static func ice_wall_nova_burst(pos: Vector2, radius: float, host: Node) -> void:
