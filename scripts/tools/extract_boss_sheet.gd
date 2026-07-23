@@ -16,14 +16,32 @@ extends SceneTree
 ## x-extent so the black background never reaches the frame splitter -- the
 ## armour is very dark, so keying black would eat the character.
 
-const SRC := "D:/WORK/PROJECT/GODOT/image/Fallen Knight.png"
 const OUT_DIR := "res://art/bosses/"
-# Row index (in detection order, top to bottom) -> output name. Rows not listed
-# are skipped; extracting every row would emit 28 PNGs when only these are used.
-const ROWS := {
-	0: "fallen_knight_idle",
-	1: "fallen_knight_walk",
-}
+
+# (2026-07-23) Two background MODES, because boss sheets keep arriving in
+# different packagings:
+#   "grid"  -- Fallen Knight: sprites on a light-grey cell grid over black,
+#              with baked-in title and per-row label text.
+#   "plain" -- Dark Ranger Commander: a clean NxN layout on one flat colour,
+#              no grid, no labels. Far simpler: key the background colour
+#              sampled from a corner, then split on gaps.
+# `rows` maps row index (top to bottom) -> output name; unlisted rows are
+# skipped rather than emitting PNGs nothing uses.
+const SHEETS := [
+	{
+		"src": "D:/WORK/PROJECT/GODOT/image/Fallen Knight.png",
+		"skip": true,  # already extracted and committed; re-running costs a minute of per-pixel work
+		"mode": "grid",
+		"rows": {0: "fallen_knight_idle", 1: "fallen_knight_walk"},
+	},
+	{
+		"src": "D:/WORK/PROJECT/GODOT/image/Dark Ranger Commander.png",
+		"mode": "plain",
+		"rows": {0: "dark_ranger_idle", 1: "dark_ranger_walk", 2: "dark_ranger_attack"},
+	},
+]
+
+const PLAIN_BG_TOL := 0.12  # how close to the sampled corner colour still counts as background
 
 const BAND_LIGHT_FRAC := 0.22   # fraction of a row that must be light grey to be grid
 const BAND_MERGE_GAP := 12      # merge bands closer than this -- thin grid lines
@@ -33,6 +51,7 @@ const GREY_SAT_MAX := 0.20      # ...and must be near-colourless
 const COL_MIN_GAP := 25       # wide: a sprite has internal gaps (between legs, arm and body) of a few px that must NOT split it; real inter-frame gaps here are ~75px
 const MIN_COL_PIXELS := 3       # sprite pixels needed before a column counts as occupied
 const MIN_FRAME_WIDTH := 20     # narrower than this is a grid border line, not a character
+const ROW_MIN_GAP := 6          # vertical gaps BETWEEN animation rows are much tighter than the horizontal gaps between frames -- reusing COL_MIN_GAP (25) here merged two rows into one
 const PAD := 2
 
 # Measured off the sheet: the cell FILL is lum ~0.79 at s~0.00, while the cell
@@ -57,16 +76,111 @@ func _is_sprite(c: Color) -> bool:
 
 
 func _init() -> void:
-	var img := Image.load_from_file(SRC)
-	if img == null:
-		printerr("could not load %s" % SRC)
-		quit(1)
-		return
-	img.convert(Image.FORMAT_RGBA8)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
+	for cfg in SHEETS:
+		if cfg.get("skip", false):
+			continue
+		print("=== %s (%s) ===" % [cfg["src"], cfg["mode"]])
+		var img := Image.load_from_file(cfg["src"])
+		if img == null:
+			printerr("  could not load")
+			continue
+		img.convert(Image.FORMAT_RGBA8)
+		print("  sheet %dx%d" % [img.get_width(), img.get_height()])
+		if cfg["mode"] == "plain":
+			_extract_plain(img, cfg["rows"])
+		else:
+			_extract_grid(img, cfg["rows"])
+
+
+func _extract_plain(img: Image, rows_map: Dictionary) -> void:
+	# One flat background colour, sampled from a corner. The characters here are
+	# dark greens/browns with saturated red accents, so a plain distance test
+	# separates them from the (white) field without any of the grid-sheet
+	# gymnastics.
+	var bg := img.get_pixel(0, 0)
+	print("  background sampled: %s" % bg)
 	var w := img.get_width()
 	var h := img.get_height()
-	print("sheet %dx%d" % [w, h])
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
+	for y in h:
+		for x in w:
+			var c := img.get_pixel(x, y)
+			var d: float = absf(c.r - bg.r) + absf(c.g - bg.g) + absf(c.b - bg.b)
+			if d < PLAIN_BG_TOL * 3.0:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+
+	# Row bands, then columns within each band -- same shape as the VFX
+	# extractor, and MIN_FRAME_WIDTH still filters out stray specks.
+	var row_used: Array = []
+	row_used.resize(h)
+	for y in h:
+		var hits := 0
+		for x in w:
+			if img.get_pixel(x, y).a > 0.15:
+				hits += 1
+		row_used[y] = hits >= MIN_COL_PIXELS
+	var bands := _spans(row_used, ROW_MIN_GAP, MIN_BAND_HEIGHT)
+	print("  rows detected: %d" % bands.size())
+	for i in bands.size():
+		if not rows_map.has(i):
+			continue
+		_cut_row(img, bands[i], rows_map[i])
+
+
+func _cut_row(img: Image, band: Vector2i, out_name: String) -> void:
+	var w := img.get_width()
+	var col_used: Array = []
+	col_used.resize(w)
+	for x in w:
+		var hits := 0
+		for y in range(band.x, band.y + 1):
+			if img.get_pixel(x, y).a > 0.15:
+				hits += 1
+		col_used[x] = hits >= MIN_COL_PIXELS
+	var spans := _spans(col_used, COL_MIN_GAP, MIN_FRAME_WIDTH)
+	if spans.is_empty():
+		print("  %s: no frames" % out_name)
+		return
+	# Common frame size, each cut centred on its own content so the animation
+	# cannot jitter as poses change width.
+	var cw := 0
+	for sp in spans:
+		cw = maxi(cw, sp.y - sp.x + 1)
+	cw += PAD * 2
+	var ch: int = (band.y - band.x + 1) + PAD * 2
+	for i in spans.size():
+		var sp: Vector2i = spans[i]
+		var centre: int = (sp.x + sp.y) / 2
+		var out := Image.create(cw, ch, false, Image.FORMAT_RGBA8)
+		out.blit_rect(img, Rect2i(centre - cw / 2, band.x - PAD, cw, ch), Vector2i.ZERO)
+		out.save_png(ProjectSettings.globalize_path("%s%s_%02d.png" % [OUT_DIR, out_name, i + 1]))
+	print("  %s: %d frames, %dx%d each" % [out_name, spans.size(), cw, ch])
+
+
+func _spans(used: Array, min_gap: int, min_len: int) -> Array:
+	var out: Array = []
+	var s := -1
+	var gap := 0
+	for i in used.size():
+		if used[i]:
+			if s < 0:
+				s = i
+			gap = 0
+		elif s >= 0:
+			gap += 1
+			if gap >= min_gap:
+				if (i - gap) - s + 1 >= min_len:
+					out.append(Vector2i(s, i - gap))
+				s = -1
+				gap = 0
+	if s >= 0 and used.size() - s >= min_len:
+		out.append(Vector2i(s, used.size() - 1))
+	return out
+
+
+func _extract_grid(img: Image, rows_map: Dictionary) -> void:
+	var w := img.get_width()
+	var h := img.get_height()
 
 	# --- 1. grid bands (label text sits in the black gaps between them)
 	var raw: Array = []
@@ -104,12 +218,11 @@ func _init() -> void:
 
 	# --- 2. per row: crop to the grid, key the grey, split into frames
 	for i in kept.size():
-		if not ROWS.has(i):
+		if not rows_map.has(i):
 			continue
 		var band: Vector2i = kept[i]
-		var out_name: String = ROWS[i]
+		var out_name: String = rows_map[i]
 		_extract_row(img, band, out_name)
-	quit(0)
 
 
 func _extract_row(sheet: Image, band: Vector2i, out_name: String) -> void:
