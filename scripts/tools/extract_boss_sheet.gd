@@ -37,7 +37,13 @@ const SHEETS := [
 	{
 		"src": "D:/WORK/PROJECT/GODOT/image/Dark Ranger Commander.png",
 		"mode": "plain",
+		"skip": true,
 		"rows": {0: "dark_ranger_idle", 1: "dark_ranger_walk", 2: "dark_ranger_attack"},
+	},
+	{
+		"src": "D:/WORK/PROJECT/GODOT/image/Corrupted Forest Guardian.png",
+		"mode": "plain",
+		"rows": {0: "forest_guardian_idle", 1: "forest_guardian_walk", 2: "forest_guardian_attack"},
 	},
 ]
 

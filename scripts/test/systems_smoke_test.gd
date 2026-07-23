@@ -156,6 +156,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_status_control_effects()
 	await _assert_skill_panel_shows_live_stats()
 	_assert_card_frames_are_per_element()
+	await _assert_bosses_have_own_art()
 	await _assert_boss_presence()
 	await _assert_combat_juice()
 	await _assert_unit_identity()
@@ -1022,6 +1023,53 @@ func _assert_card_frames_are_per_element() -> void:
 			elif p.h > 0.08 and p.h < 0.20:
 				yellow += 1
 	_expect(purple > 0 and yellow > 0, "the lightning frame must be two-tone (purple shadows + yellow highlights), got purple=%d yellow=%d" % [purple, yellow])
+
+
+func _assert_bosses_have_own_art() -> void:
+	# (2026-07-23) Every boss used to borrow a REGULAR enemy's sprites, and
+	# Fallen Knight / Dark Ranger Commander shared the exact same skeleton
+	# frames. As each boss gets real art this guards two ways that can regress:
+	# a boss silently pointing back at shared/enemy art, and -- for the Forest
+	# Guardian, whose scene had to be rebuilt around its animation -- losing the
+	# sapling_data its summon attack depends on.
+	var boss_scenes := {
+		"fallen_knight": "res://scenes/enemies/FallenKnight.tscn",
+		"dark_ranger_commander": "res://scenes/enemies/DarkRangerCommander.tscn",
+		"corrupted_forest_guardian": "res://scenes/enemies/CorruptedForestGuardian.tscn",
+	}
+	var seen_textures: Dictionary = {}
+	for boss_name in boss_scenes:
+		var packed: PackedScene = load(boss_scenes[boss_name])
+		_expect(packed != null, "%s scene failed to load" % boss_name)
+		if packed == null:
+			continue
+		# Deliberately NOT added to the tree: BossBase._ready() needs setup()
+		# to have supplied its EnemyData, and this check only cares about
+		# authored scene contents, which instantiate() already populates.
+		var inst := packed.instantiate()
+		var spr: AnimatedSprite2D = inst.get_node_or_null("Sprite")
+		_expect(spr != null and spr.sprite_frames != null, "%s needs a Sprite with frames" % boss_name)
+		if spr != null and spr.sprite_frames != null:
+			var count := spr.sprite_frames.get_frame_count("move")
+			_expect(count >= 4, "%s should have a real multi-frame walk, got %d" % [boss_name, count])
+			for i in count:
+				var tex: Texture2D = spr.sprite_frames.get_frame_texture("move", i)
+				_expect(tex != null, "%s move frame %d has no texture" % [boss_name, i])
+				if tex == null:
+					continue
+				var path := tex.resource_path
+				# Its OWN art, not a regular enemy's, and not another boss's.
+				_expect(path.begins_with("res://art/bosses/"), "%s should use dedicated boss art, got %s" % [boss_name, path])
+				_expect(not seen_textures.has(path), "%s reuses a texture another boss already uses: %s" % [boss_name, path])
+				seen_textures[path] = boss_name
+		inst.free()
+
+	# The Guardian's summon attack reads sapling_data off the scene; rebuilding
+	# that scene for its animation is exactly when it could go missing.
+	var guardian := (load(boss_scenes["corrupted_forest_guardian"]) as PackedScene).instantiate()
+	_expect(guardian.sapling_data != null, "the Forest Guardian lost sapling_data -- its summon attack would break")
+	guardian.free()
+	await get_tree().process_frame
 
 
 func _assert_boss_presence() -> void:

@@ -1,25 +1,38 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/boss_base.gd" id="1"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/golem_idle_01.png" id="2"]
 [ext_resource type="Resource" path="res://resources/enemies/sapling.tres" id="3"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/golem_walk_01.png" id="4"]
+[ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_walk_01.png" id="w1"]
+[ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_walk_02.png" id="w2"]
+[ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_walk_03.png" id="w3"]
+[ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_walk_04.png" id="w4"]
 
 [sub_resource type="CircleShape2D" id="CircleShape1"]
 radius = 16.0
 
 [sub_resource type="SpriteFrames" id="SpriteFrames1"]
 animations = [{
-"frames": [{
+"frames": [
+{
 "duration": 1.0,
-"texture": ExtResource("2")
-}, {
+"texture": ExtResource("w1")
+},
+{
 "duration": 1.0,
-"texture": ExtResource("4")
-}],
+"texture": ExtResource("w2")
+},
+{
+"duration": 1.0,
+"texture": ExtResource("w3")
+},
+{
+"duration": 1.0,
+"texture": ExtResource("w4")
+}
+],
 "loop": true,
 "name": &"move",
-"speed": 3.0
+"speed": 5.0
 }]
 
 [node name="CorruptedForestGuardian" type="CharacterBody2D"]
@@ -32,7 +45,7 @@ advances_to_lose_line = true
 [node name="Sprite" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"move"
-scale = Vector2(1.0, 1.0)
+scale = Vector2(0.72, 0.72)
 
 [node name="Collision" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape1")
