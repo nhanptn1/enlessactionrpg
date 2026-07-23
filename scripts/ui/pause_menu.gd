@@ -250,14 +250,14 @@ func _fusion_lines(player: Node) -> Array[String]:
 func _build_physical_row(player: Node) -> Control:
 	var skill: SkillData = player.get_current_physical_skill()
 	var tier: int = player.get_physical_tier()
-	return _build_row("Physical", skill, tier, PHYSICAL_TIER_MAX, 3, true, false)
+	return _build_row("Physical", skill, tier, PHYSICAL_TIER_MAX, 3, true, false, player)
 
 
 func _build_element_row(player: Node, element: int) -> Control:
 	var tier: int = player.get_element_tier(element)
 	var skill: SkillData = player.get_current_skill_for_element(element) if tier > 0 else null
 	var is_active: bool = tier > 0 and player.active_element == element
-	return _build_row(ELEMENT_NAMES[element], skill, tier, ELEMENT_TIER_MAX, element, tier > 0, is_active)
+	return _build_row(ELEMENT_NAMES[element], skill, tier, ELEMENT_TIER_MAX, element, tier > 0, is_active, player)
 
 
 func _build_class_row(player: Node) -> Control:
@@ -267,10 +267,10 @@ func _build_class_row(player: Node) -> Control:
 	var tier: int = player.class_skill_level
 	var skill: SkillData = player.get_current_class_skill() if tier > 0 else null
 	var class_name_str: String = CharacterClasses.CLASSES.get(player.active_class_id, {}).get("display_name", "Class")
-	return _build_row(class_name_str, skill, tier, CLASS_TIER_MAX, UpgradeResource.ElementType.CLASS, tier > 0, false)
+	return _build_row(class_name_str, skill, tier, CLASS_TIER_MAX, UpgradeResource.ElementType.CLASS, tier > 0, false, player)
 
 
-func _build_row(line_name: String, skill: SkillData, tier: int, tier_max: int, icon_element: int, unlocked: bool, is_active: bool) -> Control:
+func _build_row(line_name: String, skill: SkillData, tier: int, tier_max: int, icon_element: int, unlocked: bool, is_active: bool, player: Node) -> Control:
 	var row := VBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 
@@ -300,7 +300,7 @@ func _build_row(line_name: String, skill: SkillData, tier: int, tier_max: int, i
 	stat_label.add_theme_font_size_override("font_size", ROW_STAT_FONT_SIZE)
 	stat_label.add_theme_color_override("font_color", STAT_LABEL_COLOR)
 	if unlocked and skill != null:
-		stat_label.text = "Tier %d/%d  •  %s" % [tier, tier_max, _format_skill_stats(skill)]
+		stat_label.text = "Tier %d/%d  •  %s" % [tier, tier_max, _format_skill_stats(skill, player, icon_element)]
 	else:
 		stat_label.text = "Not yet unlocked"
 	row.add_child(stat_label)
@@ -308,9 +308,35 @@ func _build_row(line_name: String, skill: SkillData, tier: int, tier_max: int, i
 	return row
 
 
-func _format_skill_stats(skill: SkillData) -> String:
-	var dmg := roundi(skill.base_damage)
-	var cd := "%.1f" % skill.cooldown
+func _line_multipliers(player: Node, icon_element: int) -> Dictionary:
+	# (2026-07-22) The EFFECTIVE multipliers each line fires with, mirroring
+	# player.gd's own fire-time math -- see _refresh_elemental_timer()'s
+	# `cooldown * maxf(*_skill_cd_mult, 0.3)`, _refresh_timer_cooldowns()'s
+	# `cooldown * cooldown_mult`, and the `base_damage * <mult>` lines in the
+	# fire paths. Class skills deal untyped physical damage, so they ride the
+	# basic line's damage_mult/cooldown_mult.
+	match icon_element:
+		UpgradeResource.ElementType.FIRE:
+			return {"dmg": player.fire_skill_dmg_mult, "cd": maxf(player.fire_skill_cd_mult, 0.3), "arrows": 0}
+		UpgradeResource.ElementType.FROST:
+			return {"dmg": player.frost_skill_dmg_mult, "cd": maxf(player.frost_skill_cd_mult, 0.3), "arrows": 0}
+		UpgradeResource.ElementType.LIGHTNING:
+			return {"dmg": player.lightning_skill_dmg_mult, "cd": maxf(player.lightning_skill_cd_mult, 0.3), "arrows": 0}
+		UpgradeResource.ElementType.CLASS:
+			return {"dmg": player.damage_mult, "cd": player.cooldown_mult, "arrows": 0}
+	# PHYSICAL / basic line -- the only one "+1 Arrow" applies to.
+	return {"dmg": player.damage_mult, "cd": player.cooldown_mult, "arrows": player.bonus_projectile_count}
+
+
+func _format_skill_stats(skill: SkillData, player: Node, icon_element: int) -> String:
+	# (2026-07-22) Shows what the skill ACTUALLY does right now, not the .tres
+	# base values -- user report: "skill panel stats don't update when you take
+	# a damage/cooldown upgrade." Upgrades never touch the shared SkillData
+	# resources, they accumulate into the player's multipliers, so those have to
+	# be folded in here or the panel reads as frozen for the whole run.
+	var mults := _line_multipliers(player, icon_element)
+	var dmg := roundi(skill.base_damage * float(mults["dmg"]))
+	var cd := "%.1f" % (skill.cooldown * float(mults["cd"]))
 	match skill.fire_mode:
 		SkillData.FireMode.ARROW_RAIN:
 			return "Damage %d  •  Cooldown %ss  •  %d zones" % [dmg, cd, skill.rain_arrow_count]
@@ -324,8 +350,12 @@ func _format_skill_stats(skill: SkillData) -> String:
 	var parts := "Damage %d  •  Cooldown %ss" % [dmg, cd]
 	if skill.pierce_count > 0:
 		parts += "  •  Pierce %d" % skill.pierce_count
-	if skill.projectile_count > 1:
-		parts += "  •  %d arrows" % skill.projectile_count
+	# Effective shot count, matching the fire path's own
+	# mini(projectile_count + bonus_projectile_count, MAX_SHOT_COUNT) clamp so a
+	# capped-out "+1 Arrow" stack never reads as more arrows than actually fire.
+	var shots: int = mini(skill.projectile_count + int(mults["arrows"]), player.MAX_SHOT_COUNT)
+	if shots > 1:
+		parts += "  •  %d arrows" % shots
 	if skill.burst_radius > 0.0:
 		parts += "  •  Splash %d" % roundi(skill.burst_radius)
 	if skill.chain_count > 0:

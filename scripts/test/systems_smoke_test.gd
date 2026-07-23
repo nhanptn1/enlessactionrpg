@@ -129,6 +129,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_arrow_cap_stops_plus_one_arrow()
 	await _assert_element_fusion()
 	await _assert_status_control_effects()
+	await _assert_skill_panel_shows_live_stats()
 	await _assert_boss_mutations()
 	await _assert_elemental_capstones()
 	await _assert_run_modifiers()
@@ -838,6 +839,75 @@ func _assert_status_control_effects() -> void:
 
 	spawner.queue_free()
 	enemy_pool.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_skill_panel_shows_live_stats() -> void:
+	# (2026-07-22) User report: the skill panel's basic/element stat lines never
+	# changed when a damage/cooldown upgrade was taken. Cause: the rows printed
+	# raw SkillData .tres values, while upgrades only ever move the player's
+	# multipliers. The panel must now fold those in.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_dismiss_class_select(main)
+
+	var player: Player = get_tree().get_first_node_in_group("player")
+	var pause_menu = main.get_node_or_null("PauseMenu")
+	assert(is_instance_valid(player) and pause_menu != null, "need a real player + PauseMenu")
+
+	var physical_skill := player.get_current_physical_skill()
+	assert(physical_skill != null, "the basic line always has a skill")
+
+	# --- Basic line: damage + cooldown must track the player's multipliers ---
+	var before: String = pause_menu._format_skill_stats(physical_skill, player, UpgradeResource.ElementType.PHYSICAL)
+	var base_dmg := roundi(physical_skill.base_damage * player.damage_mult)
+	assert(("Damage %d" % base_dmg) in before, "the basic row should show effective damage; got '%s'" % before)
+
+	# Take real upgrades through the real apply path.
+	for _i in 12:
+		player.apply_upgrade("damage")    # +2% damage each
+		player.apply_upgrade("cooldown")  # -3% cooldown each
+	var after: String = pause_menu._format_skill_stats(physical_skill, player, UpgradeResource.ElementType.PHYSICAL)
+	assert(after != before, "skill panel stats must change after damage/cooldown upgrades\nbefore: %s\nafter:  %s" % [before, after])
+	var up_dmg := roundi(physical_skill.base_damage * player.damage_mult)
+	assert(up_dmg > base_dmg, "sanity: 12 damage upgrades should raise effective damage")
+	assert(("Damage %d" % up_dmg) in after, "the row should show the RAISED damage; got '%s'" % after)
+	assert(("Cooldown %.1fs" % (physical_skill.cooldown * player.cooldown_mult)) in after, "the row should show the REDUCED cooldown; got '%s'" % after)
+
+	# --- "+1 Arrow" must show up, and must respect the hard cap ---
+	if physical_skill.fire_mode != SkillData.FireMode.TRAP_SHOT:
+		player.bonus_projectile_count = 0
+		var no_bonus: String = pause_menu._format_skill_stats(physical_skill, player, UpgradeResource.ElementType.PHYSICAL)
+		player.bonus_projectile_count = 2
+		var with_bonus: String = pause_menu._format_skill_stats(physical_skill, player, UpgradeResource.ElementType.PHYSICAL)
+		assert(no_bonus != with_bonus, "+1 Arrow picks should change the displayed arrow count")
+		player.bonus_projectile_count = 99  # way past the cap
+		var capped: String = pause_menu._format_skill_stats(physical_skill, player, UpgradeResource.ElementType.PHYSICAL)
+		assert(("%d arrows" % player.MAX_SHOT_COUNT) in capped, "arrow count must clamp to MAX_SHOT_COUNT; got '%s'" % capped)
+		player.bonus_projectile_count = 0
+
+	# --- Element line: its own separate multipliers, not the basic line's ---
+	player.apply_element_upgrade(load("res://resources/upgrades/fire_t1_searing_shot.tres"))
+	var fire_skill := player.get_current_skill_for_element(UpgradeResource.ElementType.FIRE)
+	assert(fire_skill != null, "fire tier 1 should set a fire skill")
+	var fire_before: String = pause_menu._format_skill_stats(fire_skill, player, UpgradeResource.ElementType.FIRE)
+	player.fire_skill_dmg_mult += 0.5
+	player.fire_skill_cd_mult -= 0.2
+	var fire_after: String = pause_menu._format_skill_stats(fire_skill, player, UpgradeResource.ElementType.FIRE)
+	assert(fire_after != fire_before, "element row must track its own dmg/cd multipliers\nbefore: %s\nafter:  %s" % [fire_before, fire_after])
+	assert(("Damage %d" % roundi(fire_skill.base_damage * player.fire_skill_dmg_mult)) in fire_after, "fire row should use fire_skill_dmg_mult; got '%s'" % fire_after)
+
+	# The whole panel must still build with the extra player arg threaded through.
+	pause_menu._build_skill_rows()
+	await get_tree().process_frame
+	assert(pause_menu.skill_rows_container.get_child_count() > 0, "skills panel should still build")
+
+	main.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
 
