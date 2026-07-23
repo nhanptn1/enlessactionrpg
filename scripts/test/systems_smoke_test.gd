@@ -132,6 +132,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_skill_panel_shows_live_stats()
 	await _assert_boss_presence()
 	await _assert_combat_juice()
+	await _assert_unit_identity()
 	await _assert_boss_mutations()
 	await _assert_elemental_capstones()
 	await _assert_run_modifiers()
@@ -1023,6 +1024,58 @@ func _assert_combat_juice() -> void:
 	await get_tree().create_timer(DamageNumber.LIFETIME + 0.3, true, false, true).timeout
 	assert(host.get_child_count() == 0, "damage numbers must free themselves, %d left" % host.get_child_count())
 	host.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_unit_identity() -> void:
+	# (2026-07-23) Unit identity pass: elite / class / boss were all just
+	# "tint + scale". Each now has its own procedural shape language. The real
+	# risk is the POOLED path -- an elite marker leaking onto a later non-elite
+	# reuse of the same instance would mislabel a normal enemy as elite.
+	await get_tree().process_frame
+	var spawner := EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	var enemy_pool := EnemyPool.new()
+	add_child(enemy_pool)
+	var goblin = load("res://resources/enemies/goblin_runner.tres")
+
+	var elite: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 200.0, true)
+	var marker = elite.get_node_or_null(EnemySpawner.ELITE_MARKER_NAME)
+	assert(marker != null and marker is EliteMarker, "an elite should get an EliteMarker")
+	assert(marker.z_index < 0, "the elite marker must draw behind the enemy sprite")
+
+	# Same instance reused as a NON-elite must lose the marker.
+	spawner._ensure_elite_marker(elite, false)
+	await get_tree().process_frame
+	assert(elite.get_node_or_null(EnemySpawner.ELITE_MARKER_NAME) == null, "a pooled non-elite reuse must not keep the elite marker")
+
+	# A plain spawn never has one to begin with.
+	var normal: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 300.0, false)
+	assert(normal.get_node_or_null(EnemySpawner.ELITE_MARKER_NAME) == null, "a normal enemy should have no elite marker")
+	elite.queue_free()
+	normal.queue_free()
+
+	# The player's class aura carries that class's own colour.
+	var player: Player = load("res://scenes/player/Player.tscn").instantiate()
+	add_child(player)
+	player.apply_class("juggernaut")
+	var found: PlayerAura = null
+	for c in player.get_children():
+		if c is PlayerAura:
+			found = c
+	assert(found != null, "applying a class should add a PlayerAura")
+	assert(found.color.is_equal_approx(CharacterClasses.get_vfx_color("juggernaut")), "the class aura should use the class's vfx colour")
+	assert(found.z_index < 0, "the class aura must draw under the player sprite")
+
+	# The three shape languages must be genuinely different scripts, not one
+	# effect reused at three sizes (which is what the tint approach amounted to).
+	assert(EliteMarker != BossAura and PlayerAura != BossAura, "elite/player/boss must each have their own visual treatment")
+
+	player.queue_free()
+	spawner.queue_free()
+	enemy_pool.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
 

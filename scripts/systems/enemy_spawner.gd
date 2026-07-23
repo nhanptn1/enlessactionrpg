@@ -13,6 +13,23 @@ const ELITE_SCALE_BONUS := 1.2
 @export var center_x: float = 360.0
 
 
+const ELITE_MARKER_NAME := "EliteMarker"
+
+
+func _ensure_elite_marker(enemy: Node, wanted: bool) -> void:
+	# (2026-07-23) Unit identity pass -- elites get angular spikes on top of the
+	# gold tint so they read as a distinct KIND of enemy, not just a recolour.
+	# Added/removed per spawn because enemies are pooled and reused.
+	var existing := enemy.get_node_or_null(ELITE_MARKER_NAME)
+	if wanted:
+		if existing == null:
+			var marker := EliteMarker.new()
+			marker.name = ELITE_MARKER_NAME
+			enemy.add_child(marker)
+	elif existing != null:
+		existing.queue_free()
+
+
 func spawn(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0, damage_mult: float = 1.0, xp_override: int = -1, visual_scale: float = 1.0, x_override: float = -1.0, is_elite: bool = false, is_boss: bool = false, mutation_id: String = "", affinity_id: String = "") -> Node:
 	# (2026-07-17) Regular monsters (is_boss=false) go through EnemyPool when
 	# one exists in the scene -- pooled instances are reused across many
@@ -40,8 +57,12 @@ func spawn(enemy_data: EnemyData, hp_mult: float = 1.0, speed_mult: float = 1.0,
 	enemy.scale = Vector2(final_scale, final_scale)
 	if is_elite:
 		enemy.modulate = ELITE_TINT
+		_ensure_elite_marker(enemy, true)
 		SignalBus.elite_spawned.emit()
 	elif not is_boss:
+		# Pooled instances are reused, so a previous life's elite marker has to
+		# be cleared here for the same reason the tint above does.
+		_ensure_elite_marker(enemy, false)
 		# (2026-07-17) A reused pooled instance may still carry a previous
 		# life's elite tint -- must be reset explicitly every spawn, not just
 		# "if elite". Restoring the species' own authored tint (captured once

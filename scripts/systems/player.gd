@@ -328,6 +328,13 @@ func apply_class(class_id: String) -> void:
 	# elites/mutations/affinities already use, per the "tint first, real
 	# per-class sprites later as a pure art pass" decision.
 	sprite.modulate = sprite.modulate * CharacterClasses.get_color(class_id)
+	# (2026-07-23) ...but a tint alone is invisible mid-fight against a busy
+	# background, and it was the SAME visual idea elites used. A soft ground
+	# glow in the class's vfx colour gives the player its own shape language
+	# (boss = orbiting runes, elite = angular spikes, player = a pool of light).
+	var aura := PlayerAura.new()
+	aura.color = CharacterClasses.get_vfx_color(class_id)
+	add_child(aura)
 
 
 func _physics_process(delta: float) -> void:
