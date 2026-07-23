@@ -131,6 +131,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_status_control_effects()
 	await _assert_skill_panel_shows_live_stats()
 	await _assert_boss_presence()
+	await _assert_combat_juice()
 	await _assert_boss_mutations()
 	await _assert_elemental_capstones()
 	await _assert_run_modifiers()
@@ -982,6 +983,46 @@ func _assert_boss_presence() -> void:
 	affinity_boss.queue_free()
 
 	SignalBus.boss_entrance.disconnect(cb)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_combat_juice() -> void:
+	# (2026-07-23) Combat juice pass. Hitstop is the risky half -- it writes a
+	# GLOBAL Engine.time_scale, so a bug here strands the whole game in slow
+	# motion. These assertions exist mainly to prove it always restores.
+	assert(is_equal_approx(Engine.time_scale, 1.0), "time_scale should start clean")
+
+	GameManager.hitstop(0.05)
+	assert(Engine.time_scale < 1.0, "hitstop should slow time while active")
+	await get_tree().create_timer(0.2, true, false, true).timeout
+	assert(is_equal_approx(Engine.time_scale, 1.0), "hitstop MUST restore time_scale, got %s" % Engine.time_scale)
+
+	# Overlapping calls must not let the first one restore early and leave the
+	# second running un-slowed (generation-token guard).
+	GameManager.hitstop(0.05)
+	GameManager.hitstop(0.30)
+	await get_tree().create_timer(0.15, true, false, true).timeout
+	assert(Engine.time_scale < 1.0, "the longer overlapping hitstop should still be holding time slowed")
+	await get_tree().create_timer(0.35, true, false, true).timeout
+	assert(is_equal_approx(Engine.time_scale, 1.0), "overlapping hitstops must still restore, got %s" % Engine.time_scale)
+
+	# A restart mid-hitstop must never strand the game slowed.
+	GameManager.hitstop(5.0)
+	assert(Engine.time_scale < 1.0, "sanity: long hitstop is active")
+	GameManager.reset_state()
+	assert(is_equal_approx(Engine.time_scale, 1.0), "reset_state must clear an in-flight hitstop")
+	await get_tree().create_timer(0.1, true, false, true).timeout
+	assert(is_equal_approx(Engine.time_scale, 1.0), "the cancelled hitstop must not restore-then-reslow later")
+
+	# Damage numbers: spawn, then free themselves rather than accumulating.
+	var host := Node2D.new()
+	add_child(host)
+	DamageNumber.spawn(123.0, Vector2(100, 100), Color.WHITE, host, true)
+	assert(host.get_child_count() == 1, "a damage number should have been added")
+	await get_tree().create_timer(DamageNumber.LIFETIME + 0.3, true, false, true).timeout
+	assert(host.get_child_count() == 0, "damage numbers must free themselves, %d left" % host.get_child_count())
+	host.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
 

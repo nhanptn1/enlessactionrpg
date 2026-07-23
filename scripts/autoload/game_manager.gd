@@ -29,6 +29,37 @@ func reset_state() -> void:
 	_pause_sources.clear()
 	state = State.PLAYING
 	get_tree().paused = false
+	_end_hitstop()  # a restart mid-hitstop must never leave the game in slow motion
+
+
+# --- Hitstop -------------------------------------------------------------------
+# (2026-07-23) Combat juice pass: a very brief time dilation on big moments
+# (fusion combo procs, boss phase change) so heavy hits land with weight
+# instead of passing at the same tempo as chip damage. Guarded by a generation
+# token so overlapping calls can't stack or restore early, and restored in
+# reset_state() so a restart can never strand the game slowed down.
+const HITSTOP_SCALE := 0.35
+var _hitstop_token := 0
+
+
+func hitstop(duration: float = 0.09) -> void:
+	if duration <= 0.0:
+		return
+	_hitstop_token += 1
+	var token := _hitstop_token
+	Engine.time_scale = HITSTOP_SCALE
+	# ignore_time_scale = true (the 4th arg), so this waits `duration` REAL
+	# seconds and must NOT be pre-scaled -- an earlier version multiplied by
+	# HITSTOP_SCALE on top of that, cutting every hitstop to 35% of its intended
+	# length. process_always so a pause can't strand it either.
+	await get_tree().create_timer(duration, true, false, true).timeout
+	if token == _hitstop_token:
+		Engine.time_scale = 1.0
+
+
+func _end_hitstop() -> void:
+	_hitstop_token += 1  # invalidates any in-flight restore
+	Engine.time_scale = 1.0
 
 
 func request_pause(source: String) -> void:

@@ -262,6 +262,7 @@ static func _evaluate_combos(target: Node) -> void:
 		var frost_mult: float = 1.0 + (player.frost_combo_bonus_mult if is_instance_valid(player) else 0.0)
 		if is_instance_valid(player) and player.frost_level >= CAPSTONE_TIER:
 			frost_mult *= FROST_CAPSTONE_COMBO_MULT
+		_combo_feedback(target, FROSTFIRE_DAMAGE * frost_mult, FROSTFIRE_COLOR, "frostfire")
 		target.take_damage(FROSTFIRE_DAMAGE * frost_mult)
 		var cam := target.get_viewport().get_camera_2d()
 		if is_instance_valid(cam) and cam.has_method("shake"):
@@ -275,6 +276,7 @@ static func _evaluate_combos(target: Node) -> void:
 				combo_mult *= FROST_CAPSTONE_COMBO_MULT
 			if player.lightning_level >= CAPSTONE_TIER:
 				combo_mult *= LIGHTNING_CAPSTONE_COMBO_MULT
+		_combo_feedback(target, SUPERCONDUCTOR_DAMAGE * combo_mult, SUPERCONDUCTOR_COLOR, "superconductor")
 		target.take_damage(SUPERCONDUCTOR_DAMAGE * combo_mult)
 		_splash_nearby(target, SUPERCONDUCTOR_SPLASH_DAMAGE, SUPERCONDUCTOR_SPLASH_RADIUS)
 		_clear_all(target)
@@ -287,12 +289,51 @@ static func _evaluate_combos(target: Node) -> void:
 				overload_mult *= FIRE_CAPSTONE_DPS_MULT
 			if player.lightning_level >= CAPSTONE_TIER:
 				overload_mult *= LIGHTNING_CAPSTONE_COMBO_MULT
+		_combo_feedback(target, OVERLOAD_DAMAGE * overload_mult, OVERLOAD_COLOR, "overload")
 		target.take_damage(OVERLOAD_DAMAGE * overload_mult)
 		_splash_nearby(target, OVERLOAD_SPLASH_DAMAGE, OVERLOAD_SPLASH_RADIUS)
 		var cam := target.get_viewport().get_camera_2d()
 		if is_instance_valid(cam) and cam.has_method("shake"):
 			cam.shake(OVERLOAD_SHAKE_INTENSITY, OVERLOAD_SHAKE_DURATION)
 		_clear_all(target)
+
+
+# (2026-07-23) Combat juice pass. The three fusion combos used to resolve with
+# nothing but a damage number change and (for two of them) a camera shake --
+# the game's headline late-game mechanic looked like ordinary chip damage.
+# Each now gets a signature burst in its own colour, a floating readout, and a
+# beat of hitstop, so a combo proc is unmistakable.
+const FROSTFIRE_COLOR := Color(0.75, 0.9, 1.0, 1.0)
+const SUPERCONDUCTOR_COLOR := Color(0.7, 0.85, 1.0, 1.0)
+const OVERLOAD_COLOR := Color(1.0, 0.65, 0.25, 1.0)
+const COMBO_FLASH_RADIUS := 78.0
+const COMBO_HITSTOP := 0.07
+
+
+static func _combo_feedback(target: Node, amount: float, color: Color, kind: String) -> void:
+	# Called BEFORE the combo's take_damage so the position is still valid even
+	# if that damage kills (and frees) the target.
+	if not is_instance_valid(target):
+		return
+	var host := target.get_tree().current_scene
+	if not is_instance_valid(host):
+		return
+	var pos: Vector2 = target.global_position
+	ImpactVFX.flash_burst(pos, COMBO_FLASH_RADIUS, color, host)
+	match kind:
+		"frostfire":
+			# Ice shatter + fire bloom together -- the two elements colliding.
+			ImpactVFX.ice_burst(pos, COMBO_FLASH_RADIUS, host)
+			ImpactVFX.fire_explosion(pos, COMBO_FLASH_RADIUS * 0.8, host)
+		"superconductor":
+			ImpactVFX.spark_burst(pos, COMBO_FLASH_RADIUS, host)
+			ImpactVFX.ice_shards(pos, host)
+		"overload":
+			ImpactVFX.fire_explosion(pos, COMBO_FLASH_RADIUS, host)
+			ImpactVFX.spark_burst(pos, COMBO_FLASH_RADIUS * 0.9, host)
+			ImpactVFX.ground_shockwave(pos, OVERLOAD_SPLASH_RADIUS, host)
+	DamageNumber.spawn(amount, pos, color, host, true)
+	GameManager.hitstop(COMBO_HITSTOP)
 
 
 static func _splash_nearby(target: Node, damage: float, radius: float) -> void:
