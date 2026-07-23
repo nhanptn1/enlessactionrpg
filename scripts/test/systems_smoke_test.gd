@@ -155,6 +155,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_element_fusion()
 	await _assert_status_control_effects()
 	await _assert_skill_panel_shows_live_stats()
+	_assert_card_frames_are_per_element()
 	await _assert_boss_presence()
 	await _assert_combat_juice()
 	await _assert_unit_identity()
@@ -953,6 +954,39 @@ func _assert_skill_panel_shows_live_stats() -> void:
 	main.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+
+func _assert_card_frames_are_per_element() -> void:
+	# (2026-07-23) Card frames moved from one greyscale base + a multiply tint
+	# to five pre-baked duotone textures, so Lightning can finally be
+	# purple+yellow (multiply could only ever produce a single hue). Guards the
+	# two ways that can regress: a missing texture file, or two lines silently
+	# sharing one frame again.
+	var seen: Array[String] = []
+	for element in WaveUpgradePopup.CARD_FRAMES:
+		var path: String = WaveUpgradePopup.CARD_FRAMES[element]
+		_expect(ResourceLoader.exists(path), "card frame missing on disk: %s" % path)
+		_expect(not (path in seen), "each line needs its OWN frame texture, %s is reused" % path)
+		seen.append(path)
+		_expect(load(path) != null, "card frame failed to load: %s" % path)
+	_expect(seen.size() == 5, "expected a frame for all 5 lines, got %d" % seen.size())
+
+	# The lightning frame must genuinely carry BOTH hues -- that's the whole
+	# point of the duotone, and the one thing a flat tint could never do.
+	var img: Image = (load(WaveUpgradePopup.CARD_FRAMES[UpgradeResource.ElementType.LIGHTNING]) as Texture2D).get_image()
+	img.convert(Image.FORMAT_RGBA8)
+	var purple := 0
+	var yellow := 0
+	for y in range(0, img.get_height(), 3):  # sampled -- a full scan is needless work in a smoke test
+		for x in range(0, img.get_width(), 3):
+			var p := img.get_pixel(x, y)
+			if p.a < 0.5 or p.s < 0.3:
+				continue
+			if p.h > 0.70 and p.h < 0.88:
+				purple += 1
+			elif p.h > 0.08 and p.h < 0.20:
+				yellow += 1
+	_expect(purple > 0 and yellow > 0, "the lightning frame must be two-tone (purple shadows + yellow highlights), got purple=%d yellow=%d" % [purple, yellow])
 
 
 func _assert_boss_presence() -> void:
