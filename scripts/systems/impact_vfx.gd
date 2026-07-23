@@ -76,6 +76,16 @@ const OVERLOAD_BURST_SPEED := 17.0  # 5 frames, ~0.3s -- slightly faster so the 
 const ICE_BURST_SPEED := 14.0       # 4 frames read as one quick radiating spike burst (~0.3s)
 const ICE_WALL_NOVA_SPEED := 13.0   # 5 frames read as a bigger "spin-up then shatter" (~0.4s)
 const BURST_TARGET_DIAMETER_MULT := 2.2  # matches fire_explosion()'s own radius-to-sprite-width ratio
+# (2026-07-23) A single readability lever over EVERY burst visual. Effects were
+# drawn at 2.2x their radius, so the biggest elemental skill (burst_radius 170)
+# covered 374px of a 720px-wide screen and a fusion covered 440px -- they read
+# as screen-filling noise rather than as distinct hits, especially with several
+# landing at once. Scaling the DRAW only (never the radius itself) shrinks them
+# for readability without nerfing a single skill's actual damage area.
+# At 0.68: largest elemental draws ~254px (35% of width), a fusion ~300px
+# (42%), so fusions still clearly out-size normal skills without covering the
+# screen. Tune this one number if effects still feel too big or too small.
+const BURST_VISUAL_SCALE := 0.68
 
 const SPARK_BURST_FRAME_PATHS := [
 	"res://art/vfx/spark_burst_01.png",
@@ -124,7 +134,7 @@ static func flash_burst(pos: Vector2, radius: float, color: Color, host: Node) -
 		return
 	var shape := Polygon2D.new()
 	shape.color = color
-	shape.polygon = _circle_polygon(radius)
+	shape.polygon = _circle_polygon(radius * BURST_VISUAL_SCALE)  # same readability scale as the animated bursts, so ring and art stay in step
 	shape.global_position = pos
 	shape.scale = Vector2(0.25, 0.25)
 	host.get_tree().current_scene.add_child(shape)
@@ -207,7 +217,7 @@ static func fire_explosion(pos: Vector2, radius: float, host: Node) -> void:
 	var sprite := Sprite2D.new()
 	sprite.texture = FIRE_EXPLOSION_FRAME_1
 	sprite.global_position = pos
-	var target_scale: float = (radius * 2.2) / sprite.texture.get_width()
+	var target_scale: float = (radius * BURST_TARGET_DIAMETER_MULT * BURST_VISUAL_SCALE) / sprite.texture.get_width()  # was a hardcoded 2.2 -- now shares the same readability scale as every other burst
 	sprite.scale = Vector2.ONE * target_scale * 0.35
 	host.get_tree().current_scene.add_child(sprite)
 	var tween := sprite.create_tween()
@@ -306,7 +316,7 @@ static func _play_burst_animation(frames: SpriteFrames, pos: Vector2, radius: fl
 	sprite.sprite_frames = frames
 	sprite.animation = &"burst"
 	var first_tex: Texture2D = frames.get_frame_texture(&"burst", 0)
-	sprite.scale = Vector2.ONE * (radius * BURST_TARGET_DIAMETER_MULT) / first_tex.get_width()
+	sprite.scale = Vector2.ONE * (radius * BURST_TARGET_DIAMETER_MULT * BURST_VISUAL_SCALE) / first_tex.get_width()
 	sprite.global_position = pos
 	sprite.rotation = rotation
 	host.get_tree().current_scene.add_child(sprite)
