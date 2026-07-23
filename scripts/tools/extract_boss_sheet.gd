@@ -43,7 +43,14 @@ const SHEETS := [
 	{
 		"src": "D:/WORK/PROJECT/GODOT/image/Corrupted Forest Guardian.png",
 		"mode": "plain",
+		"skip": true,
 		"rows": {0: "forest_guardian_idle", 1: "forest_guardian_walk", 2: "forest_guardian_attack"},
+	},
+	{
+		"src": "D:/WORK/PROJECT/GODOT/image/Demon Beast.png",
+		"mode": "plain",
+		"rows": {0: "demon_beast_idle", 1: "demon_beast_walk", 2: "demon_beast_attack"},
+		"cols": 4,  # frames touch (tail left, horns right) -- gap detection cannot split them
 	},
 ]
 
@@ -94,12 +101,12 @@ func _init() -> void:
 		img.convert(Image.FORMAT_RGBA8)
 		print("  sheet %dx%d" % [img.get_width(), img.get_height()])
 		if cfg["mode"] == "plain":
-			_extract_plain(img, cfg["rows"])
+			_extract_plain(img, cfg["rows"], int(cfg.get("cols", 0)))
 		else:
 			_extract_grid(img, cfg["rows"])
 
 
-func _extract_plain(img: Image, rows_map: Dictionary) -> void:
+func _extract_plain(img: Image, rows_map: Dictionary, cols: int = 0) -> void:
 	# One flat background colour, sampled from a corner. The characters here are
 	# dark greens/browns with saturated red accents, so a plain distance test
 	# separates them from the (white) field without any of the grid-sheet
@@ -130,20 +137,42 @@ func _extract_plain(img: Image, rows_map: Dictionary) -> void:
 	for i in bands.size():
 		if not rows_map.has(i):
 			continue
-		_cut_row(img, bands[i], rows_map[i])
+		_cut_row(img, bands[i], rows_map[i], cols)
 
 
-func _cut_row(img: Image, band: Vector2i, out_name: String) -> void:
+func _cut_row(img: Image, band: Vector2i, out_name: String, cols: int = 0) -> void:
 	var w := img.get_width()
-	var col_used: Array = []
-	col_used.resize(w)
-	for x in w:
-		var hits := 0
-		for y in range(band.x, band.y + 1):
-			if img.get_pixel(x, y).a > 0.15:
-				hits += 1
-		col_used[x] = hits >= MIN_COL_PIXELS
-	var spans := _spans(col_used, COL_MIN_GAP, MIN_FRAME_WIDTH)
+	var spans: Array = []
+	if cols > 0:
+		# (2026-07-23) Declared column count, for sheets whose frames TOUCH.
+		# The Demon Beast's tail reaches left and its horns right, so adjacent
+		# frames have no gap at all and gap-detection returned the whole row as
+		# one 1025px "frame". Splitting a clean NxN grid into equal columns is
+		# deterministic; each slice is then tightened to its own content so the
+		# frames stay centred.
+		var fw: int = w / cols
+		for i in cols:
+			var sx := i * fw
+			var lo := sx + fw
+			var hi := sx
+			for x in range(sx, mini(sx + fw, w)):
+				for y in range(band.x, band.y + 1):
+					if img.get_pixel(x, y).a > 0.15:
+						lo = mini(lo, x)
+						hi = maxi(hi, x)
+						break
+			if hi >= lo:
+				spans.append(Vector2i(lo, hi))
+	else:
+		var col_used: Array = []
+		col_used.resize(w)
+		for x in w:
+			var hits := 0
+			for y in range(band.x, band.y + 1):
+				if img.get_pixel(x, y).a > 0.15:
+					hits += 1
+			col_used[x] = hits >= MIN_COL_PIXELS
+		spans = _spans(col_used, COL_MIN_GAP, MIN_FRAME_WIDTH)
 	if spans.is_empty():
 		print("  %s: no frames" % out_name)
 		return

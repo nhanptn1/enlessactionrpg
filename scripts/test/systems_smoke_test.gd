@@ -1035,6 +1035,7 @@ func _assert_bosses_have_own_art() -> void:
 	var boss_scenes := {
 		"fallen_knight": "res://scenes/enemies/FallenKnight.tscn",
 		"dark_ranger_commander": "res://scenes/enemies/DarkRangerCommander.tscn",
+		"demon_beast": "res://scenes/enemies/DemonBeast.tscn",
 		"corrupted_forest_guardian": "res://scenes/enemies/CorruptedForestGuardian.tscn",
 	}
 	var seen_textures: Dictionary = {}
