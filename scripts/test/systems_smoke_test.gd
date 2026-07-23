@@ -907,6 +907,21 @@ func _assert_skill_panel_shows_live_stats() -> void:
 	await get_tree().process_frame
 	assert(pause_menu.skill_rows_container.get_child_count() > 0, "skills panel should still build")
 
+	# (2026-07-22) The skill panel is two tabs (tree / stats) sharing one
+	# scroll -- exactly one view is visible at a time, and opening the panel
+	# always lands on the tree tab rather than remembering the last one.
+	pause_menu.open_skills_panel()
+	await get_tree().process_frame
+	assert(pause_menu.tree_view.visible and not pause_menu.skill_rows_container.visible, "the panel should open on the Skill Tree tab")
+	assert(pause_menu.tree_tab.button_pressed and not pause_menu.stats_tab.button_pressed, "the tree tab should read as selected")
+	# Drive the REAL button signals, so the .bind() wiring is covered too.
+	pause_menu.stats_tab.pressed.emit()
+	assert(pause_menu.skill_rows_container.visible and not pause_menu.tree_view.visible, "the Skill Stats tab should swap the visible view")
+	assert(pause_menu.stats_tab.button_pressed and not pause_menu.tree_tab.button_pressed, "the stats tab should read as selected")
+	pause_menu.tree_tab.pressed.emit()
+	assert(pause_menu.tree_view.visible and not pause_menu.skill_rows_container.visible, "switching back should restore the tree")
+	assert(pause_menu.tree_tab.button_pressed and not pause_menu.stats_tab.button_pressed, "the tree tab should read as selected again")
+
 	main.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame

@@ -21,14 +21,19 @@ const ROW_ICON_SIZE := 42
 @onready var restart_button: Button = $Panel/VBox/RestartButton
 @onready var skills_button: Button = $Panel/VBox/SkillsButton
 @onready var best_label: Label = $Panel/VBox/BestLabel
-# (2026-07-16) One merged panel now, not two -- the tree (top) and the
-# per-line skill detail (bottom) used to be separate screens reached via a
-# "View Tree" button; user asked for them combined into a single scrollable
-# view instead.
+# (2026-07-16) One merged panel, not two -- the tree and the per-line skill
+# detail used to be separate screens reached via a "View Tree" button; user
+# asked for them combined. (2026-07-22) They now share the panel as two TABS
+# rather than one long scroll: the tree got tall enough that the stat rows sat
+# far below the fold, so switching between them beats scrolling past one to
+# reach the other.
 @onready var skill_panel: Control = $SkillPanel
 @onready var tree_view: SkillTreeView = $SkillPanel/Margin/VBox/Scroll/ScrollVBox/TreeView
 @onready var skill_rows_container: VBoxContainer = $SkillPanel/Margin/VBox/Scroll/ScrollVBox/RowsContainer
 @onready var skill_back_button: Button = $SkillPanel/Margin/VBox/BackButton
+@onready var skill_scroll: ScrollContainer = $SkillPanel/Margin/VBox/Scroll
+@onready var tree_tab: Button = $SkillPanel/Margin/VBox/Tabs/TreeTab
+@onready var stats_tab: Button = $SkillPanel/Margin/VBox/Tabs/StatsTab
 @onready var stats_button: Button = $Panel/VBox/StatsButton
 @onready var stats_panel: Control = $StatsPanel
 @onready var stats_rows_container: VBoxContainer = $StatsPanel/Margin/VBox/Scroll/RowsContainer
@@ -44,6 +49,8 @@ func _ready() -> void:
 	restart_button.pressed.connect(_on_restart_pressed)
 	skills_button.pressed.connect(_on_skills_pressed)
 	skill_back_button.pressed.connect(_on_skill_back_pressed)
+	tree_tab.pressed.connect(_on_skill_tab_pressed.bind(true))
+	stats_tab.pressed.connect(_on_skill_tab_pressed.bind(false))
 	stats_button.pressed.connect(_on_stats_pressed)
 	stats_back_button.pressed.connect(_on_stats_back_pressed)
 	SignalBus.game_paused.connect(_on_game_paused)
@@ -85,6 +92,25 @@ func open_skills_panel() -> void:
 		tree_view.setup(player, wave_popup.upgrade_pool)
 		tree_view.show_all()
 	_build_skill_rows()
+	# Always open on the tree tab, so the panel doesn't remember a tab from a
+	# previous pause and surprise the player with the wrong view.
+	_show_skill_tab(true)
+
+
+func _on_skill_tab_pressed(show_tree: bool) -> void:
+	AudioManager.play_ui("ui_click")
+	_show_skill_tab(show_tree)
+
+
+func _show_skill_tab(show_tree: bool) -> void:
+	# Two views sharing one ScrollContainer -- only one is ever visible, and the
+	# scroll resets so the newly-shown tab always starts at the top rather than
+	# inheriting the other tab's scroll offset.
+	tree_view.visible = show_tree
+	skill_rows_container.visible = not show_tree
+	tree_tab.button_pressed = show_tree
+	stats_tab.button_pressed = not show_tree
+	skill_scroll.scroll_vertical = 0
 
 
 func _on_skill_back_pressed() -> void:
