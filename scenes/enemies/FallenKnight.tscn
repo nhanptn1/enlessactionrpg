@@ -1,24 +1,57 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/boss_base.gd" id="1"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/skeleton_idle_01.png" id="2"]
-[ext_resource type="Texture2D" path="res://art/enemies/normal/skeleton_attack_01.png" id="3"]
+[ext_resource type="Texture2D" path="res://art/bosses/fallen_knight_walk_01.png" id="w1"]
+[ext_resource type="Texture2D" path="res://art/bosses/fallen_knight_walk_02.png" id="w2"]
+[ext_resource type="Texture2D" path="res://art/bosses/fallen_knight_walk_03.png" id="w3"]
+[ext_resource type="Texture2D" path="res://art/bosses/fallen_knight_walk_04.png" id="w4"]
+[ext_resource type="Texture2D" path="res://art/bosses/fallen_knight_walk_05.png" id="w5"]
+[ext_resource type="Texture2D" path="res://art/bosses/fallen_knight_walk_06.png" id="w6"]
+[ext_resource type="Texture2D" path="res://art/bosses/fallen_knight_walk_07.png" id="w7"]
+[ext_resource type="Texture2D" path="res://art/bosses/fallen_knight_walk_08.png" id="w8"]
 
 [sub_resource type="CircleShape2D" id="CircleShape1"]
 radius = 16.0
 
 [sub_resource type="SpriteFrames" id="SpriteFrames1"]
 animations = [{
-"frames": [{
+"frames": [
+{
 "duration": 1.0,
-"texture": ExtResource("2")
-}, {
+"texture": ExtResource("w1")
+},
+{
 "duration": 1.0,
-"texture": ExtResource("3")
-}],
+"texture": ExtResource("w2")
+},
+{
+"duration": 1.0,
+"texture": ExtResource("w3")
+},
+{
+"duration": 1.0,
+"texture": ExtResource("w4")
+},
+{
+"duration": 1.0,
+"texture": ExtResource("w5")
+},
+{
+"duration": 1.0,
+"texture": ExtResource("w6")
+},
+{
+"duration": 1.0,
+"texture": ExtResource("w7")
+},
+{
+"duration": 1.0,
+"texture": ExtResource("w8")
+}
+],
 "loop": true,
 "name": &"move",
-"speed": 3.0
+"speed": 8.0
 }]
 
 [node name="FallenKnight" type="CharacterBody2D"]
@@ -27,12 +60,12 @@ collision_mask = 1
 script = ExtResource("1")
 attack_pattern_id = "fallen_knight"
 advances_to_lose_line = true
-modulate = Color(0.32, 0.34, 0.46, 1)
+modulate = Color(1, 1, 1, 1)
 
 [node name="Sprite" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames1")
 animation = &"move"
-scale = Vector2(1.0, 1.0)
+scale = Vector2(1.6, 1.6)
 
 [node name="Collision" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape1")
