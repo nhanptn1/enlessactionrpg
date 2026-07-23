@@ -762,6 +762,7 @@ func _assert_element_fusion() -> void:
 	var fusion_anims := {
 		"frostfire bolt": [ImpactVFX.FROSTFIRE_BOLT_FRAME_PATHS, ImpactVFX._get_frostfire_bolt_frames()],
 		"superconductor arc": [ImpactVFX.SUPERCONDUCTOR_ARC_FRAME_PATHS, ImpactVFX._get_superconductor_arc_frames()],
+		"overload burst": [ImpactVFX.OVERLOAD_BURST_FRAME_PATHS, ImpactVFX._get_overload_burst_frames()],
 	}
 	for anim_name in fusion_anims:
 		var paths: Array = fusion_anims[anim_name][0]

@@ -60,6 +60,19 @@ const SUPERCONDUCTOR_ARC_FRAME_PATHS := [
 	"res://art/vfx/superconductor_arc_04.png",
 ]
 const SUPERCONDUCTOR_ARC_SPEED := 15.0
+# (2026-07-23) Overload fusion, extracted from "fire_lightning.png". FIVE
+# frames, not four: a fire/lightning beam that winds up and then detonates, so
+# the extra frame is the payoff. Drawn unrotated -- the frames build
+# left-to-right but the final blast (which is what actually reads at speed) is
+# symmetric, so a rotation would only fight the explosion's own shape.
+const OVERLOAD_BURST_FRAME_PATHS := [
+	"res://art/vfx/overload_burst_01.png",
+	"res://art/vfx/overload_burst_02.png",
+	"res://art/vfx/overload_burst_03.png",
+	"res://art/vfx/overload_burst_04.png",
+	"res://art/vfx/overload_burst_05.png",
+]
+const OVERLOAD_BURST_SPEED := 17.0  # 5 frames, ~0.3s -- slightly faster so the wind-up doesn't drag
 const ICE_BURST_SPEED := 14.0       # 4 frames read as one quick radiating spike burst (~0.3s)
 const ICE_WALL_NOVA_SPEED := 13.0   # 5 frames read as a bigger "spin-up then shatter" (~0.4s)
 const BURST_TARGET_DIAMETER_MULT := 2.2  # matches fire_explosion()'s own radius-to-sprite-width ratio
@@ -265,6 +278,16 @@ static func superconductor_arc(pos: Vector2, radius: float, host: Node) -> void:
 
 static func _get_superconductor_arc_frames() -> SpriteFrames:
 	return _build_burst_frames(SUPERCONDUCTOR_ARC_FRAME_PATHS, SUPERCONDUCTOR_ARC_SPEED)
+
+
+static func overload_burst(pos: Vector2, radius: float, host: Node) -> void:
+	# The Overload fusion's signature detonation -- a fire/lightning wind-up
+	# into a symmetric blast. Unrotated; see the const block above.
+	_play_burst_animation(_get_overload_burst_frames(), pos, radius, host)
+
+
+static func _get_overload_burst_frames() -> SpriteFrames:
+	return _build_burst_frames(OVERLOAD_BURST_FRAME_PATHS, OVERLOAD_BURST_SPEED)
 
 
 static func ice_wall_nova_burst(pos: Vector2, radius: float, host: Node) -> void:

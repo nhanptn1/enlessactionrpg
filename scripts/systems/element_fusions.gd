@@ -40,7 +40,9 @@ const FUSIONS := {
 	"fire_lightning": {
 		"name": "Overload",
 		"elements": [FIRE, LIGHTNING],
-		"icon": "res://art/ui/icons/icon_storm_overload.png",
+		# (2026-07-23) Own real art now (the detonation frame, the most
+		# recognisable of the five), instead of borrowing icon_storm_overload.
+		"icon": "res://art/vfx/overload_burst_05.png",
 		"description": "Attacks burn and shock at once — afflicted enemies overload in a wide explosive discharge.",
 	},
 }

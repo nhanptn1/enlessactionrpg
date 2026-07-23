@@ -16,14 +16,20 @@ extends SceneTree
 ## Every frame of a sheet is cropped to ONE shared rect (the union of all
 ## frames' opaque bounds) so the animation cannot jitter or change scale.
 
+# (2026-07-23) Frames are now AUTO-DETECTED from the transparent gaps between
+# sprites rather than assuming a uniform cols x rows grid. The third sheet
+# (fire_lightning.png) proved the grid assumption wrong: its final explosion
+# frame is drawn much larger than the others and straddles a cell boundary, so
+# a fixed grid sliced it into two half-explosions. Gap detection also removes
+# the need to declare cols/rows/count per sheet at all.
 const SHEETS := [
 	{
-		"src": "D:/WORK/PROJECT/GODOT/image/skills/frost_lightning.png",
-		"out": "res://art/vfx/superconductor_arc_",
-		"cols": 2,
-		"rows": 2,
+		"src": "D:/WORK/PROJECT/GODOT/image/skills/fire_lightning.png",
+		"out": "res://art/vfx/overload_burst_",
 	},
 ]
+
+const MIN_GAP := 12  # consecutive empty rows/cols needed to call it a frame boundary
 
 const PAD := 4          # breathing room so edge glow isn't clipped
 const SAT_KEEP := 0.22  # HSV saturation above this is real art, below is board
@@ -85,8 +91,6 @@ func _init() -> void:
 func _extract(cfg: Dictionary) -> void:
 	var src: String = cfg["src"]
 	var out_prefix: String = cfg["out"]
-	var cols: int = cfg["cols"]
-	var rows: int = cfg["rows"]
 	print("=== %s ===" % src)
 	var sheet := Image.load_from_file(src)
 	if sheet == null:
@@ -102,43 +106,31 @@ func _extract(cfg: Dictionary) -> void:
 			if a < 1.0:
 				sheet.set_pixel(x, y, Color(c.r, c.g, c.b, c.a * a))
 
-	var fw: int = sheet.get_width() / cols
-	var fh: int = sheet.get_height() / rows
-	var count := cols * rows
-	print("  sheet %dx%d -> %d frames of %dx%d" % [sheet.get_width(), sheet.get_height(), count, fw, fh])
-
-	# Union bounds across every frame, in frame-local coords.
-	var min_x := fw
-	var min_y := fh
-	var max_x := 0
-	var max_y := 0
-	for i in count:
-		var ox: int = (i % cols) * fw
-		var oy: int = (i / cols) * fh
-		for y in fh:
-			for x in fw:
-				if sheet.get_pixel(ox + x, oy + y).a > BBOX_ALPHA:
-					min_x = mini(min_x, x)
-					max_x = maxi(max_x, x)
-					min_y = mini(min_y, y)
-					max_y = maxi(max_y, y)
-	if max_x < min_x or max_y < min_y:
-		printerr("  sheet appears fully transparent after keying")
+	var boxes := _find_frames(sheet)
+	if boxes.is_empty():
+		printerr("  no frames detected")
 		return
-	min_x = maxi(min_x - PAD, 0)
-	min_y = maxi(min_y - PAD, 0)
-	max_x = mini(max_x + PAD, fw - 1)
-	max_y = mini(max_y + PAD, fh - 1)
-	var cw := max_x - min_x + 1
-	var ch := max_y - min_y + 1
-	print("  shared crop: x=%d y=%d %dx%d" % [min_x, min_y, cw, ch])
+	print("  sheet %dx%d -> %d frames detected" % [sheet.get_width(), sheet.get_height(), boxes.size()])
 
-	# Frames are read in natural order: left-to-right, then top-to-bottom.
-	for i in count:
-		var ox: int = (i % cols) * fw
-		var oy: int = (i / cols) * fh
+	# One common frame size (the largest detected box + pad), with each frame
+	# CENTRED on its own content. Frames differ in size here -- the explosion is
+	# far bigger than the opening beam -- so centring is what keeps the
+	# animation from lurching around as it plays.
+	var cw := 0
+	var ch := 0
+	for b in boxes:
+		cw = maxi(cw, int(b.size.x))
+		ch = maxi(ch, int(b.size.y))
+	cw += PAD * 2
+	ch += PAD * 2
+	print("  common frame size: %dx%d" % [cw, ch])
+
+	for i in boxes.size():
+		var b: Rect2i = boxes[i]
+		var centre := b.position + b.size / 2
+		var src_rect := Rect2i(centre.x - cw / 2, centre.y - ch / 2, cw, ch)
 		var out := Image.create(cw, ch, false, Image.FORMAT_RGBA8)
-		out.blit_rect(sheet, Rect2i(ox + min_x, oy + min_y, cw, ch), Vector2i.ZERO)
+		out.blit_rect(sheet, src_rect, Vector2i.ZERO)
 		var path := "%s%02d.png" % [out_prefix, i + 1]
 		var err := out.save_png(ProjectSettings.globalize_path(path))
 		var opaque := 0
@@ -146,4 +138,68 @@ func _extract(cfg: Dictionary) -> void:
 			for x in cw:
 				if out.get_pixel(x, y).a > 0.02:
 					opaque += 1
-		print("  frame %d -> %s (%d opaque px) %s" % [i + 1, path, opaque, "OK" if err == OK else "FAILED"])
+		print("  frame %d %s -> %s (%d opaque px) %s" % [i + 1, b, path, opaque, "OK" if err == OK else "FAILED"])
+
+
+func _spans(occupied: Array) -> Array:
+	# Contiguous runs of `true`, merged across gaps shorter than MIN_GAP so a
+	# sprite's own internal transparency never splits it into two frames.
+	var spans: Array = []
+	var start := -1
+	var gap := 0
+	for i in occupied.size():
+		if occupied[i]:
+			if start < 0:
+				start = i
+			gap = 0
+		elif start >= 0:
+			gap += 1
+			if gap >= MIN_GAP:
+				spans.append(Vector2i(start, i - gap))
+				start = -1
+				gap = 0
+	if start >= 0:
+		spans.append(Vector2i(start, occupied.size() - 1))
+	return spans
+
+
+func _find_frames(img: Image) -> Array:
+	# Rows of content first, then columns within each row band -- so a sheet
+	# laid out as a strip, a grid, or a ragged mix all segment correctly.
+	var w := img.get_width()
+	var h := img.get_height()
+	var row_used: Array = []
+	row_used.resize(h)
+	for y in h:
+		var any := false
+		for x in w:
+			if img.get_pixel(x, y).a > BBOX_ALPHA:
+				any = true
+				break
+		row_used[y] = any
+	var frames: Array = []
+	for b in _spans(row_used):
+		var band: Vector2i = b
+		var col_used: Array = []
+		col_used.resize(w)
+		for x in w:
+			var any := false
+			for y in range(band.x, band.y + 1):
+				if img.get_pixel(x, y).a > BBOX_ALPHA:
+					any = true
+					break
+			col_used[x] = any
+		for c2 in _spans(col_used):
+			var col: Vector2i = c2
+			# Tighten vertically to this frame's own content, since a band's
+			# extent is the union of everything sharing that row.
+			var y0: int = band.y
+			var y1: int = band.x
+			for y in range(band.x, band.y + 1):
+				for x in range(col.x, col.y + 1):
+					if img.get_pixel(x, y).a > BBOX_ALPHA:
+						y0 = mini(y0, y)
+						y1 = maxi(y1, y)
+						break
+			frames.append(Rect2i(col.x, y0, col.y - col.x + 1, y1 - y0 + 1))
+	return frames

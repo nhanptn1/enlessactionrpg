@@ -331,8 +331,10 @@ static func _combo_feedback(target: Node, amount: float, color: Color, kind: Str
 			# replacing the generic spark_burst + ice_shards stack.
 			ImpactVFX.superconductor_arc(pos, COMBO_FLASH_RADIUS, host)
 		"overload":
-			ImpactVFX.fire_explosion(pos, COMBO_FLASH_RADIUS, host)
-			ImpactVFX.spark_burst(pos, COMBO_FLASH_RADIUS * 0.9, host)
+			# (2026-07-23) Real fused art (a fire/lightning wind-up into a
+			# blast), replacing the generic explosion + spark + shockwave stack.
+			# Keeps the ground shockwave, which sells the splash radius.
+			ImpactVFX.overload_burst(pos, COMBO_FLASH_RADIUS, host)
 			ImpactVFX.ground_shockwave(pos, OVERLOAD_SPLASH_RADIUS, host)
 	DamageNumber.spawn(amount, pos, color, host, true)
 	GameManager.hitstop(COMBO_HITSTOP)
