@@ -153,6 +153,19 @@ var repeatable_stacks: Dictionary = {}
 # attacks also apply the partner element's status (see StatusEffects.apply()),
 # so the pair's combo fires reliably. Per-run, not persisted.
 var active_fusions: Array[String] = []
+# (2026-07-23) Which fusion is currently EQUIPPED, "" = none. A fusion is no
+# longer an automatic passive: unlocking it only makes it selectable, and the
+# player taps its HUD row to activate it. Doing so REPLACES the active element
+# -- you fire the fused projectile instead of fire/frost/lightning -- so it's a
+# real choice with a tradeoff rather than free extra damage.
+var active_fusion_id: String = ""
+var _current_fusion_skill: SkillData
+# Fusion's own upgrade stats, fed by the fusion upgrade cards that unlock once
+# BOTH parent lines are fully maxed (skill tier + every stat card).
+var fusion_dmg_mult := 1.0
+var fusion_cd_mult := 1.0
+var fusion_projectile_speed_mult := 1.0
+var fusion_skill_timer: Timer  # created in _ready(), see there
 
 # Only one elemental skill auto-fires at a time -- players can still invest
 # tiers into all 3 trees (see apply_element_upgrade()), but their timers stay
@@ -236,6 +249,9 @@ signal class_skill_changed(skill: SkillData)
 # element lines both hit max tier). Also mirrored onto SignalBus so the HUD
 # toast doesn't need a direct player reference. See _maybe_unlock_fusions().
 signal fusion_unlocked(pair_id: String, display_name: String)
+# (2026-07-23) Fires when a fusion is equipped or un-equipped ("" = none), so
+# the HUD can light the active fusion row and dim the elemental ones.
+signal active_fusion_changed(pair_id: String, skill: SkillData)
 signal died
 signal item_collected(item: ItemData)
 # Fires whenever a weapon/armor/accessory slot's contents change (equip or
@@ -271,6 +287,14 @@ func _ready() -> void:
 	class_skill_timer.timeout.connect(_on_class_skill_timeout)
 	sprite.animation_finished.connect(_on_animation_finished)
 	SignalBus.enemy_died.connect(_on_enemy_died_charge_ultimate)
+	# Fusion's own auto-fire loop, built in code rather than added to
+	# Player.tscn -- it mirrors the elemental timers exactly and only ever runs
+	# while a fusion is equipped.
+	fusion_skill_timer = Timer.new()
+	fusion_skill_timer.name = "FusionSkillTimer"
+	fusion_skill_timer.one_shot = false
+	fusion_skill_timer.timeout.connect(_on_fusion_skill_timeout)
+	add_child(fusion_skill_timer)
 	_sprite_base_position = sprite.position
 	_sprite_base_scale = sprite.scale
 	sprite.play("idle")
@@ -592,6 +616,12 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 		SignalBus.skill_unlocked.emit(_current_class_skill)
 		class_skill_changed.emit(_current_class_skill)
 		return
+	if upgrade.element == UpgradeResource.ElementType.FUSION:
+		# Stat-only, no tiers -- but the cooldown card has to re-latch the
+		# running timer, same as the elemental cooldown cards do.
+		_apply_upgrade_stats(upgrade)
+		_refresh_fusion_timer()
+		return
 	if upgrade.element == UpgradeResource.ElementType.PHYSICAL:
 		physical_level += 1
 		match physical_level:
@@ -739,11 +769,17 @@ func get_fusion_partners(element: String) -> Array[String]:
 	# The partner status-name(s) an active fusion adds to attacks that apply
 	# `element` -- e.g. with Frostfire unlocked, a fire hit also applies frost.
 	# Usually 0 or 1; can be 2 if all three lines are maxed (all fusions active).
+	# (2026-07-23) Only the EQUIPPED fusion fuses. Previously every unlocked
+	# fusion applied its partner status automatically, which left the new
+	# Activate button with nothing to do -- unlocking was the whole effect. Now
+	# unlocking makes a fusion available and equipping it is what fuses your
+	# attacks, so the choice between them actually matters.
 	var partners: Array[String] = []
-	for pid in active_fusions:
-		var p := ElementFusions.partner(pid, element)
-		if p != "":
-			partners.append(p)
+	if active_fusion_id == "":
+		return partners
+	var p := ElementFusions.partner(active_fusion_id, element)
+	if p != "":
+		partners.append(p)
 	return partners
 
 
@@ -765,10 +801,14 @@ func select_active_element(element: int) -> void:
 	# there's no ambiguity about which path becomes active (a blind
 	# next-in-list cycle was confusing once 3 elements were unlocked: tapping
 	# it didn't reliably return to the path the player expected).
-	if element == active_element:
-		return
 	if _current_skill_for_element(element) == null:
 		return  # not actually unlocked yet -- ignore rather than activate a blank skill
+	# Picking an element always un-equips a fusion, even if that element was
+	# already active -- otherwise there'd be no way back off a fusion.
+	var had_fusion := active_fusion_id != ""
+	_deactivate_fusion()
+	if element == active_element and not had_fusion:
+		return
 	var old_timer := get_elemental_timer_by_element(active_element)
 	if is_instance_valid(old_timer):
 		old_timer.stop()
@@ -776,6 +816,65 @@ func select_active_element(element: int) -> void:
 	_refresh_elemental_timer(element)
 	get_elemental_timer_by_element(element).start()
 	active_element_switched.emit(element, _current_skill_for_element(element))
+
+
+# --- Fusion as an equippable attack line ---------------------------------------
+
+func select_active_fusion(pair_id: String) -> bool:
+	# Equipping a fusion REPLACES the active element: the elemental timer stops
+	# and the fusion's own timer takes over, so the player fires the fused
+	# projectile instead of fire/frost/lightning. Only an unlocked fusion can be
+	# equipped.
+	if not (pair_id in active_fusions):
+		return false
+	if pair_id == active_fusion_id:
+		return true
+	var old_timer := get_elemental_timer_by_element(active_element)
+	if is_instance_valid(old_timer):
+		old_timer.stop()
+	active_fusion_id = pair_id
+	_current_fusion_skill = load(ElementFusions.skill_path(pair_id))
+	_refresh_fusion_timer()
+	fusion_skill_timer.start()
+	active_fusion_changed.emit(pair_id, _current_fusion_skill)
+	return true
+
+
+func _deactivate_fusion() -> void:
+	if active_fusion_id == "":
+		return
+	active_fusion_id = ""
+	_current_fusion_skill = null
+	if is_instance_valid(fusion_skill_timer):
+		fusion_skill_timer.stop()
+	active_fusion_changed.emit("", null)
+
+
+func _refresh_fusion_timer() -> void:
+	if _current_fusion_skill != null and is_instance_valid(fusion_skill_timer):
+		fusion_skill_timer.wait_time = _current_fusion_skill.cooldown * maxf(fusion_cd_mult, 0.3)
+
+
+func get_current_fusion_skill() -> SkillData:
+	return _current_fusion_skill
+
+
+func _on_fusion_skill_timeout() -> void:
+	if is_dead or _current_fusion_skill == null or active_fusion_id == "":
+		return
+	# Fired as one of its two parent elements; StatusEffects.apply() then adds
+	# the partner automatically (see get_fusion_partners()), which is what makes
+	# the pair's combo detonate on essentially every hit. That combo IS the
+	# fusion's payoff, so nothing extra is needed here.
+	var els: Array = ElementFusions.FUSIONS[active_fusion_id]["elements"]
+	var element_name: String = els[0]
+	var duration := StatusEffects.FIRE_DURATION + fire_duration_bonus
+	match element_name:
+		StatusEffects.FROST:
+			duration = StatusEffects.FROST_DURATION + frost_duration_bonus
+		StatusEffects.LIGHTNING:
+			duration = StatusEffects.LIGHTNING_DURATION
+	_fire_elemental_skill(_current_fusion_skill, element_name, fusion_dmg_mult, duration)
 
 
 func _refresh_elemental_timer(element: int) -> void:
@@ -852,7 +951,11 @@ func _fire_elemental_projectile(skill: SkillData, dmg_mult: float, status_rolls:
 	var targets := _get_nearest_enemies(1)
 	if targets.is_empty():
 		return
-	var proj_speed: float = BASE_PROJECTILE_SPEED * projectile_speed_mult
+	# The fusion line has its own projectile-speed upgrade card, which only
+	# applies to the fusion's own shots -- without this the card would set a
+	# stat nothing ever reads.
+	var fusion_speed: float = fusion_projectile_speed_mult if skill == _current_fusion_skill else 1.0
+	var proj_speed: float = BASE_PROJECTILE_SPEED * projectile_speed_mult * fusion_speed
 	var pool := get_tree().get_first_node_in_group("projectile_pool")
 	var aim_point := _predict_intercept(attack_origin.global_position, targets[0], proj_speed)
 	var base_dir := (aim_point - attack_origin.global_position).normalized()

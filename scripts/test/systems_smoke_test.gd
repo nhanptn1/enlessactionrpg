@@ -745,8 +745,27 @@ func _assert_element_fusion() -> void:
 	_expect(player.active_fusions.count("fire_frost") == 1, "a fusion must unlock exactly once")
 	_expect("fire_frost" in player.active_fusions, "maxing fire + frost must unlock the fire_frost fusion")
 	_expect(fusion_signal["fired"], "fusion_unlocked signal should have fired")
+	# (2026-07-23) Unlocking only makes a fusion SELECTABLE -- it fuses nothing
+	# until the player equips it. That's what gives the HUD's Activate button
+	# something to do.
+	_expect(player.active_fusion_id == "", "a freshly unlocked fusion must not be auto-equipped")
+	_expect(player.get_fusion_partners("fire").is_empty(), "an un-equipped fusion must not fuse attacks")
+
+	_expect(player.select_active_fusion("fire_frost"), "an unlocked fusion should be equippable")
+	_expect(player.active_fusion_id == "fire_frost", "the fusion should now be equipped")
+	_expect(player.get_current_fusion_skill() != null, "equipping should load the fusion's own SkillData")
+	_expect(player.fusion_skill_timer != null and not player.fusion_skill_timer.is_stopped(), "equipping should start the fusion's auto-fire timer")
 	_expect(player.get_fusion_partners("fire").has("frost") and player.get_fusion_partners("fire").size() == 1, "fire's fusion partner should be exactly frost")
 	_expect(player.get_fusion_partners("frost").has("fire"), "frost's fusion partner should be fire")
+	_expect(not player.select_active_fusion("frost_lightning"), "a fusion that isn't unlocked must not be equippable")
+
+	# Picking an element again un-equips the fusion and stops its timer.
+	player.select_active_element(UpgradeResource.ElementType.FIRE)
+	_expect(player.active_fusion_id == "", "picking an element should un-equip the fusion")
+	_expect(player.fusion_skill_timer.is_stopped(), "un-equipping should stop the fusion timer")
+	_expect(player.get_fusion_partners("fire").is_empty(), "attacks should stop fusing once un-equipped")
+	# Re-equip for the combo assertions below, which depend on fusing.
+	_expect(player.select_active_fusion("fire_frost"), "should be able to re-equip")
 
 	# Every fusion needs display data -- it's surfaced as an owned "skill" in the
 	# HUD row + pause-menu Fusions section, so a missing name/icon/description
@@ -793,6 +812,7 @@ func _assert_element_fusion() -> void:
 	# Overload: the NEW Fire+Lightning combo, reachable only via fusion. Force
 	# just that fusion and confirm a fire hit alone discharges it.
 	player.active_fusions = ["fire_lightning"]
+	_expect(player.select_active_fusion("fire_lightning"), "Overload should be equippable once unlocked")
 	var e2: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 900.0, false)
 	e2.global_position = Vector2(360, 400)
 	var hp2: float = e2.current_hp
@@ -983,7 +1003,8 @@ func _assert_card_frames_are_per_element() -> void:
 		_expect(not (path in seen), "each line needs its OWN frame texture, %s is reused" % path)
 		seen.append(path)
 		_expect(load(path) != null, "card frame failed to load: %s" % path)
-	_expect(seen.size() == 5, "expected a frame for all 5 lines, got %d" % seen.size())
+	_expect(seen.size() == WaveUpgradePopup.CARD_FRAMES.size(), "every declared line needs a frame, got %d" % seen.size())
+	_expect(seen.size() >= 6, "expected frames for physical/fire/frost/lightning/class/fusion, got %d" % seen.size())
 
 	# The lightning frame must genuinely carry BOTH hues -- that's the whole
 	# point of the duotone, and the one thing a flat tint could never do.

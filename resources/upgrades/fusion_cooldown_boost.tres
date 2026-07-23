@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/vfx/overload_burst_05.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "fusion_cooldown_boost"
+element = 5
+icon = ExtResource("2")
+title = "Fusion Cadence"
+description = "Fusion skill cooldown reduced by 10%."
+stat_to_modify = "fusion_cd_mult"
+modification_value = -0.10
+tier = 0
+max_stacks = 5
+exclusive_group = ""

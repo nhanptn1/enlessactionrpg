@@ -1,5 +1,8 @@
-[gd_scene load_steps=86 format=3]
+[gd_scene load_steps=89 format=3]
 
+[ext_resource type="Resource" path="res://resources/upgrades/fusion_damage_boost.tres" id="126"]
+[ext_resource type="Resource" path="res://resources/upgrades/fusion_speed_boost.tres" id="127"]
+[ext_resource type="Resource" path="res://resources/upgrades/fusion_cooldown_boost.tres" id="128"]
 [ext_resource type="Script" path="res://scripts/systems/living_background.gd" id="125"]
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/systems/enemy_spawner.gd" id="2"]
@@ -152,7 +155,7 @@ item_pool = [ExtResource("18"), ExtResource("19"), ExtResource("20"), ExtResourc
 [node name="LevelUpPopup" parent="." instance=ExtResource("9")]
 
 [node name="WaveUpgradePopup" parent="." instance=ExtResource("51")]
-upgrade_pool = [ExtResource("55"), ExtResource("60"), ExtResource("65"), ExtResource("70"), ExtResource("71"), ExtResource("72"), ExtResource("73"), ExtResource("74"), ExtResource("75"), ExtResource("76"), ExtResource("77"), ExtResource("78"), ExtResource("79"), ExtResource("89"), ExtResource("90"), ExtResource("91"), ExtResource("92"), ExtResource("93"), ExtResource("94"), ExtResource("95"), ExtResource("96"), ExtResource("97"), ExtResource("98"), ExtResource("99"), ExtResource("100"), ExtResource("101"), ExtResource("102"), ExtResource("108"), ExtResource("109"), ExtResource("110"), ExtResource("112"), ExtResource("113"), ExtResource("114"), ExtResource("115"), ExtResource("116"), ExtResource("117"), ExtResource("118"), ExtResource("119"), ExtResource("120"), ExtResource("121"), ExtResource("122"), ExtResource("123")]
+upgrade_pool = [ExtResource("55"), ExtResource("60"), ExtResource("65"), ExtResource("70"), ExtResource("71"), ExtResource("72"), ExtResource("73"), ExtResource("74"), ExtResource("75"), ExtResource("76"), ExtResource("77"), ExtResource("78"), ExtResource("79"), ExtResource("89"), ExtResource("90"), ExtResource("91"), ExtResource("92"), ExtResource("93"), ExtResource("94"), ExtResource("95"), ExtResource("96"), ExtResource("97"), ExtResource("98"), ExtResource("99"), ExtResource("100"), ExtResource("101"), ExtResource("102"), ExtResource("108"), ExtResource("109"), ExtResource("110"), ExtResource("112"), ExtResource("113"), ExtResource("114"), ExtResource("115"), ExtResource("116"), ExtResource("117"), ExtResource("118"), ExtResource("119"), ExtResource("120"), ExtResource("121"), ExtResource("122"), ExtResource("123"), ExtResource("126"), ExtResource("127"), ExtResource("128")]
 
 [node name="GameOverScreen" parent="." instance=ExtResource("17")]
 

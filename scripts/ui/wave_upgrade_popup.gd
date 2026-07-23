@@ -24,6 +24,7 @@ const CARD_FRAMES := {
 	UpgradeResource.ElementType.FROST: "res://art/ui/card_frame_duo_frost.png",
 	UpgradeResource.ElementType.LIGHTNING: "res://art/ui/card_frame_duo_lightning.png",
 	UpgradeResource.ElementType.CLASS: "res://art/ui/card_frame_duo_class.png",
+	UpgradeResource.ElementType.FUSION: "res://art/ui/card_frame_duo_fusion.png",
 }
 
 @export var upgrade_pool: Array[UpgradeResource] = []
@@ -75,7 +76,7 @@ func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
 	# a linear chain with no forks, so its "unit" is always exactly 1 card.
 	# It still has no per-skill icon art, so its cards fall back to SkillIcon's
 	# procedural glyph (see skill_icon.gd).
-	var element_order: Array = [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING, UpgradeResource.ElementType.PHYSICAL, UpgradeResource.ElementType.CLASS]
+	var element_order: Array = [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING, UpgradeResource.ElementType.PHYSICAL, UpgradeResource.ElementType.CLASS, UpgradeResource.ElementType.FUSION]
 	element_order.shuffle()
 	_pending_choices.clear()
 	for element in element_order:
@@ -192,6 +193,11 @@ func _current_level_for(element: UpgradeResource.ElementType) -> int:
 			return player.physical_level
 		UpgradeResource.ElementType.CLASS:
 			return player.class_skill_level
+		UpgradeResource.ElementType.FUSION:
+			# Fusion has no tiers; 1 simply means "its repeatable cards are
+			# available now", which is the gate _get_offerable_upgrades() checks
+			# before offering any tier-0 card.
+			return 1 if _fusion_upgrades_unlocked() else 0
 	return 0
 
 
@@ -213,7 +219,46 @@ func _max_tier_for(element: UpgradeResource.ElementType) -> int:
 		return 6
 	if element == UpgradeResource.ElementType.CLASS:
 		return 3  # (2026-07-21) the per-class active skill line -- see CharacterClasses.CLASSES "skills"
+	if element == UpgradeResource.ElementType.FUSION:
+		return 0  # (2026-07-23) fusions have no TIERS -- only the repeatable stat cards below
 	return 5
+
+
+func _element_fully_maxed(element: UpgradeResource.ElementType) -> bool:
+	# (2026-07-23) "Fully maxed" is the strict sense the user asked for: the
+	# skill tree finished AND every repeatable stat card at its cap. This is
+	# what earns the fusion upgrade cards -- deliberately NOT what unlocks a
+	# fusion itself, which would be ~40 picks across two lines and realistically
+	# unreachable.
+	if _current_level_for(element) < _max_tier_for(element):
+		return false
+	for upgrade in upgrade_pool:
+		if upgrade.element != element or upgrade.tier != 0:
+			continue
+		if upgrade.max_stacks <= 0:
+			continue
+		if int(player.repeatable_stacks.get(upgrade.id, 0)) < upgrade.max_stacks:
+			return false
+	return true
+
+
+func _fusion_upgrades_unlocked() -> bool:
+	# Any unlocked fusion whose BOTH parent lines are fully maxed opens the
+	# fusion upgrade cards.
+	for pid in player.active_fusions:
+		var els: Array = ElementFusions.FUSIONS[pid]["elements"]
+		if _element_fully_maxed(_element_type_for(els[0])) and _element_fully_maxed(_element_type_for(els[1])):
+			return true
+	return false
+
+
+func _element_type_for(status_name: String) -> UpgradeResource.ElementType:
+	match status_name:
+		StatusEffects.FROST:
+			return UpgradeResource.ElementType.FROST
+		StatusEffects.LIGHTNING:
+			return UpgradeResource.ElementType.LIGHTNING
+	return UpgradeResource.ElementType.FIRE
 
 
 func _on_choice_selected(index: int) -> void:

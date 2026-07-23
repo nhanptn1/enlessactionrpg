@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/vfx/frostfire_bolt_01.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "fusion_damage_boost"
+element = 5
+icon = ExtResource("2")
+title = "Fusion Surge"
+description = "Fusion skill deals +15% damage."
+stat_to_modify = "fusion_dmg_mult"
+modification_value = 0.15
+tier = 0
+max_stacks = 5
+exclusive_group = ""

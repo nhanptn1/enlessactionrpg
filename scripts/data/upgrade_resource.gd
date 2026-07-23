@@ -5,7 +5,12 @@ class_name UpgradeResource
 # via required_class below, tiers 1-3, applied through the same wave-clear
 # picker as everything else. See CharacterClasses.CLASSES and
 # player.gd::apply_element_upgrade()'s CLASS branch.
-enum ElementType { FIRE, FROST, LIGHTNING, PHYSICAL, CLASS }
+# FUSION (2026-07-23): upgrade cards for the equipped fusion line (damage /
+# projectile speed / cooldown). Offered only once a fusion is unlocked AND both
+# of its parent element lines are FULLY maxed -- skill tier and every stat card
+# -- so "max out two elements" is what earns them. See
+# wave_upgrade_popup.gd::_element_fully_maxed().
+enum ElementType { FIRE, FROST, LIGHTNING, PHYSICAL, CLASS, FUSION }
 
 @export var id: String
 @export var element: ElementType = ElementType.FIRE

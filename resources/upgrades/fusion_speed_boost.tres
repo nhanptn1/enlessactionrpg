@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/vfx/superconductor_arc_01.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "fusion_speed_boost"
+element = 5
+icon = ExtResource("2")
+title = "Fusion Velocity"
+description = "Fusion projectiles travel 20% faster."
+stat_to_modify = "fusion_projectile_speed_mult"
+modification_value = 0.20
+tier = 0
+max_stacks = 5
+exclusive_group = ""

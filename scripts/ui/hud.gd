@@ -66,6 +66,7 @@ func _ready() -> void:
 		_player.skill_unlocked.connect(_on_skill_unlocked)
 		_player.elemental_skill_changed.connect(_on_elemental_skill_changed)
 		_player.active_element_switched.connect(_on_active_element_switched)
+		_player.active_fusion_changed.connect(_on_active_fusion_changed)
 		_player.class_skill_changed.connect(_on_class_skill_changed)
 		_player.equipment_changed.connect(_on_equipment_changed)
 		for slot in _player.equipped:
@@ -131,7 +132,10 @@ func _process(_delta: float) -> void:
 	var timer: Timer = _player.attack_timer
 	if timer.wait_time > 0.0:
 		skill_cooldown.value = 1.0 - (timer.time_left / timer.wait_time)
-	if _player.active_element != -1 and _elemental_rows.has(_player.active_element):
+	# While a fusion is equipped the elemental timers are stopped, so the
+	# elemental ring below would sit frozen -- the fusion's own timer is what's
+	# actually running.
+	if _player.active_element != -1 and _player.active_fusion_id == "" and _elemental_rows.has(_player.active_element):
 		var elemental_timer: Timer = _player.get_elemental_timer_by_element(_player.active_element)
 		if is_instance_valid(elemental_timer) and elemental_timer.wait_time > 0.0:
 			_elemental_rows[_player.active_element].ring.value = 1.0 - (elemental_timer.time_left / elemental_timer.wait_time)
@@ -257,6 +261,9 @@ func _on_active_element_switched(element: int, _skill: SkillData) -> void:
 	# every row so exactly one reads as "active."
 	for row_element in _elemental_rows:
 		_elemental_rows[row_element].row.modulate = ACTIVE_ROW_MODULATE if row_element == element else INACTIVE_ROW_MODULATE
+	# Switching to an element un-equips any fusion, so its row must drop out of
+	# its ACTIVE state too.
+	_refresh_fusion_rows()
 
 
 func _build_elemental_row(element: int, skill: SkillData) -> void:
@@ -386,6 +393,36 @@ func _on_boss_affinity_announced(affinity_id: String) -> void:
 		_queue_hint("affinity")
 
 
+func _refresh_fusion_rows() -> void:
+	# The equipped fusion reads full-brightness with an ACTIVE tag; the others
+	# stay dimmed with a "Tap to use" prompt, mirroring how the elemental rows
+	# show which line is currently firing.
+	if not is_instance_valid(_player):
+		return
+	var equipped: String = _player.active_fusion_id
+	for pid in _fusion_rows:
+		var parts: Dictionary = _fusion_rows[pid]
+		var is_on: bool = pid == equipped
+		var state: Label = parts["state"]
+		state.text = "ACTIVE" if is_on else "Tap to use"
+		state.add_theme_color_override("font_color", ElementFusions.FUSION_COLOR if is_on else Color(0.6, 0.6, 0.65, 1.0))
+		parts["row"].modulate = ACTIVE_ROW_MODULATE if is_on else INACTIVE_ROW_MODULATE
+
+
+func _on_active_fusion_changed(_pair_id: String, _skill: SkillData) -> void:
+	_refresh_fusion_rows()
+	# Equipping a fusion replaces the active element, so the elemental rows must
+	# stop claiming to be active.
+	_refresh_elemental_row_highlight()
+
+
+func _refresh_elemental_row_highlight() -> void:
+	var fusion_on: bool = is_instance_valid(_player) and _player.active_fusion_id != ""
+	for element in _elemental_rows:
+		var active: bool = (not fusion_on) and element == _player.active_element
+		_elemental_rows[element].row.modulate = ACTIVE_ROW_MODULATE if active else INACTIVE_ROW_MODULATE
+
+
 func _on_boss_entrance(color: Color) -> void:
 	# A brief full-screen wash in the boss's own aura colour. Built in code and
 	# self-freeing: it's a one-shot per boss spawn, not worth a permanent node.
@@ -418,25 +455,42 @@ func _add_fusion_row(pair_id: String) -> void:
 		parent.move_child(_fusion_rows_box, class_skill_row.get_index() + 1)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
+	# (2026-07-23) The icon is a Button now: tapping it EQUIPS the fusion, which
+	# replaces the active element. Same direct-selection pattern the elemental
+	# rows use, so switching between an element and a fusion feels identical.
+	var icon_button := Button.new()
+	icon_button.custom_minimum_size = Vector2(38, 38)
+	icon_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon_button.flat = true
+	icon_button.tooltip_text = ElementFusions.description(pair_id)
+	icon_button.pressed.connect(func(): _player.select_active_fusion(pair_id))
 	var icon := TextureRect.new()
-	icon.custom_minimum_size = Vector2(38, 38)
-	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	icon.stretch_mode = TextureRect.STRETCH_SCALE
+	icon.anchor_right = 1.0
+	icon.anchor_bottom = 1.0
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var icon_path := ElementFusions.icon_path(pair_id)
 	if icon_path != "":
 		icon.texture = load(icon_path)
+	icon_button.add_child(icon)
 	var label := Label.new()
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	label.add_theme_font_size_override("font_size", 18)
 	label.add_theme_color_override("font_color", ElementFusions.FUSION_COLOR)
-	label.text = "Fusion: %s" % ElementFusions.display_name(pair_id)
+	label.text = ElementFusions.display_name(pair_id)
 	label.tooltip_text = ElementFusions.description(pair_id)
-	row.add_child(icon)
+	# "Tap to use" until equipped, then "ACTIVE" -- the row doubles as the
+	# prompt, so there's no separate button to hunt for.
+	var state := Label.new()
+	state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	state.add_theme_font_size_override("font_size", 14)
+	row.add_child(icon_button)
 	row.add_child(label)
+	row.add_child(state)
 	_fusion_rows_box.add_child(row)
-	_fusion_rows[pair_id] = row
+	_fusion_rows[pair_id] = {"row": row, "state": state, "icon": icon}
+	_refresh_fusion_rows()
 
 
 func _on_fusion_unlocked(pair_id: String, display_name: String) -> void:

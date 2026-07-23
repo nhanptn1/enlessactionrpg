@@ -52,6 +52,19 @@ const FUSIONS := {
 const FUSION_COLOR := Color(1.0, 0.72, 0.95, 1.0)
 
 
+static func skill_path(pair: String) -> String:
+	# (2026-07-23) A fusion is now a real castable line, not just a passive --
+	# each has its own SkillData (damage/cooldown/projectile) so it reuses every
+	# existing firing, cooldown and upgrade code path.
+	return "res://resources/skills/fusion_%s.tres" % pair_suffix(pair)
+
+
+static func pair_suffix(pair: String) -> String:
+	# "fire_frost" -> "frostfire": the resource is named after the fusion, not
+	# the element pair that unlocks it.
+	return FUSIONS[pair]["name"].to_lower() if FUSIONS.has(pair) else ""
+
+
 static func display_name(pair: String) -> String:
 	return FUSIONS[pair]["name"] if FUSIONS.has(pair) else ""
 
