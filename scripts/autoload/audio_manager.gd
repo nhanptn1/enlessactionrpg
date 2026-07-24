@@ -38,6 +38,12 @@ func _connect_signals() -> void:
 	SignalBus.item_collected.connect(_on_item_collected)
 	SignalBus.player_healed.connect(func(_amount): play_sfx("heal", 1.0))
 	SignalBus.elite_spawned.connect(func(): play_sfx("elite_spawn", 1.0))
+	# Fires every wave, including "" for a plain one -- only an actual modifier
+	# should make a sound, or every single wave start would sting.
+	SignalBus.wave_modifier_announced.connect(func(id: String):
+		if id != "":
+			play_sfx("wave_modifier")
+	)
 	SignalBus.enemy_ranged_attack.connect(func(): play_sfx("enemy_shot", 0.9))
 	SignalBus.player_died.connect(_on_player_died)
 	SignalBus.player_dashed.connect(func(): play_sfx("dash"))
@@ -157,6 +163,12 @@ func _build_streams() -> void:
 	_streams["boss_roar"] = _make_tone(70.0, 0.45, 0.4, "saw")
 	_streams["boss_warning"] = _make_tone(180.0, 0.2, 0.3, "square")
 	_streams["boss_phase"] = _make_arpeggio([220.0, 277.0, 330.0, 415.0], 0.12, 0.32)
+	# (2026-07-24) Wave modifiers were the only announcement-type event with no
+	# cue, while boss phases, elite spawns and level-ups all had one. A rising
+	# four-note figure, deliberately distinct from "level_up" (which rises too,
+	# but from a much brighter register) -- this is a warning that the wave is
+	# unusual, not a reward.
+	_streams["wave_modifier"] = _make_arpeggio([294.0, 392.0, 494.0, 587.0], 0.11, 0.3)
 	_streams["victory"] = _make_arpeggio([523.0, 659.0, 784.0, 988.0, 1175.0], 0.1, 0.22)
 	_streams["game_over"] = _make_tone(98.0, 0.55, 0.35, "sine", true)
 	_streams["ui_click"] = _make_tone(660.0, 0.04, 0.18)

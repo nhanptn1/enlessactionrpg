@@ -1673,6 +1673,19 @@ func _assert_wave_modifiers() -> void:
 		_expect(WaveModifiers.display_name(id) != "", "%s needs a display name for the HUD banner" % id)
 		_expect(WaveModifiers.description(id) != "", "%s needs a description for its toast" % id)
 	_expect(WaveModifiers.ids().size() == 5, "expected the 5 designed modifiers, got %d" % WaveModifiers.ids().size())
+	# (2026-07-24) Every other announcement-type event (boss phase, elite spawn,
+	# level up) has a cue; this was the only one without.
+	_expect(AudioManager._streams.has("wave_modifier"), "wave modifiers need their own audio cue")
+	# The stream existing isn't the same as anything playing it -- check the
+	# AudioManager is actually listening, and that firing both a real modifier
+	# and the ""-means-plain-wave case is safe (a plain wave must not sting).
+	var audio_listening := false
+	for c in SignalBus.wave_modifier_announced.get_connections():
+		if c["callable"].get_object() == AudioManager:
+			audio_listening = true
+	_expect(audio_listening, "AudioManager must listen for wave_modifier_announced, or the cue never plays")
+	SignalBus.wave_modifier_announced.emit("")
+	SignalBus.wave_modifier_announced.emit("skyfall")
 
 	# The two species-restricting modifiers must actually match species, or they
 	# would roll and then produce an empty wave.
