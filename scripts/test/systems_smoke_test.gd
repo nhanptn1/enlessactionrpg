@@ -170,6 +170,8 @@ func _assert_save_roundtrip() -> void:
 	await _assert_continue_revive()
 	await _assert_every_monster_hurts_on_contact()
 	await _assert_lose_line()
+	_assert_elite_density_scales()
+	await _assert_elite_damage_mult_is_inert_on_the_player()
 	_assert_tutorial_hints()
 
 
@@ -1658,6 +1660,89 @@ func _assert_tutorial_hints() -> void:
 
 	SaveManager.seen_hints = saved
 	SaveManager.save_to_disk()
+
+
+func _assert_elite_density_scales() -> void:
+	# (2026-07-24) User: "after 10 waves, the elite spawn monster need to increase
+	# for more difficult". Guards the shape of the curve, not just that it moves --
+	# the early game was hand-tuned around elites being rare, and the ceiling
+	# exists so an elite stays a distinct KIND of enemy rather than the baseline.
+	var wm := WaveManager.new()
+
+	for w in [1, 5, 9, 10]:
+		_expect(is_equal_approx(wm.elite_chance_for_wave(w), WaveManager.ELITE_CHANCE),
+			"wave %d must keep the hand-tuned base elite rate, got %s" % [w, wm.elite_chance_for_wave(w)])
+
+	# Strictly increasing between the start wave and the ceiling.
+	var prev: float = wm.elite_chance_for_wave(WaveManager.ELITE_CHANCE_START_WAVE)
+	var reached_ceiling_at := -1
+	for w in range(WaveManager.ELITE_CHANCE_START_WAVE + 1, 120):
+		var cur: float = wm.elite_chance_for_wave(w)
+		_expect(cur >= prev, "elite chance must never fall (wave %d: %s -> %s)" % [w, prev, cur])
+		_expect(cur <= WaveManager.ELITE_CHANCE_CEILING + 0.0001,
+			"elite chance must never exceed its ceiling (wave %d: %s)" % [w, cur])
+		if reached_ceiling_at < 0 and is_equal_approx(cur, WaveManager.ELITE_CHANCE_CEILING):
+			reached_ceiling_at = w
+		prev = cur
+	_expect(wm.elite_chance_for_wave(11) > WaveManager.ELITE_CHANCE, "wave 11 must already be above the base rate")
+	# The climb has to last long enough to be felt as escalation rather than a
+	# step change, but still arrive -- if this drifts far either way the late-game
+	# pacing this was built to fix is back.
+	_expect(reached_ceiling_at > 20 and reached_ceiling_at < 60,
+		"the elite curve should reach its ceiling somewhere in the 20s-50s, got wave %d" % reached_ceiling_at)
+	_expect(WaveManager.ELITE_CHANCE_CEILING <= 0.5,
+		"past half the wave, 'elite' stops meaning anything -- ceiling is %s" % WaveManager.ELITE_CHANCE_CEILING)
+
+	# Real rolls at the ceiling land near the declared rate (guards the wiring
+	# between the curve and _spawn_one's roll, which a refactor could sever).
+	seed(12345)
+	var hits := 0
+	var rolls := 4000
+	var ceiling_chance: float = wm.elite_chance_for_wave(100)
+	for i in rolls:
+		if randf() < ceiling_chance:
+			hits += 1
+	var observed: float = float(hits) / float(rolls)
+	_expect(absf(observed - ceiling_chance) < 0.04,
+		"rolling at the ceiling rate should produce ~%s elites, observed %s" % [ceiling_chance, observed])
+
+	wm.free()
+
+
+func _assert_elite_damage_mult_is_inert_on_the_player() -> void:
+	# (2026-07-24) Recorded deliberately, because it is a live trap rather than a
+	# bug: ELITE_DAMAGE_MULT (1.4) still multiplies through spawn() -> setup() ->
+	# _damage_mult -> contact_damage(), but the player's flat HIT_COST rule
+	# (entry 90) ignores the incoming amount, so an elite hits for exactly as much
+	# as anything else. Elites are therefore tougher and worth more XP, but NOT
+	# individually more dangerous per hit. Anyone tuning elite difficulty by
+	# raising that constant would see no effect whatsoever; this test says so out
+	# loud, and will fail the moment the flat rule changes and the constant
+	# silently comes back to life.
+	var player: Player = load("res://scenes/player/Player.tscn").instantiate()
+	add_child(player)
+	player.get_node("BasicShotTimer").stop()
+	await get_tree().physics_frame
+
+	var data: EnemyData = load("res://resources/enemies/slime_scout.tres")
+	var elite: EnemyBase = data.scene.instantiate()
+	elite.setup(data, WaveManager.ELITE_HP_MULT, 1.0, WaveManager.ELITE_DAMAGE_MULT, -1)
+	add_child(elite)
+	elite.activate()
+	await get_tree().physics_frame
+
+	_expect(elite.contact_damage() > data.base_damage,
+		"the elite damage multiplier should still reach contact_damage()")
+	player.current_hp = player.max_hp
+	player.take_damage(elite.contact_damage())
+	_expect(is_equal_approx(player.current_hp, player.max_hp - Player.HIT_COST),
+		"an elite hit still costs one HP -- ELITE_DAMAGE_MULT cannot change player damage while the flat rule stands")
+
+	elite._deactivate()
+	elite.queue_free()
+	player.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 func _assert_lose_line() -> void:

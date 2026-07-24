@@ -98,6 +98,29 @@ const ELITE_SPEED_MULT := 1.1
 const ELITE_DAMAGE_MULT := 1.4
 const ELITE_XP_MULT := 3.0
 
+# (2026-07-24) Elite density now climbs with the wave, per user: "after 10
+# waves, the elite spawn monster need to increase for more difficult".
+#
+# This exists because every OTHER scaling lever runs out. Measured against the
+# real formulas: monster count caps at wave 11, max concurrent at 12, spawn
+# interval at 20, speed at 38, HP at 49 -- and enemy damage never scaled at all.
+# So from wave 49 on, every regular wave was numerically identical forever.
+# Elite density is the one lever that doesn't fight those ceilings: it changes
+# what the wave is MADE of rather than pushing a multiplier that was capped for
+# a reason (the speed cap is what keeps slows meaningful, the HP cap is what
+# keeps burn relevant -- see entries 80 and 88).
+#
+# Waves 1-10 stay at the hand-tuned 3%: the early game was balanced assuming
+# elites are a rare surprise, and that's also where a new player is learning.
+const ELITE_CHANCE_START_WAVE := 10
+const ELITE_CHANCE_GROWTH_PER_WAVE := 0.015
+# 35% ceiling, reached at wave ~32. Deliberately well short of "most of the
+# wave": an elite has to stay legible as a distinct, tougher KIND of enemy (gold
+# tint + spike marker + 2x HP), and past roughly a third they stop reading as
+# special and just become the baseline -- which would mean re-tuning the whole
+# curve rather than adding to it.
+const ELITE_CHANCE_CEILING := 0.35
+
 signal wave_started(wave_number: int)
 signal wave_cleared(wave_number: int)
 
@@ -115,6 +138,7 @@ var _current_speed_mult := 1.0
 var _current_damage_mult := 1.0
 var _current_xp_override := -1
 var _current_visual_scale := 1.0
+var _current_elite_chance := ELITE_CHANCE
 var _is_boss_wave := false
 var _alive_count := 0
 # Subset of _alive_count that's actually been spawned and is still alive on
@@ -158,6 +182,9 @@ func _start_next_wave() -> void:
 	_current_damage_mult = 1.0
 	_current_xp_override = -1
 	_current_visual_scale = 1.0
+	# Resolved once per wave (like every other _current_* multiplier) rather than
+	# recomputed per spawn, so every monster in a wave rolls against the same odds.
+	_current_elite_chance = elite_chance_for_wave(wave_number)
 
 	if current_wave_index < waves.size():
 		_current_wave = waves[current_wave_index]
@@ -416,10 +443,19 @@ func _on_spawn_tick() -> void:
 			_spawn_one(enemy_data, cluster_center_x + randf_range(-30.0, 30.0))
 
 
+func elite_chance_for_wave(wave_number: int) -> float:
+	# Public so the elite-density regression test can check the curve directly
+	# instead of inferring it from thousands of spawn rolls.
+	if wave_number <= ELITE_CHANCE_START_WAVE:
+		return ELITE_CHANCE
+	var grown: float = ELITE_CHANCE + ELITE_CHANCE_GROWTH_PER_WAVE * float(wave_number - ELITE_CHANCE_START_WAVE)
+	return minf(grown, ELITE_CHANCE_CEILING)
+
+
 func _spawn_one(enemy_data: EnemyData, x_override: float) -> void:
 	# Only ever called for regular monsters -- the boss is spawned
 	# separately via _spawn_boss(), so no need to exclude boss waves here.
-	var is_elite := randf() < ELITE_CHANCE
+	var is_elite := randf() < _current_elite_chance
 	var hp_mult := _current_hp_mult * (ELITE_HP_MULT if is_elite else 1.0)
 	var speed_mult := _current_speed_mult * (ELITE_SPEED_MULT if is_elite else 1.0)
 	var damage_mult := _current_damage_mult * (ELITE_DAMAGE_MULT if is_elite else 1.0)
