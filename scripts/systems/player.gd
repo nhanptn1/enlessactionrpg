@@ -1157,7 +1157,13 @@ func _fire_self_burst(skill: SkillData) -> bool:
 	# Big bright class-colored ring on top of the ground VFX + a real camera
 	# shake, so the pulse lands with weight instead of a faint scuff.
 	var pulse_col: Color = CharacterClasses.get_vfx_color(active_class_id)
-	ImpactVFX.flash_burst(global_position, radius * 1.15, pulse_col, self)
+	# (2026-07-24) Real class art when the class has a sheet -- the Juggernaut
+	# does, and an expanding shockwave is exactly what SELF_BURST is. The
+	# procedural flash stays as the fallback for classes still awaiting art.
+	if ImpactVFX.has_class_burst(active_class_id):
+		ImpactVFX.class_burst(active_class_id, global_position, radius, self)
+	else:
+		ImpactVFX.flash_burst(global_position, radius * 1.15, pulse_col, self)
 	var cam := get_viewport().get_camera_2d()
 	if is_instance_valid(cam) and cam.has_method("shake"):
 		cam.shake(9.0, 0.22)
@@ -1380,6 +1386,11 @@ func _fire_trap_shot(skill: SkillData) -> bool:
 	# be a real typed local instead.
 	var no_status_rolls: Array[Dictionary] = []
 	trap.activate(dmg, skill.trap_duration, skill.trap_radius, target.global_position, no_status_rolls, trap_detonate_mult)
+	# (2026-07-24) The Trapper places traps rather than firing projectiles, so its
+	# class art has to be triggered here -- the projectile impact path never runs
+	# for it, and without this its sheet would sit unused.
+	if ImpactVFX.has_class_burst(active_class_id):
+		ImpactVFX.class_burst(active_class_id, target.global_position, skill.trap_radius, self)
 	get_tree().current_scene.add_child(trap)
 	return true
 

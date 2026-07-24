@@ -2001,9 +2001,13 @@ func _assert_class_vfx_wiring() -> void:
 	for class_id in ImpactVFX.CLASS_CHAIN_ARC:
 		_expect(ResourceLoader.exists(ImpactVFX.CLASS_CHAIN_ARC[class_id]),
 			"%s's chain arc art is missing: %s" % [class_id, ImpactVFX.CLASS_CHAIN_ARC[class_id]])
-	# Classes still awaiting art must keep working, not error.
-	_expect(not ImpactVFX.has_class_burst("juggernaut"), "juggernaut has no sheet yet -- it should fall back to the flash")
+	# (2026-07-24) All five classes now have sheets. The fallback still has to
+	# work though -- a class added later starts with no art, and an unknown id
+	# must resolve to the procedural flash rather than erroring.
+	for class_id in CharacterClasses.CLASSES:
+		_expect(ImpactVFX.has_class_burst(class_id), "%s should have its own impact art now" % class_id)
 	_expect(not ImpactVFX.has_class_burst(""), "an empty class id must never resolve to burst art")
+	_expect(not ImpactVFX.has_class_burst("necromancer"), "an unknown class must fall back, not resolve to art")
 
 	# The id has to actually reach the projectile, or every class silently falls
 	# back at once. Fired through the real class path on a live player.

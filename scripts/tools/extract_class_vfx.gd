@@ -28,6 +28,20 @@ const SHEETS := [
 		"out": "res://art/vfx/class_sniper_",
 	},
 	{
+		# This sheet has frame NUMBERS baked in under each effect ("1".."5").
+		# MIN_PIXELS_LABEL raises the per-row occupancy bar so a thin line of
+		# digits never registers as content -- same class of problem the boss
+		# sheets' row labels caused, where the fix was to exclude them from the
+		# band rather than try to detect text.
+		"src": "D:/WORK/PROJECT/GODOT/image/skills/class-skill/Juggernaut (Bright Cyan Shockwave).png",
+		"out": "res://art/vfx/class_juggernaut_",
+		"min_pixels": 26,
+	},
+	{
+		"src": "D:/WORK/PROJECT/GODOT/image/skills/class-skill/Trapper (Amber Lingering Zone).png",
+		"out": "res://art/vfx/class_trapper_",
+	},
+	{
 		# Declared rects, x/y/w/h -- see the "rects" note in _extract(). Read off
 		# the 1024x1024 source: orb, upper chain arc, the long central bolt, the
 		# impact burst, and a shorter arc.
@@ -87,10 +101,19 @@ func _extract(cfg: Dictionary) -> void:
 		for r in cfg["rects"]:
 			frames.append({"x0": r[0], "x1": r[0] + r[2] - 1, "y0": r[1], "y1": r[1] + r[3] - 1, "row": frames.size()})
 	else:
-		var bands := _spans(_row_occupancy(img), MIN_GAP, MIN_SPAN)
+		var min_px: int = int(cfg.get("min_pixels", MIN_PIXELS))
+		var bands := _spans(_row_occupancy(img, min_px), MIN_GAP, MIN_SPAN)
 		for bi in bands.size():
-			for col in _spans(_col_occupancy(img, bands[bi]), MIN_GAP, MIN_SPAN):
-				frames.append({"x0": col.x, "x1": col.y, "y0": bands[bi].x, "y1": bands[bi].y, "row": bi})
+			# Trim the band to its own DENSE rows before cutting. Raising the
+			# occupancy threshold alone wasn't enough for the Juggernaut sheet's
+			# baked-in frame numerals: the digits stayed out of band DETECTION
+			# but the band still spanned them, so a faint "3" was blitted into
+			# the frame. A digit row carries a tiny fraction of the pixels an
+			# effect row does, so trimming by density excludes them without
+			# needing to know the label's size or position.
+			var band := _trim_band(img, bands[bi])
+			for col in _spans(_col_occupancy(img, band, min_px), MIN_GAP, MIN_SPAN):
+				frames.append({"x0": col.x, "x1": col.y, "y0": band.x, "y1": band.y, "row": bi})
 	if frames.is_empty():
 		print("  no frames detected")
 		return
@@ -129,7 +152,32 @@ func _extract(cfg: Dictionary) -> void:
 	print("  %d frames" % frames.size())
 
 
-func _row_occupancy(img: Image) -> Array:
+const BAND_DENSITY_KEEP := 0.15  # a row must carry this share of the band's peak to count as art
+
+
+func _trim_band(img: Image, band: Vector2i) -> Vector2i:
+	var counts: Array[int] = []
+	var peak := 0
+	for y in range(band.x, band.y + 1):
+		var n := 0
+		for x in img.get_width():
+			if img.get_pixel(x, y).a >= OCCUPIED_ALPHA:
+				n += 1
+		counts.append(n)
+		peak = maxi(peak, n)
+	if peak <= 0:
+		return band
+	var floor_count: int = int(float(peak) * BAND_DENSITY_KEEP)
+	var first := 0
+	while first < counts.size() and counts[first] < floor_count:
+		first += 1
+	var last: int = counts.size() - 1
+	while last > first and counts[last] < floor_count:
+		last -= 1
+	return Vector2i(band.x + first, band.x + last)
+
+
+func _row_occupancy(img: Image, min_pixels: int) -> Array:
 	var used: Array = []
 	used.resize(img.get_height())
 	for y in img.get_height():
@@ -137,11 +185,11 @@ func _row_occupancy(img: Image) -> Array:
 		for x in img.get_width():
 			if img.get_pixel(x, y).a >= OCCUPIED_ALPHA:
 				n += 1
-		used[y] = n >= MIN_PIXELS
+		used[y] = n >= min_pixels
 	return used
 
 
-func _col_occupancy(img: Image, band: Vector2i) -> Array:
+func _col_occupancy(img: Image, band: Vector2i, min_pixels: int) -> Array:
 	var used: Array = []
 	used.resize(img.get_width())
 	for x in img.get_width():
@@ -149,7 +197,7 @@ func _col_occupancy(img: Image, band: Vector2i) -> Array:
 		for y in range(band.x, band.y + 1):
 			if img.get_pixel(x, y).a >= OCCUPIED_ALPHA:
 				n += 1
-		used[x] = n >= MIN_PIXELS
+		used[x] = n >= min_pixels
 	return used
 
 

@@ -75,9 +75,39 @@ const CLASS_BURST_FRAME_PATHS := {
 	"ranger": ["res://art/vfx/class_ranger_01.png", "res://art/vfx/class_ranger_05.png"],
 	"sniper": ["res://art/vfx/class_sniper_04.png"],
 	"elementalist": ["res://art/vfx/class_elementalist_04.png"],
+	# Full expanding shockwave, which is what the Juggernaut's SELF_BURST is.
+	"juggernaut": [
+		"res://art/vfx/class_juggernaut_01.png", "res://art/vfx/class_juggernaut_02.png",
+		"res://art/vfx/class_juggernaut_03.png", "res://art/vfx/class_juggernaut_04.png",
+		"res://art/vfx/class_juggernaut_05.png", "res://art/vfx/class_juggernaut_06.png",
+	],
+	# The trap's own placement-to-detonation cycle.
+	"trapper": [
+		"res://art/vfx/class_trapper_01.png", "res://art/vfx/class_trapper_02.png",
+		"res://art/vfx/class_trapper_03.png", "res://art/vfx/class_trapper_04.png",
+		"res://art/vfx/class_trapper_05.png",
+	],
 }
 const CLASS_BURST_SPEED := 14.0
 static var _class_burst_frames: Dictionary = {}
+
+# (2026-07-24) Additive blending for the class VFX, taken from the user's
+# skill-note scaffold -- the one idea in it this codebase didn't already have,
+# and the right one. Every frame in these sheets is a GLOW drawn on black, so
+# with normal alpha blending the soft outer falloff composites as murky grey
+# over the arena instead of adding light to it. BLEND_MODE_ADD is what the art
+# was authored for; unshaded keeps it at full brightness regardless of any
+# scene lighting. Applied only to the class effects, whose art is new and known
+# to suit it, rather than retroactively to every existing burst.
+static var _additive_material: CanvasItemMaterial = null
+
+
+static func _get_additive_material() -> CanvasItemMaterial:
+	if _additive_material == null:
+		_additive_material = CanvasItemMaterial.new()
+		_additive_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		_additive_material.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	return _additive_material
 
 
 # (2026-07-24) Real arc art for a chain jump, where chain_bolt() draws a
@@ -112,6 +142,7 @@ static func class_chain_arc(class_id: String, from_pos: Vector2, to_pos: Vector2
 	var span: float = maxf(from_pos.distance_to(to_pos), 1.0)
 	var sx: float = span / float(tex.get_width())
 	sprite.scale = Vector2(sx, minf(sx, 1.0))
+	sprite.material = _get_additive_material()  # glow-on-black art, same as the class bursts
 	host.get_tree().current_scene.add_child(sprite)
 	var tween := sprite.create_tween()
 	tween.tween_property(sprite, "modulate:a", 0.0, CHAIN_ARC_FADE)
@@ -129,7 +160,7 @@ static func class_burst(class_id: String, pos: Vector2, radius: float, host: Nod
 		_class_burst_frames[class_id] = _build_burst_frames(
 			CLASS_BURST_FRAME_PATHS[class_id], CLASS_BURST_SPEED
 		)
-	_play_burst_animation(_class_burst_frames[class_id], pos, radius, host)
+	_play_burst_animation(_class_burst_frames[class_id], pos, radius, host, 0.0, Color.WHITE, true)
 
 
 const OVERLOAD_BURST_FRAME_PATHS := [
@@ -376,7 +407,7 @@ static func ice_wall_nova_burst(pos: Vector2, radius: float, host: Node) -> void
 	_play_burst_animation(_get_ice_wall_nova_frames(), pos, radius, host)
 
 
-static func _play_burst_animation(frames: SpriteFrames, pos: Vector2, radius: float, host: Node, rotation: float = 0.0, tint: Color = Color.WHITE) -> void:
+static func _play_burst_animation(frames: SpriteFrames, pos: Vector2, radius: float, host: Node, rotation: float = 0.0, tint: Color = Color.WHITE, additive: bool = false) -> void:
 	if not is_instance_valid(host):
 		return
 	var sprite := AnimatedSprite2D.new()
@@ -386,6 +417,8 @@ static func _play_burst_animation(frames: SpriteFrames, pos: Vector2, radius: fl
 	# element -- the spark burst is shared by Lightning's Chain Spark and the
 	# physical line's Chain Arrow, and the latter must not read as electric.
 	sprite.modulate = tint
+	if additive:
+		sprite.material = _get_additive_material()
 	var first_tex: Texture2D = frames.get_frame_texture(&"burst", 0)
 	sprite.scale = Vector2.ONE * (radius * BURST_TARGET_DIAMETER_MULT * BURST_VISUAL_SCALE) / first_tex.get_width()
 	sprite.global_position = pos
