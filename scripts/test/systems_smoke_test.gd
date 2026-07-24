@@ -174,6 +174,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_elite_damage_mult_is_inert_on_the_player()
 	_assert_wave_modifiers()
 	_assert_wave_modifier_shapes_the_wave()
+	await _assert_upgrade_card_integrity()
 	_assert_tutorial_hints()
 
 
@@ -1701,6 +1702,71 @@ func _assert_tutorial_hints() -> void:
 
 	SaveManager.seen_hints = saved
 	SaveManager.save_to_disk()
+
+
+func _assert_upgrade_card_integrity() -> void:
+	# (2026-07-24) Sweeps EVERY upgrade .tres rather than the handful individual
+	# tests happen to touch. This guards the failure mode that has already hit
+	# this project twice -- a stat that is stored but never read
+	# (`fusion_projectile_speed_mult`, entry 89) and, more dangerously, a
+	# `stat_to_modify` naming a property that doesn't exist, which
+	# apply_element_upgrade() would `set()` into nothing with no error at all.
+	# A card like that looks completely normal in the picker and does nothing
+	# forever.
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_dismiss_class_select(main)
+	var player: Player = get_tree().get_first_node_in_group("player")
+	var popup: WaveUpgradePopup = get_tree().get_first_node_in_group("wave_upgrade_popup")
+	_expect(is_instance_valid(player) and is_instance_valid(popup), "need a real player + wave_upgrade_popup")
+
+	var pool_paths := {}
+	for u in popup.upgrade_pool:
+		pool_paths[u.resource_path] = true
+
+	var dir := DirAccess.open("res://resources/upgrades")
+	_expect(dir != null, "resources/upgrades should be readable")
+	var seen_ids := {}
+	var files: Array[String] = []
+	for f in dir.get_files():
+		if f.ends_with(".tres"):
+			files.append(f)
+	_expect(files.size() > 0, "there should be upgrade resources to check")
+
+	for f in files:
+		var path := "res://resources/upgrades/%s" % f
+		var u: UpgradeResource = load(path)
+		# An upgrade nothing can offer may as well not exist.
+		_expect(pool_paths.has(path), "%s is not wired into WaveUpgradePopup.upgrade_pool -- it can never be offered" % f)
+		# The silent killer: a stat name with no matching Player property.
+		if u.stat_to_modify != "":
+			_expect(player.get(u.stat_to_modify) != null,
+				"%s modifies '%s', which is not a property on Player -- it would silently do nothing" % [f, u.stat_to_modify])
+			_expect(u.modification_value != 0.0,
+				"%s names a stat but modifies it by 0 -- a pure unlock should leave stat_to_modify empty, like physical_t1_multishot" % f)
+		# Metadata the picker renders directly.
+		_expect(u.id != "", "%s has no id" % f)
+		_expect(not seen_ids.has(u.id), "%s duplicates id '%s' (also on %s)" % [f, u.id, seen_ids.get(u.id, "?")])
+		seen_ids[u.id] = f
+		_expect(u.title.strip_edges() != "", "%s has no title -- the card would render blank" % f)
+		_expect(u.description.strip_edges() != "", "%s has no description -- the card would render blank" % f)
+		_expect(u.icon != null, "%s has no icon" % f)
+		# A repeatable with no cap means its line can never finish, which is what
+		# entry 75 fixed -- a fully-maxed path would keep being offered forever.
+		if u.tier == 0:
+			_expect(u.max_stacks > 0, "%s is repeatable (tier 0) but has no max_stacks -- its line could never finish" % f)
+		# Class gating, both directions.
+		if u.element == UpgradeResource.ElementType.CLASS:
+			_expect(CharacterClasses.CLASSES.has(u.required_class),
+				"%s is a CLASS card whose required_class '%s' is not a real class" % [f, u.required_class])
+		else:
+			_expect(u.required_class == "", "%s is not a CLASS card but is pinned to class '%s'" % [f, u.required_class])
+
+	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 func _assert_wave_modifiers() -> void:
