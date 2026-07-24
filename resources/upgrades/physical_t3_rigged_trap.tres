@@ -1,16 +1,16 @@
 [gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
-[ext_resource type="Texture2D" path="res://art/ui/icons/icon_explosive_volley.png" id="2"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_trap_shot.png" id="2"]
 
 [resource]
 script = ExtResource("1")
-id = "physical_t6_trap_mastery"
+id = "physical_t3_rigged_trap"
 element = 3
 icon = ExtResource("2")
-title = "Trap Mastery"
-description = "Your trap's detonation reaches its full power, dealing maximum bonus blast damage."
+title = "Rigged Trap"
+description = "Your trap detonates for a small burst of bonus damage when it kills something, or automatically when it expires."
 stat_to_modify = "physical_trap_detonate_mult"
-modification_value = 0.4
-tier = 6
+modification_value = 0.3
+tier = 3
 exclusive_group = ""

@@ -215,8 +215,12 @@ func _max_tier_for(element: UpgradeResource.ElementType) -> int:
 	# status_effects.gd's *_level >= 5 checks. Physical has no equivalent --
 	# its own repeatable growth already comes from the level-up popup's
 	# generic pool (damage/cooldown/etc.), which was never tier-capped.
+	# (2026-07-24) 6 -> 5: Multishot was removed from tier 1 (the repeatable
+	# "+1 Arrow" card already owns arrow count, and Piercing Arrow's
+	# projectile_count = 1 meant the very next tier undid it), so the remaining
+	# five shifted down one.
 	if element == UpgradeResource.ElementType.PHYSICAL:
-		return 6
+		return 5
 	if element == UpgradeResource.ElementType.CLASS:
 		return 3  # (2026-07-21) the per-class active skill line -- see CharacterClasses.CLASSES "skills"
 	if element == UpgradeResource.ElementType.FUSION:

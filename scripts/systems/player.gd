@@ -63,9 +63,11 @@ const ULTIMATE_LIGHTNING_DAMAGE := 25.0
 const ULTIMATE_FROST_FREEZE_DURATION := 2.5  # vs. FROST_DURATION 1.6 -- an ultimate freeze should outlast a regular one
 const ULTIMATE_SHAKE_INTENSITY := 12.0
 const ULTIMATE_SHAKE_DURATION := 0.35
-# (2026-07-16) 15.0->8.0 -- user playtest feedback: the multishot fan spread
-# too wide, especially once "+1 Arrow" stacked the shot count up (each extra
-# arrow added another full 15-degree step with no cap on the total spread).
+# (2026-07-16) 15.0->8.0 -- user playtest feedback: the fan spread too wide,
+# especially once "+1 Arrow" stacked the shot count up (each extra arrow added
+# another full 15-degree step with no cap on the total spread).
+# (2026-07-24) That fan used to come from the Multishot tier as well; with it
+# removed, "+1 Arrow" is the only thing that widens a shot into one.
 const SPREAD_STEP_DEGREES := 8.0
 # (2026-07-16) bonus_projectile_count ("+1 Arrow") stacks with no limit of
 # its own onto whichever basic-line skill is active -- without a ceiling,
@@ -102,7 +104,6 @@ const CRIT_CHANCE_MAX := 1.0
 @onready var class_skill_timer: Timer = $ClassSkillTimer  # the class skill line's own auto-fire loop, mirroring the elemental timers
 
 @export var basic_shot: SkillData
-@export var multishot: SkillData
 @export var piercing_arrow: SkillData
 @export var trap_shot: SkillData
 # Index 0/1/2/3 = tier 1/2/3/4 -- e.g. fire_skills = [Fire Arrow, Explosive
@@ -133,11 +134,12 @@ var class_skill_level := 0  # class skill tree tier reached (0-3) -- see apply_e
 var fire_level := 0  # highest tier reached (0-3), not a pick count
 var lightning_level := 0
 var frost_level := 0
-# Physical line's tier (0-6): 0 = Basic Shot (starting default, no pick
-# needed), 1-3 = Multishot/Piercing Arrow/Trap Shot (each swaps the active
-# skill wholesale), 4-6 = Rigged Trap/Volatile Trap/Trap Mastery, 3 stat-only
+# Physical line's tier (0-5): 0 = Basic Shot (starting default, no pick
+# needed), 1-2 = Piercing Arrow/Trap Shot (each swaps the active skill
+# wholesale), 3-5 = Rigged Trap/Volatile Trap/Trap Mastery, 3 stat-only
 # upgrades that each extend Trap Shot's detonation a bit further rather than
 # swapping in a new skill -- see apply_element_upgrade()'s PHYSICAL branch.
+# (2026-07-24) Was 0-6 with Multishot at tier 1; removed, see that branch.
 # Unlike elementals, physical has no "active selection": whichever tier is
 # reached is always what attack_timer fires, since there's only ever one
 # physical line.
@@ -203,7 +205,7 @@ var lightning_slow_bonus := 0.0
 var lightning_dps := 0.0
 var lightning_spread_chance := 0.0
 var lightning_combo_bonus_mult := 0.0
-var physical_trap_detonate_mult := 0.0  # 0 = off; accumulates across tiers 4-6 (Rigged Trap/Volatile Trap/Trap Mastery, +0.3/+0.3/+0.4); trap deals bonus damage (base_damage * this) in a wider blast on a kill or on expiry
+var physical_trap_detonate_mult := 0.0  # 0 = off; accumulates across tiers 3-5 (Rigged Trap/Volatile Trap/Trap Mastery, +0.3/+0.3/+0.4); trap deals bonus damage (base_damage * this) in a wider blast on a kill or on expiry
 
 var is_dead := false
 # (2026-07-21) Continue/revive: the player can get back up twice per run --
@@ -549,7 +551,7 @@ func gain_xp(amount: int) -> void:
 func _on_level_up(new_level: int) -> void:
 	level_up.emit(new_level)
 	SignalBus.level_up.emit(new_level)
-	# The physical line (Multishot/Piercing Arrow/Trap Shot/Trap Mastery) no
+	# The physical line (Piercing Arrow/Trap Shot/Trap Mastery) no
 	# longer auto-swaps at fixed levels -- it's now a wave-clear player pick
 	# like the elemental trees, see apply_element_upgrade()'s PHYSICAL branch.
 
@@ -632,13 +634,23 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 	if upgrade.element == UpgradeResource.ElementType.PHYSICAL:
 		physical_level += 1
 		match physical_level:
-			1: _current_skill = multishot
-			2: _current_skill = piercing_arrow
-			3: _current_skill = trap_shot
-			# 4-6 have no case: Rigged Trap/Volatile Trap/Trap Mastery are all
+			1: _current_skill = piercing_arrow
+			2: _current_skill = trap_shot
+			# 3-5 have no case: Rigged Trap/Volatile Trap/Trap Mastery are all
 			# stat-only upgrades (see physical_trap_detonate_mult) that each
-			# extend tier 3's Trap Shot a bit further rather than swapping in
-			# a new skill, so _current_skill just stays whatever tier 3 set.
+			# extend tier 2's Trap Shot a bit further rather than swapping in
+			# a new skill, so _current_skill just stays whatever tier 2 set.
+			#
+			# (2026-07-24) Multishot was tier 1 and is gone entirely, per user:
+			# the repeatable "+1 Arrow" level-up card already grows the arrow
+			# count, so a whole tier existing to do the same thing was
+			# redundant. It was also self-defeating -- Piercing Arrow (the very
+			# next tier) declares projectile_count = 1, so taking it CUT you
+			# from Multishot's 3 arrows back to 1, and Trap Shot after that
+			# ignores the count entirely. The line is now a clean single-shot
+			# escalation: Piercing Arrow -> Trap Shot -> three trap upgrades,
+			# with arrow count owned solely by the repeatable card acting on
+			# whatever skill is active.
 		_refresh_timer_cooldowns()
 		skill_unlocked.emit(_current_skill)
 		SignalBus.skill_unlocked.emit(_current_skill)
@@ -971,9 +983,10 @@ func _fire_elemental_projectile(skill: SkillData, dmg_mult: float, status_rolls:
 		var dmg := skill.base_damage * dmg_mult * (2.0 if randf() < crit_chance else 1.0)
 		var proj: Projectile = pool.acquire(skill.projectile_scene)
 		# Only the dead-center shot (i==0) homes and is guaranteed to connect --
-		# the fanned side shots (tier-2's 3-arrow spread) keep their fixed
-		# trajectory, same bonus-AOE role they've always had, so multishot still
-		# reads as a fan rather than every arrow collapsing onto one target.
+		# the fanned side shots keep their fixed trajectory, same bonus-AOE role
+		# they've always had, so a multi-arrow shot still reads as a fan rather
+		# than every arrow collapsing onto one target. (2026-07-24) Those extra
+		# arrows now come solely from "+1 Arrow"; the Multishot tier is gone.
 		var homing_target: Node2D = targets[0] if i == 0 else null
 		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, status_rolls, skill.burst_radius, skill.chain_count, skill.visual_scale, skill.burst_vfx_id, homing_target)
 

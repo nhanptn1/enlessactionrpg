@@ -5,12 +5,12 @@
 
 [resource]
 script = ExtResource("1")
-id = "physical_t2_piercing_arrow"
+id = "physical_t1_piercing_arrow"
 element = 3
 icon = ExtResource("2")
 title = "Piercing Arrow"
 description = "Upgrades your basic attack: a single heavy arrow that pierces through multiple enemies."
 stat_to_modify = ""
 modification_value = 0.0
-tier = 2
+tier = 1
 exclusive_group = ""

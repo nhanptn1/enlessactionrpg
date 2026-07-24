@@ -175,6 +175,7 @@ func _assert_save_roundtrip() -> void:
 	_assert_wave_modifiers()
 	_assert_wave_modifier_shapes_the_wave()
 	await _assert_upgrade_card_integrity()
+	await _assert_physical_path_shape()
 	_assert_tutorial_hints()
 
 
@@ -1704,6 +1705,67 @@ func _assert_tutorial_hints() -> void:
 	SaveManager.save_to_disk()
 
 
+func _assert_physical_path_shape() -> void:
+	# (2026-07-24) Multishot removed from tier 1, per user: the repeatable
+	# "+1 Arrow" card already owns arrow count. It was also self-defeating --
+	# Piercing Arrow, the very next tier, declares projectile_count = 1, so
+	# taking it CUT you from 3 arrows back to 1, and Trap Shot ignores the count
+	# entirely. The remaining five tiers shifted down one, which is the kind of
+	# renumbering that silently strands a hardcoded tier number somewhere.
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_dismiss_class_select(main)
+	var player: Player = get_tree().get_first_node_in_group("player")
+	var popup: WaveUpgradePopup = get_tree().get_first_node_in_group("wave_upgrade_popup")
+
+	_expect(popup._max_tier_for(UpgradeResource.ElementType.PHYSICAL) == 5,
+		"the physical line should cap at 5 tiers now, got %d" % popup._max_tier_for(UpgradeResource.ElementType.PHYSICAL))
+	# The pause menu keeps its own copy of that number; if the two drift, the
+	# Skills panel misreports progress on every single row.
+	_expect(PauseMenu.PHYSICAL_TIER_MAX == popup._max_tier_for(UpgradeResource.ElementType.PHYSICAL),
+		"PauseMenu.PHYSICAL_TIER_MAX (%d) must match _max_tier_for(PHYSICAL)" % PauseMenu.PHYSICAL_TIER_MAX)
+
+	# Multishot is gone as a card AND as a skill -- an orphaned .tres left
+	# behind would be invisible until someone wired it back up by accident.
+	_expect(not ResourceLoader.exists("res://resources/upgrades/physical_t1_multishot.tres"),
+		"the Multishot upgrade card should be deleted, not just unwired")
+	_expect(not ResourceLoader.exists("res://resources/skills/multishot.tres"),
+		"the Multishot skill should be deleted, not just unwired")
+	for u in popup.upgrade_pool:
+		if u.element == UpgradeResource.ElementType.PHYSICAL:
+			_expect(u.tier >= 1 and u.tier <= 5, "physical card %s sits at out-of-range tier %d" % [u.id, u.tier])
+			_expect(not ("multishot" in u.id), "a Multishot card is still in the pool: %s" % u.id)
+
+	# Climb the whole line through the real apply path and check what each tier
+	# actually does -- tiers 1-2 swap the skill, 3-5 only feed the trap stat.
+	var expected_skills := {1: player.piercing_arrow, 2: player.trap_shot}
+	for tier in [1, 2, 3, 4, 5]:
+		var card := _find_upgrade(popup, UpgradeResource.ElementType.PHYSICAL, tier)
+		_expect(card != null, "missing a physical tier-%d card in the wired pool" % tier)
+		if card == null:
+			continue
+		player.apply_element_upgrade(card)
+		_expect(player.physical_level == tier, "physical_level should be %d, got %d" % [tier, player.physical_level])
+		if expected_skills.has(tier):
+			_expect(player._current_skill == expected_skills[tier],
+				"tier %d should have swapped in %s" % [tier, expected_skills[tier].display_name])
+		else:
+			_expect(player._current_skill == player.trap_shot,
+				"tier %d is a stat-only upgrade and must leave Trap Shot active" % tier)
+	# 0.3 + 0.3 + 0.4 across the three trap tiers.
+	_expect(is_equal_approx(player.physical_trap_detonate_mult, 1.0),
+		"the three trap tiers should total +100%% detonate, got %s" % player.physical_trap_detonate_mult)
+	# Fully maxed -> the line stops offering tier-ups.
+	_expect(_find_upgrade(popup, UpgradeResource.ElementType.PHYSICAL, 6) == null,
+		"there must be no physical tier 6 left")
+
+	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
 func _assert_upgrade_card_integrity() -> void:
 	# (2026-07-24) Sweeps EVERY upgrade .tres rather than the handful individual
 	# tests happen to touch. This guards the failure mode that has already hit
@@ -1745,7 +1807,7 @@ func _assert_upgrade_card_integrity() -> void:
 			_expect(player.get(u.stat_to_modify) != null,
 				"%s modifies '%s', which is not a property on Player -- it would silently do nothing" % [f, u.stat_to_modify])
 			_expect(u.modification_value != 0.0,
-				"%s names a stat but modifies it by 0 -- a pure unlock should leave stat_to_modify empty, like physical_t1_multishot" % f)
+				"%s names a stat but modifies it by 0 -- a pure unlock should leave stat_to_modify empty, like physical_t1_piercing_arrow" % f)
 		# Metadata the picker renders directly.
 		_expect(u.id != "", "%s has no id" % f)
 		_expect(not seen_ids.has(u.id), "%s duplicates id '%s' (also on %s)" % [f, u.id, seen_ids.get(u.id, "?")])

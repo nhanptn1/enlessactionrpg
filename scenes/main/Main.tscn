@@ -1,4 +1,4 @@
-[gd_scene load_steps=90 format=3]
+[gd_scene load_steps=89 format=3]
 
 [ext_resource type="Resource" path="res://resources/upgrades/fusion_damage_boost.tres" id="126"]
 [ext_resource type="Resource" path="res://resources/upgrades/fusion_speed_boost.tres" id="127"]
@@ -70,12 +70,11 @@
 [ext_resource type="Resource" path="res://resources/upgrades/frost_cooldown_boost.tres" id="73"]
 [ext_resource type="Resource" path="res://resources/upgrades/lightning_damage_boost.tres" id="74"]
 [ext_resource type="Resource" path="res://resources/upgrades/lightning_cooldown_boost.tres" id="75"]
-[ext_resource type="Resource" path="res://resources/upgrades/physical_t1_multishot.tres" id="76"]
-[ext_resource type="Resource" path="res://resources/upgrades/physical_t2_piercing_arrow.tres" id="77"]
-[ext_resource type="Resource" path="res://resources/upgrades/physical_t3_trap_shot.tres" id="78"]
-[ext_resource type="Resource" path="res://resources/upgrades/physical_t4_rigged_trap.tres" id="79"]
-[ext_resource type="Resource" path="res://resources/upgrades/physical_t5_volatile_trap.tres" id="101"]
-[ext_resource type="Resource" path="res://resources/upgrades/physical_t6_trap_mastery.tres" id="102"]
+[ext_resource type="Resource" path="res://resources/upgrades/physical_t1_piercing_arrow.tres" id="77"]
+[ext_resource type="Resource" path="res://resources/upgrades/physical_t2_trap_shot.tres" id="78"]
+[ext_resource type="Resource" path="res://resources/upgrades/physical_t3_rigged_trap.tres" id="79"]
+[ext_resource type="Resource" path="res://resources/upgrades/physical_t4_volatile_trap.tres" id="101"]
+[ext_resource type="Resource" path="res://resources/upgrades/physical_t5_trap_mastery.tres" id="102"]
 [ext_resource type="Resource" path="res://resources/upgrades/fire_t2_inferno_growth.tres" id="89"]
 [ext_resource type="Resource" path="res://resources/upgrades/fire_t3_burning_legacy.tres" id="90"]
 [ext_resource type="Resource" path="res://resources/upgrades/fire_t4_inferno_mastery.tres" id="91"]
@@ -159,7 +158,7 @@ item_pool = [ExtResource("18"), ExtResource("19"), ExtResource("20"), ExtResourc
 [node name="LevelUpPopup" parent="." instance=ExtResource("9")]
 
 [node name="WaveUpgradePopup" parent="." instance=ExtResource("51")]
-upgrade_pool = [ExtResource("55"), ExtResource("60"), ExtResource("65"), ExtResource("70"), ExtResource("71"), ExtResource("72"), ExtResource("73"), ExtResource("74"), ExtResource("75"), ExtResource("76"), ExtResource("77"), ExtResource("78"), ExtResource("79"), ExtResource("89"), ExtResource("90"), ExtResource("91"), ExtResource("92"), ExtResource("93"), ExtResource("94"), ExtResource("95"), ExtResource("96"), ExtResource("97"), ExtResource("98"), ExtResource("99"), ExtResource("100"), ExtResource("101"), ExtResource("102"), ExtResource("108"), ExtResource("109"), ExtResource("110"), ExtResource("112"), ExtResource("113"), ExtResource("114"), ExtResource("115"), ExtResource("116"), ExtResource("117"), ExtResource("118"), ExtResource("119"), ExtResource("120"), ExtResource("121"), ExtResource("122"), ExtResource("123"), ExtResource("126"), ExtResource("127"), ExtResource("128")]
+upgrade_pool = [ExtResource("55"), ExtResource("60"), ExtResource("65"), ExtResource("70"), ExtResource("71"), ExtResource("72"), ExtResource("73"), ExtResource("74"), ExtResource("75"), ExtResource("77"), ExtResource("78"), ExtResource("79"), ExtResource("89"), ExtResource("90"), ExtResource("91"), ExtResource("92"), ExtResource("93"), ExtResource("94"), ExtResource("95"), ExtResource("96"), ExtResource("97"), ExtResource("98"), ExtResource("99"), ExtResource("100"), ExtResource("101"), ExtResource("102"), ExtResource("108"), ExtResource("109"), ExtResource("110"), ExtResource("112"), ExtResource("113"), ExtResource("114"), ExtResource("115"), ExtResource("116"), ExtResource("117"), ExtResource("118"), ExtResource("119"), ExtResource("120"), ExtResource("121"), ExtResource("122"), ExtResource("123"), ExtResource("126"), ExtResource("127"), ExtResource("128")]
 
 [node name="GameOverScreen" parent="." instance=ExtResource("17")]
 

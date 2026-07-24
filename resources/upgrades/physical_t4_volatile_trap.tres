@@ -5,12 +5,12 @@
 
 [resource]
 script = ExtResource("1")
-id = "physical_t5_volatile_trap"
+id = "physical_t4_volatile_trap"
 element = 3
 icon = ExtResource("2")
 title = "Volatile Trap"
 description = "Your trap's detonation grows stronger, dealing even more bonus blast damage."
 stat_to_modify = "physical_trap_detonate_mult"
 modification_value = 0.3
-tier = 5
+tier = 4
 exclusive_group = ""

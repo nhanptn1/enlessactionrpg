@@ -5,12 +5,12 @@
 
 [resource]
 script = ExtResource("1")
-id = "physical_t3_trap_shot"
+id = "physical_t2_trap_shot"
 element = 3
 icon = ExtResource("2")
 title = "Trap Shot"
 description = "Upgrades your basic attack: plants an arrow trap near the nearest enemy that repeatedly damages anything crossing it."
 stat_to_modify = ""
 modification_value = 0.0
-tier = 3
+tier = 2
 exclusive_group = ""
