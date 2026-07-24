@@ -1799,28 +1799,28 @@ func _assert_physical_path_shape() -> void:
 
 	# Spread Arrow must actually carry a chain, or tier 2 is cosmetic.
 	_expect(player.spread_arrow.chain_count >= 1, "Spread Arrow should chain on hit out of the box")
-	_expect(player.effective_spread_count(player.spread_arrow) >= 1, "Spread Arrow's effective spread should be at least its own chain_count")
+	_expect(player.effective_chain_count(player.spread_arrow) >= 1, "Spread Arrow's effective chain should be at least its own chain_count")
 
-	# --- "+1 Spread", the physical line's second capped repeatable ---------
+	# --- "+1 Chain", the physical line's second capped repeatable ---------
 	# Same contract as "+1 Arrow": it must do something, and it must stop being
 	# offered at its cap rather than becoming a dead pick.
 	var lvl_popup: LevelUpPopup = main.get_node_or_null("LevelUpPopup")
 	_expect(lvl_popup != null, "need the LevelUpPopup to check spread offers")
 	if lvl_popup != null:
 		player.bonus_chain_count = 0
-		_expect("spread" in lvl_popup._eligible_upgrade_ids(), "+1 Spread should be offered below the cap")
-		var base_spread: int = player.effective_spread_count(player._current_skill)
-		player.apply_upgrade("spread")
-		_expect(player.effective_spread_count(player._current_skill) == base_spread + 1,
-			"a +1 Spread pick should raise the effective spread by exactly 1")
+		_expect("chain" in lvl_popup._eligible_upgrade_ids(), "+1 Chain should be offered below the cap")
+		var base_chain: int = player.effective_chain_count(player._current_skill)
+		player.apply_upgrade("chain")
+		_expect(player.effective_chain_count(player._current_skill) == base_chain + 1,
+			"a +1 Chain pick should raise the effective chain by exactly 1")
 		# Drive it to the cap by taking the pick, not by assignment, so the
 		# clamp and the filter are exercised the way a real run reaches them.
 		for i in 20:
-			player.apply_upgrade("spread")
-		_expect(player.effective_spread_count(player._current_skill) == Player.MAX_SPREAD_COUNT,
-			"spread should clamp at MAX_SPREAD_COUNT (%d), got %d" % [Player.MAX_SPREAD_COUNT, player.effective_spread_count(player._current_skill)])
-		_expect(not ("spread" in lvl_popup._eligible_upgrade_ids()),
-			"+1 Spread must stop being offered once the spread count is capped")
+			player.apply_upgrade("chain")
+		_expect(player.effective_chain_count(player._current_skill) == Player.MAX_CHAIN_COUNT,
+			"chain should clamp at MAX_CHAIN_COUNT (%d), got %d" % [Player.MAX_CHAIN_COUNT, player.effective_chain_count(player._current_skill)])
+		_expect(not ("chain" in lvl_popup._eligible_upgrade_ids()),
+			"+1 Chain must stop being offered once the chain count is capped")
 
 	main.queue_free()
 	await get_tree().process_frame

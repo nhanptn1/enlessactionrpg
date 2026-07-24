@@ -74,12 +74,12 @@ const SPREAD_STEP_DEGREES := 8.0
 # enough picks could make Multishot or Piercing Arrow fire an absurd number
 # of arrows in one volley. User asked for a hard cap of 6 total arrows.
 const MAX_SHOT_COUNT := 6
-# (2026-07-24) "+1 Spread" cap, per user: "max 4 enemy". Read as 4 nearby
-# enemies receiving the spread, i.e. the chain reaches at most 4 beyond the one
+# (2026-07-24) "+1 Chain" cap, per user: "max 4 enemy". Read as 4 nearby
+# enemies receiving the chained damage, i.e. it reaches at most 4 beyond the one
 # actually struck. Capped for the same reason MAX_SHOT_COUNT is -- an uncapped
 # repeatable eventually stops meaning anything, and LevelUpPopup stops offering
 # the card once this is reached so it never becomes a dead pick.
-const MAX_SPREAD_COUNT := 4
+const MAX_CHAIN_COUNT := 4
 
 # Arrow Rain / Burning Rain / Thunder Storm (SkillData.FireMode.ARROW_RAIN):
 # telegraphed area strikes, not a literal top-to-bottom falling volley -- see
@@ -91,7 +91,7 @@ const AREA_STRIKE_COLOR_LIGHTNING := Color(0.55, 0.2, 0.85, 0.5)
 
 const UPGRADE_POOL: Array[String] = [
 	"damage", "cooldown", "projectile_count", "projectile_speed",
-	"crit_chance", "hp", "xp_gain", "spread",
+	"crit_chance", "hp", "xp_gain", "chain",
 ]
 
 # (2026-07-24) Named because the level-up popup has to consult them to know when
@@ -136,7 +136,7 @@ var xp := 0
 var damage_mult := 1.0
 var cooldown_mult := 1.0
 var bonus_projectile_count := 0
-var bonus_chain_count := 0  # "+1 Spread" picks; see effective_spread_count()
+var bonus_chain_count := 0  # "+1 Chain" picks; see effective_chain_count()
 var projectile_speed_mult := 1.0
 var crit_chance := 0.0
 var xp_gain_mult := 1.0
@@ -588,8 +588,8 @@ func apply_upgrade(upgrade_id: String) -> void:
 			cooldown_mult = maxf(cooldown_mult - 0.03, COOLDOWN_MULT_FLOOR)
 		"projectile_count":
 			bonus_projectile_count += 1
-		"spread":
-			bonus_chain_count = mini(bonus_chain_count + 1, MAX_SPREAD_COUNT)
+		"chain":
+			bonus_chain_count = mini(bonus_chain_count + 1, MAX_CHAIN_COUNT)
 		"projectile_speed":
 			projectile_speed_mult += 0.05
 		"crit_chance":
@@ -668,7 +668,7 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 			# What's left is a line about ARROWS: Piercing Arrow, then Spread
 			# Arrow which also splashes each hit onto nearby enemies. All further
 			# growth comes from the two capped repeatable cards -- "+1 Arrow" to
-			# MAX_SHOT_COUNT and "+1 Spread" to MAX_SPREAD_COUNT -- each of which
+			# MAX_SHOT_COUNT and "+1 Chain" to MAX_CHAIN_COUNT -- each of which
 			# stops being offered once capped, so the line finishes cleanly
 			# instead of trailing dead picks.
 		_refresh_timer_cooldowns()
@@ -1008,7 +1008,7 @@ func _fire_elemental_projectile(skill: SkillData, dmg_mult: float, status_rolls:
 		# than every arrow collapsing onto one target. (2026-07-24) Those extra
 		# arrows now come solely from "+1 Arrow"; the Multishot tier is gone.
 		var homing_target: Node2D = targets[0] if i == 0 else null
-		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, status_rolls, skill.burst_radius, effective_spread_count(skill), skill.visual_scale, skill.burst_vfx_id, homing_target)
+		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, status_rolls, skill.burst_radius, effective_chain_count(skill), skill.visual_scale, skill.burst_vfx_id, homing_target)
 
 
 func _fire_elemental_rain(skill: SkillData, dmg_mult: float, status_rolls: Array[Dictionary]) -> void:
@@ -1092,7 +1092,7 @@ func _fire_class_projectile(skill: SkillData) -> bool:
 		var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
 		var proj: Projectile = pool.acquire(skill.projectile_scene)
 		var homing_target: Node2D = targets[0] if i == 0 else null
-		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, no_status, skill.burst_radius, effective_spread_count(skill), vis_scale, skill.burst_vfx_id, homing_target, flash_col, flash_radius)
+		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, no_status, skill.burst_radius, effective_chain_count(skill), vis_scale, skill.burst_vfx_id, homing_target, flash_col, flash_radius)
 	return true
 
 
@@ -1332,13 +1332,13 @@ func _spread_offset(i: int, shot_count: int) -> float:
 
 
 # (2026-07-24) How many nearby enemies a hit spreads to: the skill's own
-# chain_count plus every "+1 Spread" pick, clamped to MAX_SPREAD_COUNT. Public
+# chain_count plus every "+1 Chain" pick, clamped to MAX_CHAIN_COUNT. Public
 # so the level-up popup can tell whether another pick would still do anything,
 # rather than re-deriving the same clamp and drifting from it.
-func effective_spread_count(skill: SkillData) -> int:
+func effective_chain_count(skill: SkillData) -> int:
 	if skill == null:
 		return 0
-	return mini(skill.chain_count + bonus_chain_count, MAX_SPREAD_COUNT)
+	return mini(skill.chain_count + bonus_chain_count, MAX_CHAIN_COUNT)
 
 
 func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> void:
@@ -1351,7 +1351,7 @@ func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> vo
 	# (2026-07-24) This path previously used activate()'s defaults from
 	# max_range onward, which meant chain_count was always 0 here -- the basic
 	# line simply could not spread. That was fine while nothing on the physical
-	# line chained; Spread Arrow and the "+1 Spread" card both live here now, so
+	# line chained; Spread Arrow and the "+1 Chain" card both live here now, so
 	# the count has to be passed or every spread pick would do nothing.
 	#
 	# The typed local is required, not stylistic: a bare `[]` literal does not
@@ -1360,7 +1360,7 @@ func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> vo
 	# documented in _fire_trap_shot(), and it bit again here.
 	var no_status_rolls: Array[Dictionary] = []
 	proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy",
-		PLAYER_SHOT_MAX_RANGE, no_status_rolls, skill.burst_radius, effective_spread_count(skill))
+		PLAYER_SHOT_MAX_RANGE, no_status_rolls, skill.burst_radius, effective_chain_count(skill))
 
 
 func _predict_intercept(from: Vector2, target: Node2D, proj_speed: float) -> Vector2:
