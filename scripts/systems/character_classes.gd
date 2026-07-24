@@ -68,6 +68,27 @@ const CLASSES := {
 			"res://resources/skills/class_second_wind.tres",
 		],
 	},
+	# (2026-07-24) Traps moved off the physical line and became this class, per
+	# user. The physical line is now about arrows -- more of them, hitting more
+	# things -- and a trap chain sat oddly inside that: it ignores arrow count
+	# entirely, so every arrow-growth pick went dead the moment you took it.
+	# As a class it keeps all four original trap steps' behaviour (the third
+	# card folds the old Volatile Trap and Trap Mastery detonation into one)
+	# and becomes something you commit to at run start instead of drifting into.
+	# Slower attacks, harder hits: traps are placed, not sprayed.
+	"trapper": {
+		"display_name": "Trapper",
+		"description": "+25% physical damage, -15% attack speed.",
+		"color": Color(1.05, 0.9, 0.6, 1.0),
+		"physical_dmg_mult": 1.25,
+		"cooldown_mult": 1.15,
+		"vfx_color": Color(1.0, 0.78, 0.35, 0.95),  # amber -- matches the trap zone's own glow
+		"skills": [
+			"res://resources/skills/class_snare_trap.tres",
+			"res://resources/skills/class_rigged_trap.tres",
+			"res://resources/skills/class_siege_trap.tres",
+		],
+	},
 }
 # Each class's "skills" array is its 3-tier ACTIVE class-skill line (index
 # 0/1/2 = tier 1/2/3), mirroring Player.fire_skills' tier-indexing convention.

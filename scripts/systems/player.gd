@@ -74,6 +74,12 @@ const SPREAD_STEP_DEGREES := 8.0
 # enough picks could make Multishot or Piercing Arrow fire an absurd number
 # of arrows in one volley. User asked for a hard cap of 6 total arrows.
 const MAX_SHOT_COUNT := 6
+# (2026-07-24) "+1 Spread" cap, per user: "max 4 enemy". Read as 4 nearby
+# enemies receiving the spread, i.e. the chain reaches at most 4 beyond the one
+# actually struck. Capped for the same reason MAX_SHOT_COUNT is -- an uncapped
+# repeatable eventually stops meaning anything, and LevelUpPopup stops offering
+# the card once this is reached so it never becomes a dead pick.
+const MAX_SPREAD_COUNT := 4
 
 # Arrow Rain / Burning Rain / Thunder Storm (SkillData.FireMode.ARROW_RAIN):
 # telegraphed area strikes, not a literal top-to-bottom falling volley -- see
@@ -85,7 +91,7 @@ const AREA_STRIKE_COLOR_LIGHTNING := Color(0.55, 0.2, 0.85, 0.5)
 
 const UPGRADE_POOL: Array[String] = [
 	"damage", "cooldown", "projectile_count", "projectile_speed",
-	"crit_chance", "hp", "xp_gain",
+	"crit_chance", "hp", "xp_gain", "spread",
 ]
 
 # (2026-07-24) Named because the level-up popup has to consult them to know when
@@ -105,6 +111,11 @@ const CRIT_CHANCE_MAX := 1.0
 
 @export var basic_shot: SkillData
 @export var piercing_arrow: SkillData
+@export var spread_arrow: SkillData
+# (2026-07-24) Still exported although the physical line no longer uses it --
+# Trap Shot moved to the Trapper class, whose skills load lazily from
+# CharacterClasses.CLASSES by path. Kept as the scene-wired reference so the
+# resource has an owner in the editor rather than existing only as a string.
 @export var trap_shot: SkillData
 # Index 0/1/2/3 = tier 1/2/3/4 -- e.g. fire_skills = [Fire Arrow, Explosive
 # Volley, Burning Rain, Wildfire Storm]. fire_level (1-4) indexes straight
@@ -125,6 +136,7 @@ var xp := 0
 var damage_mult := 1.0
 var cooldown_mult := 1.0
 var bonus_projectile_count := 0
+var bonus_chain_count := 0  # "+1 Spread" picks; see effective_spread_count()
 var projectile_speed_mult := 1.0
 var crit_chance := 0.0
 var xp_gain_mult := 1.0
@@ -146,7 +158,7 @@ var frost_level := 0
 # (2026-07-16) Arrow Rain (formerly tier 3) removed -- Trap Shot moved up to
 # tier 3. (2026-07-16) The single tier-4 "Trap Mastery" stat jump split into 3
 # progressive tiers (4-6) instead of one lump sum, per user request -- see
-# physical_trap_detonate_mult below.
+# trap_detonate_mult below.
 var physical_level := 0
 
 # Per-run pick counts for repeatable tier-0 stat cards (upgrade id -> times
@@ -205,7 +217,7 @@ var lightning_slow_bonus := 0.0
 var lightning_dps := 0.0
 var lightning_spread_chance := 0.0
 var lightning_combo_bonus_mult := 0.0
-var physical_trap_detonate_mult := 0.0  # 0 = off; accumulates across tiers 3-5 (Rigged Trap/Volatile Trap/Trap Mastery, +0.3/+0.3/+0.4); trap deals bonus damage (base_damage * this) in a wider blast on a kill or on expiry
+var trap_detonate_mult := 0.0  # 0 = off; accumulates across tiers 3-5 (Rigged Trap/Volatile Trap/Trap Mastery, +0.3/+0.3/+0.4); trap deals bonus damage (base_damage * this) in a wider blast on a kill or on expiry
 
 var is_dead := false
 # (2026-07-21) Continue/revive: the player can get back up twice per run --
@@ -350,6 +362,12 @@ func apply_class(class_id: String) -> void:
 	crit_chance = clampf(crit_chance + CharacterClasses.get_value(class_id, "crit_chance_bonus", 0.0), 0.0, 1.0)
 	projectile_speed_mult *= CharacterClasses.get_value(class_id, "projectile_speed_mult")
 	damage_mult *= CharacterClasses.get_value(class_id, "physical_dmg_mult")
+	# (2026-07-24) Added for the Trapper's "harder hits, slower attacks" trade.
+	# Every other class stat key was already read here, so declaring a
+	# cooldown_mult in CLASSES without this would have been silently inert --
+	# the exact dead-value class of bug entries 98-99 were about. Floored like
+	# every other cooldown path so a future class can't stall attacks entirely.
+	cooldown_mult = maxf(cooldown_mult * CharacterClasses.get_value(class_id, "cooldown_mult"), COOLDOWN_MULT_FLOOR)
 	var elemental_mult := CharacterClasses.get_value(class_id, "elemental_dmg_mult")
 	fire_skill_dmg_mult *= elemental_mult
 	frost_skill_dmg_mult *= elemental_mult
@@ -570,6 +588,8 @@ func apply_upgrade(upgrade_id: String) -> void:
 			cooldown_mult = maxf(cooldown_mult - 0.03, COOLDOWN_MULT_FLOOR)
 		"projectile_count":
 			bonus_projectile_count += 1
+		"spread":
+			bonus_chain_count = mini(bonus_chain_count + 1, MAX_SPREAD_COUNT)
 		"projectile_speed":
 			projectile_speed_mult += 0.05
 		"crit_chance":
@@ -635,22 +655,22 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 		physical_level += 1
 		match physical_level:
 			1: _current_skill = piercing_arrow
-			2: _current_skill = trap_shot
-			# 3-5 have no case: Rigged Trap/Volatile Trap/Trap Mastery are all
-			# stat-only upgrades (see physical_trap_detonate_mult) that each
-			# extend tier 2's Trap Shot a bit further rather than swapping in
-			# a new skill, so _current_skill just stays whatever tier 2 set.
+			2: _current_skill = spread_arrow
+			# (2026-07-24) The physical line is now just these two tiers, and
+			# that is deliberate. It used to run Multishot -> Piercing Arrow ->
+			# Trap Shot -> three trap upgrades, which fought itself twice over:
+			# Multishot granted 3 arrows and Piercing Arrow (the very next tier)
+			# declares projectile_count = 1, taking two straight back; and Trap
+			# Shot ignores arrow count entirely, so every arrow-growth pick went
+			# dead the moment the line reached it. Multishot was removed first,
+			# then the traps became the Trapper class.
 			#
-			# (2026-07-24) Multishot was tier 1 and is gone entirely, per user:
-			# the repeatable "+1 Arrow" level-up card already grows the arrow
-			# count, so a whole tier existing to do the same thing was
-			# redundant. It was also self-defeating -- Piercing Arrow (the very
-			# next tier) declares projectile_count = 1, so taking it CUT you
-			# from Multishot's 3 arrows back to 1, and Trap Shot after that
-			# ignores the count entirely. The line is now a clean single-shot
-			# escalation: Piercing Arrow -> Trap Shot -> three trap upgrades,
-			# with arrow count owned solely by the repeatable card acting on
-			# whatever skill is active.
+			# What's left is a line about ARROWS: Piercing Arrow, then Spread
+			# Arrow which also splashes each hit onto nearby enemies. All further
+			# growth comes from the two capped repeatable cards -- "+1 Arrow" to
+			# MAX_SHOT_COUNT and "+1 Spread" to MAX_SPREAD_COUNT -- each of which
+			# stops being offered once capped, so the line finishes cleanly
+			# instead of trailing dead picks.
 		_refresh_timer_cooldowns()
 		skill_unlocked.emit(_current_skill)
 		SignalBus.skill_unlocked.emit(_current_skill)
@@ -988,7 +1008,7 @@ func _fire_elemental_projectile(skill: SkillData, dmg_mult: float, status_rolls:
 		# than every arrow collapsing onto one target. (2026-07-24) Those extra
 		# arrows now come solely from "+1 Arrow"; the Multishot tier is gone.
 		var homing_target: Node2D = targets[0] if i == 0 else null
-		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, status_rolls, skill.burst_radius, skill.chain_count, skill.visual_scale, skill.burst_vfx_id, homing_target)
+		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, status_rolls, skill.burst_radius, effective_spread_count(skill), skill.visual_scale, skill.burst_vfx_id, homing_target)
 
 
 func _fire_elemental_rain(skill: SkillData, dmg_mult: float, status_rolls: Array[Dictionary]) -> void:
@@ -1029,6 +1049,13 @@ func _fire_class_skill(skill: SkillData) -> void:
 		SkillData.FireMode.SELF_BURST:
 			if not _fire_self_burst(skill):
 				return
+		SkillData.FireMode.TRAP_SHOT:
+			# (2026-07-24) Added for the Trapper class. Without this case a trap
+			# skill fell through to _fire_class_projectile(), which needs a
+			# projectile_scene a trap skill doesn't have -- the class would have
+			# silently fired nothing at all.
+			if not _fire_trap_shot(skill):
+				return
 		_:
 			if not _fire_class_projectile(skill):
 				return
@@ -1065,7 +1092,7 @@ func _fire_class_projectile(skill: SkillData) -> bool:
 		var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
 		var proj: Projectile = pool.acquire(skill.projectile_scene)
 		var homing_target: Node2D = targets[0] if i == 0 else null
-		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, no_status, skill.burst_radius, skill.chain_count, vis_scale, skill.burst_vfx_id, homing_target, flash_col, flash_radius)
+		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, no_status, skill.burst_radius, effective_spread_count(skill), vis_scale, skill.burst_vfx_id, homing_target, flash_col, flash_radius)
 	return true
 
 
@@ -1282,7 +1309,7 @@ func _fire_trap_shot(skill: SkillData) -> bool:
 	# parameter the way it does for the function's own default value) -- must
 	# be a real typed local instead.
 	var no_status_rolls: Array[Dictionary] = []
-	trap.activate(dmg, skill.trap_duration, skill.trap_radius, target.global_position, no_status_rolls, physical_trap_detonate_mult)
+	trap.activate(dmg, skill.trap_duration, skill.trap_radius, target.global_position, no_status_rolls, trap_detonate_mult)
 	get_tree().current_scene.add_child(trap)
 	return true
 
@@ -1304,6 +1331,16 @@ func _spread_offset(i: int, shot_count: int) -> float:
 	return deg_to_rad(SPREAD_STEP_DEGREES * step * sign)
 
 
+# (2026-07-24) How many nearby enemies a hit spreads to: the skill's own
+# chain_count plus every "+1 Spread" pick, clamped to MAX_SPREAD_COUNT. Public
+# so the level-up popup can tell whether another pick would still do anything,
+# rather than re-deriving the same clamp and drifting from it.
+func effective_spread_count(skill: SkillData) -> int:
+	if skill == null:
+		return 0
+	return mini(skill.chain_count + bonus_chain_count, MAX_SPREAD_COUNT)
+
+
 func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> void:
 	var proj_speed: float = BASE_PROJECTILE_SPEED * projectile_speed_mult
 	var aim_point := _predict_intercept(attack_origin.global_position, target, proj_speed)
@@ -1311,7 +1348,19 @@ func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> vo
 	var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
 	var pool := get_tree().get_first_node_in_group("projectile_pool")
 	var proj = pool.acquire(skill.projectile_scene)
-	proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE)
+	# (2026-07-24) This path previously used activate()'s defaults from
+	# max_range onward, which meant chain_count was always 0 here -- the basic
+	# line simply could not spread. That was fine while nothing on the physical
+	# line chained; Spread Arrow and the "+1 Spread" card both live here now, so
+	# the count has to be passed or every spread pick would do nothing.
+	#
+	# The typed local is required, not stylistic: a bare `[]` literal does not
+	# coerce across activate()'s `Array[Dictionary]` parameter, and the call
+	# fails outright -- the shot silently stops firing. Same trap already
+	# documented in _fire_trap_shot(), and it bit again here.
+	var no_status_rolls: Array[Dictionary] = []
+	proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy",
+		PLAYER_SHOT_MAX_RANGE, no_status_rolls, skill.burst_radius, effective_spread_count(skill))
 
 
 func _predict_intercept(from: Vector2, target: Node2D, proj_speed: float) -> Vector2:

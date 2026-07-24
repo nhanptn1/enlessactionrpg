@@ -5,12 +5,13 @@
 
 [resource]
 script = ExtResource("1")
-id = "physical_t3_rigged_trap"
-element = 3
+id = "class_trapper_t1"
+element = 4
 icon = ExtResource("2")
-title = "Rigged Trap"
-description = "Your trap detonates for a small burst of bonus damage when it kills something, or automatically when it expires."
-stat_to_modify = "physical_trap_detonate_mult"
-modification_value = 0.3
-tier = 3
+title = "Snare Trap"
+description = "Class skill: drops a trap on the nearest enemy that damages everything standing in it."
+stat_to_modify = ""
+modification_value = 0.0
+tier = 1
 exclusive_group = ""
+required_class = "trapper"

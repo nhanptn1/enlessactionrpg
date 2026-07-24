@@ -215,12 +215,16 @@ func _max_tier_for(element: UpgradeResource.ElementType) -> int:
 	# status_effects.gd's *_level >= 5 checks. Physical has no equivalent --
 	# its own repeatable growth already comes from the level-up popup's
 	# generic pool (damage/cooldown/etc.), which was never tier-capped.
-	# (2026-07-24) 6 -> 5: Multishot was removed from tier 1 (the repeatable
-	# "+1 Arrow" card already owns arrow count, and Piercing Arrow's
-	# projectile_count = 1 meant the very next tier undid it), so the remaining
-	# five shifted down one.
+	# (2026-07-24) 6 -> 5 -> 2. Multishot went first (the repeatable "+1 Arrow"
+	# card already owned arrow count, and Piercing Arrow's projectile_count = 1
+	# meant the very next tier undid it), then the four trap tiers became the
+	# Trapper class. What's left is deliberately short: Piercing Arrow ->
+	# Spread Arrow, with all further growth coming from the two capped
+	# repeatable cards ("+1 Arrow" to 6, "+1 Spread" to 4). Physical is the
+	# repeatable-growth line by design, which is why it doesn't match the
+	# elemental lines' height.
 	if element == UpgradeResource.ElementType.PHYSICAL:
-		return 5
+		return 2
 	if element == UpgradeResource.ElementType.CLASS:
 		return 3  # (2026-07-21) the per-class active skill line -- see CharacterClasses.CLASSES "skills"
 	if element == UpgradeResource.ElementType.FUSION:

@@ -9,7 +9,7 @@ const ELEMENT_NAMES := {
 	UpgradeResource.ElementType.FROST: "Frost",
 	UpgradeResource.ElementType.LIGHTNING: "Lightning",
 }
-const PHYSICAL_TIER_MAX := 5  # (2026-07-24) 6 -> 5, Multishot removed from tier 1 -- see wave_upgrade_popup.gd::_max_tier_for()
+const PHYSICAL_TIER_MAX := 2  # (2026-07-24) 5 -> 2: traps became the Trapper class, leaving Piercing Arrow -> Spread Arrow -- see wave_upgrade_popup.gd::_max_tier_for()
 const ELEMENT_TIER_MAX := 5  # (2026-07-17) grew by 1 for the tier-5 capstone passive, see wave_upgrade_popup.gd::_max_tier_for()
 const CLASS_TIER_MAX := 3  # per-class active skill line, see CharacterClasses.CLASSES "skills"
 const ROW_NAME_FONT_SIZE := 26
@@ -145,12 +145,12 @@ func _build_stats_rows() -> void:
 	stats_rows_container.add_child(_build_stats_section("Core", _core_stat_lines(player)))
 	if player.active_run_modifier_id != "":
 		stats_rows_container.add_child(_build_stats_section("Run Modifier", _run_modifier_stat_lines(player)))
-	# (2026-07-24) >= 4 -> >= 3: Rigged Trap, the first tier that grants any
-	# physical_trap_detonate_mult, moved from tier 4 to tier 3 when Multishot
-	# was removed. Left at 4 this section would have stayed hidden for a whole
-	# tier after the stat it reports had already started accumulating.
-	if player.physical_level >= 3:
-		stats_rows_container.add_child(_build_stats_section("Physical", _physical_stat_lines(player)))
+	# (2026-07-24) Traps became the Trapper class rather than physical tiers, so
+	# this is gated on the stat itself instead of on a tier number. That also
+	# makes it self-maintaining: every previous version of this line was a
+	# hardcoded tier that had to be chased every time the line was renumbered.
+	if player.trap_detonate_mult > 0.0:
+		stats_rows_container.add_child(_build_stats_section("Trapper", _physical_stat_lines(player)))
 	for element in [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING]:
 		var tier: int = player.get_element_tier(element)
 		if tier > 0:
@@ -202,7 +202,7 @@ func _run_modifier_stat_lines(player: Node) -> Array[String]:
 
 
 func _physical_stat_lines(player: Node) -> Array[String]:
-	return ["Trap Detonate Bonus: +%d%%" % roundi(player.physical_trap_detonate_mult * 100.0)]
+	return ["Trap Detonate Bonus: +%d%%" % roundi(player.trap_detonate_mult * 100.0)]
 
 
 func _element_stat_lines(player: Node, element: int) -> Array[String]:

@@ -5,6 +5,7 @@ const UPGRADE_LABELS := {
 	"damage": "Increase Damage (+2%)",
 	"cooldown": "Reduce Cooldown (-3%)",
 	"projectile_count": "+1 Arrow",
+	"spread": "+1 Spread (hit 1 more nearby enemy)",
 	"projectile_speed": "Increase Projectile Speed (+5%)",
 	"crit_chance": "Increase Crit Chance (+2%)",
 	"hp": "Restore HP (+2)",
@@ -43,6 +44,13 @@ func _eligible_upgrade_ids() -> Array[String]:
 		var at_arrow_cap: bool = skill.projectile_count + player.bonus_projectile_count >= player.MAX_SHOT_COUNT
 		if ignores_count or at_arrow_cap:
 			ids.erase("projectile_count")
+		# (2026-07-24) "+1 Spread" is dead in the same two ways as "+1 Arrow":
+		# a trap has no projectile to spread FROM, and past MAX_SPREAD_COUNT the
+		# clamp in effective_spread_count() eats the extra. Asked for explicitly
+		# ("stop offer when reach count max"), and it reads the player's own
+		# clamp rather than recomputing it, so the card and the cap can't drift.
+		if ignores_count or player.effective_spread_count(skill) >= player.MAX_SPREAD_COUNT:
+			ids.erase("spread")
 
 	# (2026-07-24) Three more dead picks, same class as the arrow cap above and
 	# found by measurement: a throughput probe showed how many repeatable stat

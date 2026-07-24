@@ -176,6 +176,7 @@ func _assert_save_roundtrip() -> void:
 	_assert_wave_modifier_shapes_the_wave()
 	await _assert_upgrade_card_integrity()
 	await _assert_physical_path_shape()
+	await _assert_trapper_class()
 	_assert_tutorial_hints()
 
 
@@ -1763,8 +1764,8 @@ func _assert_physical_path_shape() -> void:
 	var player: Player = get_tree().get_first_node_in_group("player")
 	var popup: WaveUpgradePopup = get_tree().get_first_node_in_group("wave_upgrade_popup")
 
-	_expect(popup._max_tier_for(UpgradeResource.ElementType.PHYSICAL) == 5,
-		"the physical line should cap at 5 tiers now, got %d" % popup._max_tier_for(UpgradeResource.ElementType.PHYSICAL))
+	_expect(popup._max_tier_for(UpgradeResource.ElementType.PHYSICAL) == 2,
+		"the physical line should cap at 2 tiers now, got %d" % popup._max_tier_for(UpgradeResource.ElementType.PHYSICAL))
 	# The pause menu keeps its own copy of that number; if the two drift, the
 	# Skills panel misreports progress on every single row.
 	_expect(PauseMenu.PHYSICAL_TIER_MAX == popup._max_tier_for(UpgradeResource.ElementType.PHYSICAL),
@@ -1778,35 +1779,140 @@ func _assert_physical_path_shape() -> void:
 		"the Multishot skill should be deleted, not just unwired")
 	for u in popup.upgrade_pool:
 		if u.element == UpgradeResource.ElementType.PHYSICAL:
-			_expect(u.tier >= 1 and u.tier <= 5, "physical card %s sits at out-of-range tier %d" % [u.id, u.tier])
+			_expect(u.tier >= 1 and u.tier <= 2, "physical card %s sits at out-of-range tier %d" % [u.id, u.tier])
 			_expect(not ("multishot" in u.id), "a Multishot card is still in the pool: %s" % u.id)
+			_expect(not ("trap" in u.id), "a trap card is still on the physical line: %s -- traps are the Trapper class now" % u.id)
 
-	# Climb the whole line through the real apply path and check what each tier
-	# actually does -- tiers 1-2 swap the skill, 3-5 only feed the trap stat.
-	var expected_skills := {1: player.piercing_arrow, 2: player.trap_shot}
-	for tier in [1, 2, 3, 4, 5]:
+	# Both tiers swap the active skill; the line has no stat-only tiers left.
+	var expected_skills := {1: player.piercing_arrow, 2: player.spread_arrow}
+	for tier in [1, 2]:
 		var card := _find_upgrade(popup, UpgradeResource.ElementType.PHYSICAL, tier)
 		_expect(card != null, "missing a physical tier-%d card in the wired pool" % tier)
 		if card == null:
 			continue
 		player.apply_element_upgrade(card)
 		_expect(player.physical_level == tier, "physical_level should be %d, got %d" % [tier, player.physical_level])
-		if expected_skills.has(tier):
-			_expect(player._current_skill == expected_skills[tier],
-				"tier %d should have swapped in %s" % [tier, expected_skills[tier].display_name])
-		else:
-			_expect(player._current_skill == player.trap_shot,
-				"tier %d is a stat-only upgrade and must leave Trap Shot active" % tier)
-	# 0.3 + 0.3 + 0.4 across the three trap tiers.
-	_expect(is_equal_approx(player.physical_trap_detonate_mult, 1.0),
-		"the three trap tiers should total +100%% detonate, got %s" % player.physical_trap_detonate_mult)
-	# Fully maxed -> the line stops offering tier-ups.
-	_expect(_find_upgrade(popup, UpgradeResource.ElementType.PHYSICAL, 6) == null,
-		"there must be no physical tier 6 left")
+		_expect(player._current_skill == expected_skills[tier],
+			"tier %d should have swapped in %s" % [tier, expected_skills[tier].display_name])
+	_expect(_find_upgrade(popup, UpgradeResource.ElementType.PHYSICAL, 3) == null,
+		"there must be no physical tier 3 left")
+
+	# Spread Arrow must actually carry a chain, or tier 2 is cosmetic.
+	_expect(player.spread_arrow.chain_count >= 1, "Spread Arrow should chain on hit out of the box")
+	_expect(player.effective_spread_count(player.spread_arrow) >= 1, "Spread Arrow's effective spread should be at least its own chain_count")
+
+	# --- "+1 Spread", the physical line's second capped repeatable ---------
+	# Same contract as "+1 Arrow": it must do something, and it must stop being
+	# offered at its cap rather than becoming a dead pick.
+	var lvl_popup: LevelUpPopup = main.get_node_or_null("LevelUpPopup")
+	_expect(lvl_popup != null, "need the LevelUpPopup to check spread offers")
+	if lvl_popup != null:
+		player.bonus_chain_count = 0
+		_expect("spread" in lvl_popup._eligible_upgrade_ids(), "+1 Spread should be offered below the cap")
+		var base_spread: int = player.effective_spread_count(player._current_skill)
+		player.apply_upgrade("spread")
+		_expect(player.effective_spread_count(player._current_skill) == base_spread + 1,
+			"a +1 Spread pick should raise the effective spread by exactly 1")
+		# Drive it to the cap by taking the pick, not by assignment, so the
+		# clamp and the filter are exercised the way a real run reaches them.
+		for i in 20:
+			player.apply_upgrade("spread")
+		_expect(player.effective_spread_count(player._current_skill) == Player.MAX_SPREAD_COUNT,
+			"spread should clamp at MAX_SPREAD_COUNT (%d), got %d" % [Player.MAX_SPREAD_COUNT, player.effective_spread_count(player._current_skill)])
+		_expect(not ("spread" in lvl_popup._eligible_upgrade_ids()),
+			"+1 Spread must stop being offered once the spread count is capped")
 
 	main.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+
+func _assert_trapper_class() -> void:
+	# (2026-07-24) Traps moved off the physical line into their own class. The
+	# thing most likely to break silently is the fire path: _fire_class_skill()
+	# had no TRAP_SHOT case and would have fallen through to
+	# _fire_class_projectile(), which needs a projectile_scene a trap skill
+	# doesn't have -- the class would have fired literally nothing.
+	_expect(CharacterClasses.CLASSES.has("trapper"), "the Trapper class should exist")
+	var skills: Array = CharacterClasses.CLASSES["trapper"].get("skills", [])
+	_expect(skills.size() == 3, "Trapper needs a 3-tier line like every other class, got %d" % skills.size())
+	for path in skills:
+		var s: SkillData = load(path)
+		_expect(s != null, "Trapper skill %s failed to load" % path)
+		if s == null:
+			continue
+		_expect(s.fire_mode == SkillData.FireMode.TRAP_SHOT, "%s should be a trap skill" % path)
+		_expect(s.trap_scene != null, "%s needs a trap_scene or it can never place anything" % path)
+
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var cs = main.get_node_or_null("ClassSelectPopup")
+	if cs != null:
+		cs.select_class("trapper")
+	await get_tree().physics_frame
+	var player: Player = get_tree().get_first_node_in_group("player")
+	var popup: WaveUpgradePopup = get_tree().get_first_node_in_group("wave_upgrade_popup")
+	_expect(player.active_class_id == "trapper", "picking Trapper should stick")
+	# The class's declared cooldown tradeoff has to actually reach the player --
+	# apply_class() previously read no cooldown_mult key at all, so a class
+	# declaring one would have been silently inert.
+	_expect(player.cooldown_mult > 1.0,
+		"Trapper's slower-attacks tradeoff should raise cooldown_mult, got %s" % player.cooldown_mult)
+
+	# Only Trapper's own cards are ever offered to a Trapper.
+	for tier in [1, 2, 3]:
+		var card := _find_upgrade(popup, UpgradeResource.ElementType.CLASS, tier)
+		var offers := popup._get_offerable_upgrades(UpgradeResource.ElementType.CLASS)
+		for o in offers:
+			_expect(o.required_class == "trapper", "a Trapper was offered %s (class %s)" % [o.id, o.required_class])
+		var own := _find_trapper_card(popup, tier)
+		_expect(own != null, "missing a Trapper tier-%d card" % tier)
+		if own != null:
+			player.apply_element_upgrade(own)
+			_expect(player.class_skill_level == tier, "class_skill_level should be %d" % tier)
+	_expect(player._current_class_skill != null and player._current_class_skill.fire_mode == SkillData.FireMode.TRAP_SHOT,
+		"a fully-climbed Trapper should have a trap as its active class skill")
+	# 0.3 + 0.7 across tiers 2 and 3, folding the old Volatile/Mastery steps.
+	_expect(is_equal_approx(player.trap_detonate_mult, 1.0),
+		"Trapper tiers 2-3 should total +100%% detonate, got %s" % player.trap_detonate_mult)
+
+	# The fire path actually places a trap rather than silently doing nothing.
+	var dummy: EnemyBase = load("res://resources/enemies/slime_scout.tres").scene.instantiate()
+	dummy.setup(load("res://resources/enemies/slime_scout.tres"), 40.0, 0.01, 1.0, -1)
+	add_child(dummy)
+	dummy.global_position = player.global_position + Vector2(0, -200)
+	dummy.activate()
+	dummy.velocity = Vector2.ZERO
+	dummy._base_velocity = Vector2.ZERO
+	await get_tree().physics_frame
+	var traps_before := _count_traps()
+	player._fire_class_skill(player._current_class_skill)
+	await get_tree().physics_frame
+	_expect(_count_traps() > traps_before, "firing the Trapper's class skill must actually place a trap")
+
+	dummy._is_dying = true
+	dummy._deactivate()
+	dummy.queue_free()
+	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _find_trapper_card(popup: WaveUpgradePopup, tier: int) -> UpgradeResource:
+	for c in popup.upgrade_pool:
+		if c.element == UpgradeResource.ElementType.CLASS and c.tier == tier and c.required_class == "trapper":
+			return c
+	return null
+
+
+func _count_traps() -> int:
+	var n := 0
+	for node in get_tree().current_scene.get_children():
+		if node is TrapZone:
+			n += 1
+	return n
 
 
 func _assert_upgrade_card_integrity() -> void:
