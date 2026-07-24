@@ -6,8 +6,8 @@
 
 [resource]
 script = ExtResource("1")
-id = "spread_arrow"
-display_name = "Spread Arrow"
+id = "chain_arrow"
+display_name = "Chain Arrow"
 icon = ExtResource("3")
 base_damage = 10.0
 cooldown = 1.5

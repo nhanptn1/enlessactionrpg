@@ -111,7 +111,7 @@ const CRIT_CHANCE_MAX := 1.0
 
 @export var basic_shot: SkillData
 @export var piercing_arrow: SkillData
-@export var spread_arrow: SkillData
+@export var chain_arrow: SkillData
 # (2026-07-24) Still exported although the physical line no longer uses it --
 # Trap Shot moved to the Trapper class, whose skills load lazily from
 # CharacterClasses.CLASSES by path. Kept as the scene-wired reference so the
@@ -655,7 +655,7 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 		physical_level += 1
 		match physical_level:
 			1: _current_skill = piercing_arrow
-			2: _current_skill = spread_arrow
+			2: _current_skill = chain_arrow
 			# (2026-07-24) The physical line is now just these two tiers, and
 			# that is deliberate. It used to run Multishot -> Piercing Arrow ->
 			# Trap Shot -> three trap upgrades, which fought itself twice over:
@@ -1351,7 +1351,7 @@ func _fire_at(target: Node2D, skill: SkillData, angle_offset: float = 0.0) -> vo
 	# (2026-07-24) This path previously used activate()'s defaults from
 	# max_range onward, which meant chain_count was always 0 here -- the basic
 	# line simply could not spread. That was fine while nothing on the physical
-	# line chained; Spread Arrow and the "+1 Chain" card both live here now, so
+	# line chained; Chain Arrow and the "+1 Chain" card both live here now, so
 	# the count has to be passed or every spread pick would do nothing.
 	#
 	# The typed local is required, not stylistic: a bare `[]` literal does not

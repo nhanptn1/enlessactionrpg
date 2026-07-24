@@ -219,7 +219,7 @@ func _max_tier_for(element: UpgradeResource.ElementType) -> int:
 	# card already owned arrow count, and Piercing Arrow's projectile_count = 1
 	# meant the very next tier undid it), then the four trap tiers became the
 	# Trapper class. What's left is deliberately short: Piercing Arrow ->
-	# Spread Arrow, with all further growth coming from the two capped
+	# Chain Arrow, with all further growth coming from the two capped
 	# repeatable cards ("+1 Arrow" to 6, "+1 Chain" to 4). Physical is the
 	# repeatable-growth line by design, which is why it doesn't match the
 	# elemental lines' height.

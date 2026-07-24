@@ -1784,7 +1784,7 @@ func _assert_physical_path_shape() -> void:
 			_expect(not ("trap" in u.id), "a trap card is still on the physical line: %s -- traps are the Trapper class now" % u.id)
 
 	# Both tiers swap the active skill; the line has no stat-only tiers left.
-	var expected_skills := {1: player.piercing_arrow, 2: player.spread_arrow}
+	var expected_skills := {1: player.piercing_arrow, 2: player.chain_arrow}
 	for tier in [1, 2]:
 		var card := _find_upgrade(popup, UpgradeResource.ElementType.PHYSICAL, tier)
 		_expect(card != null, "missing a physical tier-%d card in the wired pool" % tier)
@@ -1797,9 +1797,9 @@ func _assert_physical_path_shape() -> void:
 	_expect(_find_upgrade(popup, UpgradeResource.ElementType.PHYSICAL, 3) == null,
 		"there must be no physical tier 3 left")
 
-	# Spread Arrow must actually carry a chain, or tier 2 is cosmetic.
-	_expect(player.spread_arrow.chain_count >= 1, "Spread Arrow should chain on hit out of the box")
-	_expect(player.effective_chain_count(player.spread_arrow) >= 1, "Spread Arrow's effective chain should be at least its own chain_count")
+	# Chain Arrow must actually carry a chain, or tier 2 is cosmetic.
+	_expect(player.chain_arrow.chain_count >= 1, "Chain Arrow should chain on hit out of the box")
+	_expect(player.effective_chain_count(player.chain_arrow) >= 1, "Chain Arrow's effective chain should be at least its own chain_count")
 
 	# --- "+1 Chain", the physical line's second capped repeatable ---------
 	# Same contract as "+1 Arrow": it must do something, and it must stop being
