@@ -1851,6 +1851,24 @@ func _assert_physical_path_shape() -> void:
 	_expect(_find_upgrade(popup, UpgradeResource.ElementType.PHYSICAL, 3) == null,
 		"there must be no physical tier 3 left")
 
+	# (2026-07-24) The chain VFX must follow the shot's element. It was a
+	# hardcoded purple from when Chain Spark was the only chaining skill, so the
+	# physical line's Chain Arrow drew Lightning's bolts and electric sparks.
+	var chain_proj: Projectile = load("res://scenes/effects/ProjectilePiercingArrow.tscn").instantiate()
+	add_child(chain_proj)
+	var no_rolls: Array[Dictionary] = []
+	chain_proj.status_rolls = no_rolls  # "" element = untyped physical, what Chain Arrow fires
+	_expect(chain_proj._chain_color() == Projectile.CHAIN_COLOR_PHYSICAL,
+		"a physical chain should draw in the physical colour, got %s" % chain_proj._chain_color())
+	var lightning_rolls: Array[Dictionary] = [{"element": StatusEffects.LIGHTNING, "chance": 1.0, "duration": 1.0}]
+	chain_proj.status_rolls = lightning_rolls
+	_expect(chain_proj._chain_color() == Projectile.CHAIN_COLOR_LIGHTNING,
+		"a lightning chain must keep its own purple, got %s" % chain_proj._chain_color())
+	_expect(Projectile.CHAIN_COLOR_PHYSICAL != Projectile.CHAIN_COLOR_LIGHTNING,
+		"the two lines' chains must be visually distinguishable")
+	chain_proj.queue_free()
+	await get_tree().process_frame
+
 	# Chain Arrow must actually carry a chain, or tier 2 is cosmetic.
 	_expect(player.chain_arrow.chain_count >= 1, "Chain Arrow should chain on hit out of the box")
 	_expect(player.effective_chain_count(player.chain_arrow) >= 1, "Chain Arrow's effective chain should be at least its own chain_count")

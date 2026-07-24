@@ -309,12 +309,16 @@ static func ice_wall_nova_burst(pos: Vector2, radius: float, host: Node) -> void
 	_play_burst_animation(_get_ice_wall_nova_frames(), pos, radius, host)
 
 
-static func _play_burst_animation(frames: SpriteFrames, pos: Vector2, radius: float, host: Node, rotation: float = 0.0) -> void:
+static func _play_burst_animation(frames: SpriteFrames, pos: Vector2, radius: float, host: Node, rotation: float = 0.0, tint: Color = Color.WHITE) -> void:
 	if not is_instance_valid(host):
 		return
 	var sprite := AnimatedSprite2D.new()
 	sprite.sprite_frames = frames
 	sprite.animation = &"burst"
+	# (2026-07-24) Optional tint so one burst animation can serve more than one
+	# element -- the spark burst is shared by Lightning's Chain Spark and the
+	# physical line's Chain Arrow, and the latter must not read as electric.
+	sprite.modulate = tint
 	var first_tex: Texture2D = frames.get_frame_texture(&"burst", 0)
 	sprite.scale = Vector2.ONE * (radius * BURST_TARGET_DIAMETER_MULT * BURST_VISUAL_SCALE) / first_tex.get_width()
 	sprite.global_position = pos
@@ -347,13 +351,13 @@ static func _build_burst_frames(paths: Array, speed: float, anim_name: String = 
 	return frames
 
 
-static func spark_burst(pos: Vector2, radius: float, host: Node) -> void:
+static func spark_burst(pos: Vector2, radius: float, host: Node, tint: Color = Color.WHITE) -> void:
 	# Chain Spark's landing-node punch, and Thunder Storm's ground-impact --
 	# a real 4-frame electric X-burst (from the supplied "chain spark.png"
 	# reference) shared by both skills since they're the same "electric
 	# discharge" moment, just triggered at different scales from different
 	# call sites (Projectile._apply_chain() / player.gd's _fire_area_strike()).
-	_play_burst_animation(_get_spark_burst_frames(), pos, radius, host)
+	_play_burst_animation(_get_spark_burst_frames(), pos, radius, host, 0.0, tint)
 
 
 static func lightning_strike_fall(target_pos: Vector2, duration: float, host: Node) -> void:

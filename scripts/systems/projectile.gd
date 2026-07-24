@@ -172,14 +172,38 @@ func _apply_chain(from_body: Node) -> void:
 		if next == null:
 			return
 		_already_hit.append(next)
-		ImpactVFX.chain_bolt(last.global_position, next.global_position, Color(0.75, 0.4, 1.0, 0.9), self)
-		ImpactVFX.spark_burst(next.global_position, ImpactVFX.CHAIN_SPARK_BURST_RADIUS, self)
+		var col := _chain_color()
+		ImpactVFX.chain_bolt(last.global_position, next.global_position, col, self)
+		ImpactVFX.spark_burst(next.global_position, ImpactVFX.CHAIN_SPARK_BURST_RADIUS, self, col)
 		next.take_damage(damage, _shot_element())
 		if next.has_method("apply_status"):
 			for roll in status_rolls:
 				if randf() < roll["chance"]:
 					next.apply_status(roll["element"], roll["duration"])
 		last = next
+
+
+# (2026-07-24) The chain VFX used to be a hardcoded purple, written when Chain
+# Spark (Lightning tier 2) was the only thing in the game that chained. The
+# physical line's Chain Arrow now chains too, and it was drawing Lightning's
+# purple bolts and electric sparks -- user: "the chain effect is purple, can it
+# be the physical colour?". Keyed off the shot's own element instead, so every
+# line's chain reads as itself and any future chaining skill is covered without
+# another hardcoded colour. Lightning keeps the exact purple it always had.
+const CHAIN_COLOR_PHYSICAL := Color(0.85, 0.92, 1.0, 0.9)  # silver-white, matching the physical icon palette
+const CHAIN_COLOR_LIGHTNING := Color(0.75, 0.4, 1.0, 0.9)  # unchanged from the original hardcoded value
+
+
+func _chain_color() -> Color:
+	match _shot_element():
+		StatusEffects.LIGHTNING:
+			return CHAIN_COLOR_LIGHTNING
+		StatusEffects.FIRE:
+			return StatusEffects.FIRE_COLOR
+		StatusEffects.FROST:
+			return StatusEffects.FROST_COLOR
+		_:
+			return CHAIN_COLOR_PHYSICAL  # "" = untyped physical, e.g. Chain Arrow
 
 
 func _shot_element() -> String:
