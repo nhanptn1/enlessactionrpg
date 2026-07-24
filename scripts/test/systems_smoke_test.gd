@@ -176,6 +176,7 @@ func _assert_save_roundtrip() -> void:
 	_assert_wave_modifier_shapes_the_wave()
 	await _assert_upgrade_card_integrity()
 	await _assert_physical_path_shape()
+	_assert_class_skill_progression()
 	await _assert_trapper_class()
 	_assert_tutorial_hints()
 
@@ -1860,6 +1861,54 @@ func _assert_physical_path_shape() -> void:
 	main.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+
+func _assert_class_skill_progression() -> void:
+	# (2026-07-24) Every class line, tier over tier: a later tier must not be
+	# strictly worse than the one before it. Written after an audit found
+	# Juggernaut's tier-3 capstone (Second Wind) had the SAME damage and radius
+	# as tier 2 but a LONGER cooldown -- so taking your class's final upgrade
+	# lowered your damage, and lowered the rate of the heal it exists for.
+	#
+	# Compared only WITHIN a fire mode. Comparing across modes is what made the
+	# elemental audit's first pass cry wolf: an ARROW_RAIN tier drops several
+	# zones and a PROJECTILE tier fires one shot, so their single-cast numbers
+	# aren't on the same scale and a "drop" there is meaningless.
+	for class_id in CharacterClasses.CLASSES:
+		var paths: Array = CharacterClasses.CLASSES[class_id].get("skills", [])
+		_expect(paths.size() == 3, "%s should have a 3-tier line, got %d" % [class_id, paths.size()])
+		var prev := {}
+		for i in paths.size():
+			var s: SkillData = load(paths[i])
+			_expect(s != null, "%s tier %d failed to load" % [class_id, i + 1])
+			if s == null:
+				continue
+			# A skill that can't deliver its own mode fires nothing at all.
+			if s.fire_mode == SkillData.FireMode.PROJECTILE:
+				_expect(s.projectile_scene != null, "%s T%d is PROJECTILE mode with no projectile_scene" % [class_id, i + 1])
+			elif s.fire_mode == SkillData.FireMode.TRAP_SHOT:
+				_expect(s.trap_scene != null, "%s T%d is TRAP_SHOT mode with no trap_scene" % [class_id, i + 1])
+			var hits: int = 1
+			match s.fire_mode:
+				SkillData.FireMode.ARROW_RAIN:
+					hits = maxi(s.rain_arrow_count, 1)
+				SkillData.FireMode.PROJECTILE:
+					hits = maxi(s.projectile_count, 1) * (1 + s.chain_count)
+			var dps: float = (s.base_damage * float(hits)) / maxf(s.cooldown, 0.01)
+			if not prev.is_empty() and prev["mode"] == s.fire_mode:
+				_expect(dps >= prev["dps"] - 0.001,
+					"%s T%d (%s) is weaker than T%d in the same fire mode: %.1f vs %.1f dps" % [
+						class_id, i + 1, s.display_name, i, dps, prev["dps"],
+					])
+				# Same mode AND no more damage per second -- allowed only if the
+				# tier buys something else measurable (bigger radius, a heal).
+				if is_equal_approx(dps, prev["dps"]):
+					var gained: bool = s.trap_radius > prev["radius"] or s.heal_on_cast > prev["heal"]
+					_expect(gained,
+						"%s T%d matches T%d's dps and adds no radius or heal -- it is a free upgrade that does nothing" % [
+							class_id, i + 1, i,
+						])
+			prev = {"mode": s.fire_mode, "dps": dps, "radius": s.trap_radius, "heal": s.heal_on_cast}
 
 
 func _assert_trapper_class() -> void:
