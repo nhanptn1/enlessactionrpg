@@ -7,7 +7,25 @@ const HIT_PUNCH_SCALE := 1.2
 const ATTACK_LUNGE_OFFSET := 4.0
 const ATTACK_LUNGE_DURATION := 0.1
 const DEATH_FADE_DURATION := 0.25
-const LEAK_DAMAGE := 1.0  # HP cost when an enemy reaches the bottom of the screen without being killed
+const LEAK_DAMAGE := 1.0  # HP cost when an enemy crosses the lose line without being killed
+
+# (2026-07-24) Enemies PASS THROUGH the player -- EnemyBase.tscn's root body
+# carries collision_mask = 0 rather than 1, and this is load-bearing gameplay,
+# not a physics tidy-up.
+#
+# With mask = 1 the player's 32px body was a solid wall: measured, an enemy
+# walking down the player's lane stopped dead at y=1102 (1150 - 32 - 16) and
+# stayed there forever, grinding off 15 HP in 9 seconds of contact ticks while
+# never reaching the lose line at 1215. That made contact damage the real
+# threat, made body-blocking a lane a viable strategy, and made the lose line
+# unreachable in whichever lane the player stood in.
+#
+# Per user, the lose line is the threat instead: an enemy that gets past you
+# should cost you the line, not park on you. Contact still hurts on the way
+# through, because the Hurtbox Area2D keeps its own collision_mask = 1 -- only
+# the physical body stops colliding. Bosses are unaffected either way: they
+# stop at BossBase.LOSE_LINE_Y (950), 200px above the player, so they never
+# reached the player's body to begin with.
 
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var hurtbox: Area2D = $Hurtbox

@@ -1957,6 +1957,26 @@ func _assert_lose_line() -> void:
 		"crossing the lose line must cost exactly %s HP, got %s" % [Player.HIT_COST, hp_before - player.current_hp])
 	_expect(not leaker.is_in_group("enemy"), "a leaked enemy must leave the 'enemy' group")
 
+	# (2026-07-24) An enemy walking straight at the player must pass THROUGH them
+	# and go on to reach the line. Before this, the player's 32px body was a wall:
+	# an enemy in the player's lane stopped dead at y=1102 and ground them down
+	# with contact ticks forever, so the lose line was unreachable in whichever
+	# lane the player stood in. Driven head-on down the player's own column,
+	# because any other x would pass regardless and prove nothing.
+	var blocker: EnemyBase = spawner.spawn(data, 1.0, 1.0, 1.0, -1, 1.0, player.global_position.x, false)
+	blocker.global_position = Vector2(player.global_position.x, player.global_position.y - 120.0)
+	player.current_hp = 9999.0  # survive the contact ticks; this test is about position
+	var passed_player := false
+	var frames2 := 0
+	while frames2 < 400 and not blocker._is_dying:
+		await get_tree().physics_frame
+		frames2 += 1
+		if blocker.global_position.y > player.global_position.y:
+			passed_player = true
+	_expect(passed_player, "an enemy must pass through the player, not be blocked by their body")
+	_expect(blocker._is_dying, "an enemy walking down the player's own lane must still reach the lose line")
+	player.current_hp = player.max_hp
+
 	# The check runs every physics frame, so an enemy sitting past the line must
 	# not keep billing the player -- the single most likely way this regresses.
 	var hp_after_leak: float = player.current_hp
