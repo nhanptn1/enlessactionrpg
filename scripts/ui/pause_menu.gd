@@ -224,10 +224,15 @@ func _element_stat_lines(player: Node, element: int) -> Array[String]:
 		UpgradeResource.ElementType.FROST:
 			lines.append("Skill Damage: +%d%%" % roundi((player.frost_skill_dmg_mult - 1.0) * 100.0))
 			lines.append("Skill Cooldown: -%d%%" % roundi((1.0 - maxf(player.frost_skill_cd_mult, 0.3)) * 100.0))
+			# (2026-07-24) Was "Slow Duration" / "vs Slowed" -- factually wrong and
+			# actively misleading, since Frost is the one element that FREEZES
+			# (an absolute stop, see StatusEffects.is_frozen) while Lightning is
+			# the one that slows. A player comparing the two panels would have
+			# read Frost as a weaker version of Lightning's slow.
 			if player.frost_duration_bonus > 0.0:
-				lines.append("Slow Duration: +%.1fs" % player.frost_duration_bonus)
+				lines.append("Freeze Duration: +%.1fs" % player.frost_duration_bonus)
 			if player.frost_damage_amp > 0.0:
-				lines.append("Damage Amp vs Slowed: +%d%%" % roundi(player.frost_damage_amp * 100.0))
+				lines.append("Damage Amp vs Frozen: +%d%%" % roundi(player.frost_damage_amp * 100.0))
 			if player.frost_spread_chance > 0.0 and player.frost_level < 5:
 				lines.append("Spread Chance: %d%%" % roundi(player.frost_spread_chance * 100.0))
 			if player.frost_combo_bonus_mult > 0.0:
