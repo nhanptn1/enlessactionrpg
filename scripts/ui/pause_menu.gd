@@ -11,7 +11,7 @@ const ELEMENT_NAMES := {
 }
 const PHYSICAL_TIER_MAX := 2  # (2026-07-24) 5 -> 2: traps became the Trapper class, leaving Piercing Arrow -> Chain Arrow -- see wave_upgrade_popup.gd::_max_tier_for()
 const ELEMENT_TIER_MAX := 5  # (2026-07-17) grew by 1 for the tier-5 capstone passive, see wave_upgrade_popup.gd::_max_tier_for()
-const CLASS_TIER_MAX := 3  # per-class active skill line, see CharacterClasses.CLASSES "skills"
+const CLASS_TIER_MAX := 1  # (2026-07-24) 3 -> 1, one skill per class -- see wave_upgrade_popup.gd::_max_tier_for()
 const ROW_NAME_FONT_SIZE := 26
 const ROW_STAT_FONT_SIZE := 20
 const ROW_ICON_SIZE := 42

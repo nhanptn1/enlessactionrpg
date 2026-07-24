@@ -16,3 +16,4 @@ pierce_count = 0
 projectile_count = 1
 fire_mode = 3
 trap_radius = 130.0
+heal_on_cast = 1.0

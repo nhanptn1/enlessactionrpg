@@ -226,7 +226,10 @@ func _max_tier_for(element: UpgradeResource.ElementType) -> int:
 	if element == UpgradeResource.ElementType.PHYSICAL:
 		return 2
 	if element == UpgradeResource.ElementType.CLASS:
-		return 3  # (2026-07-21) the per-class active skill line -- see CharacterClasses.CLASSES "skills"
+		# (2026-07-24) 3 -> 1: each class has ONE skill now, with growth coming from
+		# the repeatable class_damage_boost / class_cooldown_boost cards instead of
+		# tiers that swapped the skill wholesale.
+		return 1
 	if element == UpgradeResource.ElementType.FUSION:
 		return 0  # (2026-07-23) fusions have no TIERS -- only the repeatable stat cards below
 	return 5

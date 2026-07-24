@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_multishot.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "class_damage_boost"
+element = 4
+icon = ExtResource("2")
+title = "Focused Training"
+description = "Class skill deals 8% more damage."
+stat_to_modify = "class_skill_dmg_mult"
+modification_value = 0.08
+tier = 0
+max_stacks = 5
+exclusive_group = ""
+required_class = ""

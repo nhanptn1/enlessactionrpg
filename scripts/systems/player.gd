@@ -153,7 +153,21 @@ var crit_chance := 0.0
 var xp_gain_mult := 1.0
 var active_run_modifier_id: String = ""  # set once in _apply_run_modifier() -- see RunModifiers.MODIFIERS
 var active_class_id: String = "ranger"  # set once by ClassSelectPopup at run start via apply_class() -- see CharacterClasses.CLASSES
-var class_skill_level := 0  # class skill tree tier reached (0-3) -- see apply_element_upgrade()'s CLASS branch
+# (2026-07-24) 0-1 now, not 0-3. Per user, each class has ONE skill rather than
+# a three-tier chain that swapped it wholesale; its growth comes from repeatable
+# pickup cards instead. Kept as a level rather than a bool so the CLASS line
+# still moves through the same tier machinery every other line uses.
+var class_skill_level := 0
+# (2026-07-24) The class line had NO stats of its own -- it rode the basic
+# line's damage_mult/cooldown_mult, unlike every elemental line which owns a
+# dmg/cd pair. Adding the pair is what makes class upgrade cards possible at
+# all. Applied ON TOP of the shared multipliers rather than replacing them, so
+# a class skill still benefits from generic damage picks exactly as it did
+# before and these cards are purely additional.
+# Caps come from the cards' own max_stacks: 5 x +0.08 = +40% damage,
+# 5 x -0.06 = -30% cooldown, the limits the user asked for.
+var class_skill_dmg_mult := 1.0
+var class_skill_cd_mult := 1.0
 var fire_level := 0  # highest tier reached (0-3), not a pick count
 var lightning_level := 0
 var frost_level := 0
@@ -640,21 +654,34 @@ func apply_element_upgrade(upgrade: UpgradeResource) -> void:
 		# ("skills" array, index = tier - 1). Loaded lazily -- only the
 		# picked class's skills ever load in a run. Mirrors the elemental
 		# lines' tier-swap convention exactly.
-		class_skill_level += 1
-		var skill_paths: Array = CharacterClasses.CLASSES.get(active_class_id, {}).get("skills", [])
-		if class_skill_level <= skill_paths.size():
-			_current_class_skill = load(skill_paths[class_skill_level - 1])
-			_refresh_class_skill_timer()
-			if class_skill_timer.is_stopped():
-				class_skill_timer.start()
+		# (2026-07-24) Gated on tier >= 1. The class line gained REPEATABLE tier-0
+		# cards (class_damage_boost / class_cooldown_boost) when it dropped to one
+		# skill, and this branch previously assumed every CLASS card was a tier:
+		# a stat card incremented class_skill_level, falsely advancing the line
+		# past its only skill, and the timer refresh sat inside the tier block so
+		# a cooldown card never re-latched the running timer -- measured, the
+		# cast interval stayed at 3.00s after five -6% picks.
+		var is_tier_up: bool = upgrade.tier >= 1
+		if is_tier_up:
+			class_skill_level += 1
+			var skill_paths: Array = CharacterClasses.CLASSES.get(active_class_id, {}).get("skills", [])
+			if class_skill_level <= skill_paths.size():
+				_current_class_skill = load(skill_paths[class_skill_level - 1])
+				if class_skill_timer.is_stopped():
+					class_skill_timer.start()
 		_apply_upgrade_stats(upgrade)
-		# Deliberately NOT emitting the player's own skill_unlocked signal --
-		# HUD routes that to the basic-line label (its elemental filter only
-		# knows the 3 element arrays), so a class skill would wrongly
-		# overwrite the basic skill display. SignalBus covers the audio cue;
-		# class_skill_changed drives the class line's own top-left HUD row.
-		SignalBus.skill_unlocked.emit(_current_class_skill)
-		class_skill_changed.emit(_current_class_skill)
+		# Always, not just on an unlock -- the cooldown card has to re-latch the
+		# running timer, exactly as the FUSION branch below already documents for
+		# its own cooldown card.
+		_refresh_class_skill_timer()
+		if is_tier_up:
+			# Deliberately NOT emitting the player's own skill_unlocked signal --
+			# HUD routes that to the basic-line label (its elemental filter only
+			# knows the 3 element arrays), so a class skill would wrongly
+			# overwrite the basic skill display. SignalBus covers the audio cue;
+			# class_skill_changed drives the class line's own top-left HUD row.
+			SignalBus.skill_unlocked.emit(_current_class_skill)
+			class_skill_changed.emit(_current_class_skill)
 		return
 	if upgrade.element == UpgradeResource.ElementType.FUSION:
 		# Stat-only, no tiers -- but the cooldown card has to re-latch the
@@ -1038,7 +1065,8 @@ func _refresh_timer_cooldowns() -> void:
 
 func _refresh_class_skill_timer() -> void:
 	if _current_class_skill != null:
-		class_skill_timer.wait_time = maxf(_current_class_skill.cooldown * cooldown_mult, 0.05)
+		# class_skill_cd_mult is floored the same way every other cooldown path is.
+		class_skill_timer.wait_time = maxf(_current_class_skill.cooldown * cooldown_mult * maxf(class_skill_cd_mult, COOLDOWN_MULT_FLOOR), 0.05)
 
 
 func _on_class_skill_timeout() -> void:
@@ -1056,7 +1084,7 @@ func _fire_class_skill(skill: SkillData) -> void:
 			# Bright class-colored telegraph instead of the muted basic gold, so
 			# the class storm reads as a distinct, punchy effect.
 			var tele: Color = CharacterClasses.get_vfx_color(active_class_id)
-			_fire_area_strike(skill, damage_mult, no_status, Color(tele.r, tele.g, tele.b, 0.55))
+			_fire_area_strike(skill, damage_mult * class_skill_dmg_mult, no_status, Color(tele.r, tele.g, tele.b, 0.55))
 		SkillData.FireMode.SELF_BURST:
 			if not _fire_self_burst(skill):
 				return
@@ -1100,7 +1128,7 @@ func _fire_class_projectile(skill: SkillData) -> bool:
 	var vis_scale: float = maxf(skill.visual_scale, 1.0) * 1.35
 	for i in skill.projectile_count:
 		var dir := base_dir.rotated(_spread_offset(i, skill.projectile_count))
-		var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
+		var dmg := skill.base_damage * damage_mult * class_skill_dmg_mult * (2.0 if randf() < crit_chance else 1.0)
 		var proj: Projectile = pool.acquire(skill.projectile_scene)
 		var homing_target: Node2D = targets[0] if i == 0 else null
 		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, no_status, skill.burst_radius, effective_chain_count(skill), vis_scale, skill.burst_vfx_id, homing_target, flash_col, flash_radius)
@@ -1133,7 +1161,7 @@ func _fire_self_burst(skill: SkillData) -> bool:
 	var cam := get_viewport().get_camera_2d()
 	if is_instance_valid(cam) and cam.has_method("shake"):
 		cam.shake(9.0, 0.22)
-	var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
+	var dmg := skill.base_damage * damage_mult * class_skill_dmg_mult * (2.0 if randf() < crit_chance else 1.0)
 	for enemy in in_range:
 		enemy.take_damage(dmg)
 	if skill.heal_on_cast > 0.0 and current_hp < max_hp:
@@ -1332,6 +1360,10 @@ func _fire_area_strike(skill: SkillData, dmg_mult: float, status_rolls: Array[Di
 						enemy.apply_status(roll["element"], roll["duration"])
 
 
+# (2026-07-24) Traps are class-only now (the Trapper), so this path takes
+# class_skill_dmg_mult like the other class fire modes. It was the one class
+# path that would have silently ignored the new upgrade cards -- the same
+# shape of miss as _fire_at() ignoring chain_count.
 func _fire_trap_shot(skill: SkillData) -> bool:
 	if skill.trap_scene == null:
 		return false
@@ -1340,7 +1372,7 @@ func _fire_trap_shot(skill: SkillData) -> bool:
 		return false
 	var target: Node2D = targets[0]
 	var trap = skill.trap_scene.instantiate()
-	var dmg := skill.base_damage * damage_mult * (2.0 if randf() < crit_chance else 1.0)
+	var dmg := skill.base_damage * damage_mult * class_skill_dmg_mult * (2.0 if randf() < crit_chance else 1.0)
 	# A bare `[]` literal here fails TrapZone.activate()'s typed Array[Dictionary]
 	# param at the call boundary (confirmed via a headless repro -- GDScript
 	# doesn't coerce an untyped empty-array literal across a typed-array

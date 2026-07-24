@@ -22,11 +22,7 @@ const CLASSES := {
 		"description": "The classic archer. Balanced, no tradeoffs.",
 		"color": Color(1.0, 1.0, 1.0, 1.0),
 		"vfx_color": Color(0.5, 1.0, 0.55, 0.95),  # bright green -- class-skill impact/telegraph highlight
-		"skills": [
-			"res://resources/skills/class_twin_volley.tres",
-			"res://resources/skills/class_split_volley.tres",
-			"res://resources/skills/class_storm_of_arrows.tres",
-		],
+		"skills": ["res://resources/skills/class_twin_volley.tres"],
 	},
 	"sniper": {
 		"display_name": "Sniper",
@@ -36,11 +32,7 @@ const CLASSES := {
 		"projectile_speed_mult": 1.15,
 		"max_hp_mult": 0.85,
 		"vfx_color": Color(1.0, 0.9, 0.3, 0.95),  # bright gold
-		"skills": [
-			"res://resources/skills/class_power_shot.tres",
-			"res://resources/skills/class_piercing_bolt.tres",
-			"res://resources/skills/class_railshot.tres",
-		],
+		"skills": ["res://resources/skills/class_power_shot.tres"],
 	},
 	"elementalist": {
 		"display_name": "Elementalist",
@@ -49,11 +41,7 @@ const CLASSES := {
 		"elemental_dmg_mult": 1.25,
 		"physical_dmg_mult": 0.85,
 		"vfx_color": Color(0.85, 0.45, 1.0, 0.95),  # bright violet
-		"skills": [
-			"res://resources/skills/class_arcane_bolt.tres",
-			"res://resources/skills/class_arcane_chain.tres",
-			"res://resources/skills/class_arcane_storm.tres",
-		],
+		"skills": ["res://resources/skills/class_arcane_bolt.tres"],
 	},
 	"juggernaut": {
 		"display_name": "Juggernaut",
@@ -62,11 +50,7 @@ const CLASSES := {
 		"max_hp_mult": 1.4,
 		"physical_dmg_mult": 0.85,
 		"vfx_color": Color(0.5, 0.9, 1.0, 0.95),  # bright cyan
-		"skills": [
-			"res://resources/skills/class_shockwave.tres",
-			"res://resources/skills/class_quake.tres",
-			"res://resources/skills/class_second_wind.tres",
-		],
+		"skills": ["res://resources/skills/class_shockwave.tres"],
 	},
 	# (2026-07-24) Traps moved off the physical line and became this class, per
 	# user. The physical line is now about arrows -- more of them, hitting more
@@ -83,17 +67,15 @@ const CLASSES := {
 		"physical_dmg_mult": 1.25,
 		"cooldown_mult": 1.15,
 		"vfx_color": Color(1.0, 0.78, 0.35, 0.95),  # amber -- matches the trap zone's own glow
-		"skills": [
-			"res://resources/skills/class_snare_trap.tres",
-			"res://resources/skills/class_rigged_trap.tres",
-			"res://resources/skills/class_siege_trap.tres",
-		],
+		"skills": ["res://resources/skills/class_snare_trap.tres"],
 	},
 }
-# Each class's "skills" array is its 3-tier ACTIVE class-skill line (index
-# 0/1/2 = tier 1/2/3), mirroring Player.fire_skills' tier-indexing convention.
-# Loaded lazily in apply_element_upgrade()'s CLASS branch, not preloaded --
-# only the picked class's skills ever load in a given run.
+# (2026-07-24) Each class now has ONE active skill, not a 3-tier chain that
+# swapped it wholesale -- per user, growth comes from repeatable pickup cards
+# (class_damage_boost / class_cooldown_boost) instead of new skills. Kept as an
+# ARRAY so the tier machinery every other line uses still applies unchanged.
+# Loaded lazily in apply_element_upgrade()'s CLASS branch -- only the picked
+# class's skill ever loads in a given run.
 
 
 static func get_value(class_id: String, key: String, default_value: float = 1.0) -> float:

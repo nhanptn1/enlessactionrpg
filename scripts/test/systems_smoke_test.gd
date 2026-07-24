@@ -1999,7 +1999,9 @@ func _assert_class_skill_progression() -> void:
 	# aren't on the same scale and a "drop" there is meaningless.
 	for class_id in CharacterClasses.CLASSES:
 		var paths: Array = CharacterClasses.CLASSES[class_id].get("skills", [])
-		_expect(paths.size() == 3, "%s should have a 3-tier line, got %d" % [class_id, paths.size()])
+		# (2026-07-24) One skill per class, not three. Growth moved to the
+		# repeatable class_damage_boost / class_cooldown_boost cards.
+		_expect(paths.size() == 1, "%s should have exactly one class skill, got %d" % [class_id, paths.size()])
 		var prev := {}
 		for i in paths.size():
 			var s: SkillData = load(paths[i])
@@ -2042,7 +2044,7 @@ func _assert_trapper_class() -> void:
 	# doesn't have -- the class would have fired literally nothing.
 	_expect(CharacterClasses.CLASSES.has("trapper"), "the Trapper class should exist")
 	var skills: Array = CharacterClasses.CLASSES["trapper"].get("skills", [])
-	_expect(skills.size() == 3, "Trapper needs a 3-tier line like every other class, got %d" % skills.size())
+	_expect(skills.size() == 1, "Trapper should have one class skill like every other class, got %d" % skills.size())
 	for path in skills:
 		var s: SkillData = load(path)
 		_expect(s != null, "Trapper skill %s failed to load" % path)
@@ -2081,22 +2083,23 @@ func _assert_trapper_class() -> void:
 	cd_probe.queue_free()
 	await get_tree().process_frame
 
-	# Only Trapper's own cards are ever offered to a Trapper.
-	for tier in [1, 2, 3]:
-		var card := _find_upgrade(popup, UpgradeResource.ElementType.CLASS, tier)
-		var offers := popup._get_offerable_upgrades(UpgradeResource.ElementType.CLASS)
-		for o in offers:
+	# Before the unlock, the only CLASS tier-up on offer must be Trapper's own --
+	# a Sniper's or Ranger's card reaching a Trapper is the failure this guards.
+	for o in popup._get_offerable_upgrades(UpgradeResource.ElementType.CLASS):
+		if o.tier >= 1:
 			_expect(o.required_class == "trapper", "a Trapper was offered %s (class %s)" % [o.id, o.required_class])
-		var own := _find_trapper_card(popup, tier)
-		_expect(own != null, "missing a Trapper tier-%d card" % tier)
-		if own != null:
-			player.apply_element_upgrade(own)
-			_expect(player.class_skill_level == tier, "class_skill_level should be %d" % tier)
+	var own := _find_trapper_card(popup, 1)
+	_expect(own != null, "missing the Trapper's class card")
+	if own != null:
+		player.apply_element_upgrade(own)
+		_expect(player.class_skill_level == 1, "class_skill_level should be 1")
 	_expect(player._current_class_skill != null and player._current_class_skill.fire_mode == SkillData.FireMode.TRAP_SHOT,
-		"a fully-climbed Trapper should have a trap as its active class skill")
-	# 0.3 + 0.7 across tiers 2 and 3, folding the old Volatile/Mastery steps.
+		"a Trapper should have a trap as its active class skill")
+	# (2026-07-24) Detonation used to accumulate across the old tiers 2-3
+	# (+0.3, +0.7). With one card those folded onto it, so the Trapper keeps its
+	# full blast rather than losing it with the tiers that carried it.
 	_expect(is_equal_approx(player.trap_detonate_mult, 1.0),
-		"Trapper tiers 2-3 should total +100%% detonate, got %s" % player.trap_detonate_mult)
+		"the Trapper's single card should carry the full +100%% detonate, got %s" % player.trap_detonate_mult)
 
 	# The fire path actually places a trap rather than silently doing nothing.
 	var dummy: EnemyBase = load("res://resources/enemies/slime_scout.tres").scene.instantiate()
@@ -2200,9 +2203,16 @@ func _assert_upgrade_card_integrity() -> void:
 		if u.tier == 0:
 			_expect(u.max_stacks > 0, "%s is repeatable (tier 0) but has no max_stacks -- its line could never finish" % f)
 		# Class gating, both directions.
-		if u.element == UpgradeResource.ElementType.CLASS:
+		if u.element == UpgradeResource.ElementType.CLASS and u.tier >= 1:
+			# (2026-07-24) Only tier-up CLASS cards are per-class exclusives.
+			# The tier-0 repeatables (class_damage_boost / class_cooldown_boost)
+			# are deliberately shared: they act on class_skill_dmg_mult and
+			# class_skill_cd_mult, which apply to whichever class skill is
+			# equipped, and only one class is ever active in a run. The offer
+			# logic's repeatable branch doesn't filter on required_class either,
+			# so demanding one here would fail a card that works correctly.
 			_expect(CharacterClasses.CLASSES.has(u.required_class),
-				"%s is a CLASS card whose required_class '%s' is not a real class" % [f, u.required_class])
+				"%s is a CLASS tier-up card whose required_class '%s' is not a real class" % [f, u.required_class])
 		else:
 			_expect(u.required_class == "", "%s is not a CLASS card but is pinned to class '%s'" % [f, u.required_class])
 
@@ -2737,10 +2747,47 @@ func _assert_class_skill_trees() -> void:
 	player.apply_element_upgrade(load("res://resources/upgrades/class_sniper_t1.tres"))
 	_expect(player.class_skill_level == 1 and player._current_class_skill.id == "class_power_shot")
 	_expect(not player.class_skill_timer.is_stopped(), "class skill timer should start on the tier-1 pick")
-	player.apply_element_upgrade(load("res://resources/upgrades/class_sniper_t2.tres"))
-	player.apply_element_upgrade(load("res://resources/upgrades/class_sniper_t3.tres"))
-	_expect(player.class_skill_level == 3 and player._current_class_skill.id == "class_railshot", "tier picks should swap the class skill wholesale")
-	_expect(popup._get_offerable_upgrades(UpgradeResource.ElementType.CLASS).is_empty(), "a maxed class tree (no repeatables) should offer nothing")
+	# (2026-07-24) One skill per class now, so there are no further tiers to
+	# climb -- growth comes from the two repeatable cards instead. Once the
+	# skill is unlocked the line must keep offering those rather than going
+	# silent, which is the whole point of the restructure.
+	var after_unlock := popup._get_offerable_upgrades(UpgradeResource.ElementType.CLASS)
+	_expect(not after_unlock.is_empty(), "an unlocked class line should still offer its repeatable cards")
+	for o in after_unlock:
+		_expect(o.tier == 0, "with one skill per class, anything offered after the unlock must be a repeatable, got tier %d" % o.tier)
+
+	# Both cards move their stat, and stop at the caps the user asked for:
+	# +40% damage and -30% cooldown.
+	var dmg_card: UpgradeResource = load("res://resources/upgrades/class_damage_boost.tres")
+	var cd_card: UpgradeResource = load("res://resources/upgrades/class_cooldown_boost.tres")
+	_expect(dmg_card.max_stacks == 5 and cd_card.max_stacks == 5, "both class cards should cap at 5 picks")
+	var level_before: int = player.class_skill_level
+	var wait_before: float = player.class_skill_timer.wait_time
+	for i in dmg_card.max_stacks:
+		player.apply_element_upgrade(dmg_card)
+	for i in cd_card.max_stacks:
+		player.apply_element_upgrade(cd_card)
+	_expect(is_equal_approx(player.class_skill_dmg_mult, 1.4),
+		"5 damage picks should total +40%%, got %s" % player.class_skill_dmg_mult)
+	_expect(is_equal_approx(player.class_skill_cd_mult, 0.7),
+		"5 cooldown picks should total -30%%, got %s" % player.class_skill_cd_mult)
+	# (2026-07-24) The stat moving is NOT enough -- asserting only that caught
+	# nothing when the timer refresh sat inside the tier-up block and the real
+	# cast interval never changed (measured: still 3.00s after five -6% picks).
+	# Check the effect, not the bookkeeping.
+	_expect(player.class_skill_timer.wait_time < wait_before,
+		"cooldown picks must actually shorten the class skill's cast interval (%.2fs -> %.2fs)" % [
+			wait_before, player.class_skill_timer.wait_time,
+		])
+	# ...and a repeatable must not advance the line past its only skill.
+	_expect(player.class_skill_level == level_before,
+		"repeatable class cards must not increment class_skill_level (%d -> %d)" % [level_before, player.class_skill_level])
+	# ...and once both are capped the line finally goes quiet, the same way a
+	# fully-finished element does.
+	player.repeatable_stacks[dmg_card.id] = dmg_card.max_stacks
+	player.repeatable_stacks[cd_card.id] = cd_card.max_stacks
+	_expect(popup._get_offerable_upgrades(UpgradeResource.ElementType.CLASS).is_empty(),
+		"a class line with its skill unlocked and both cards capped should offer nothing")
 
 	main.queue_free()
 	await get_tree().process_frame
@@ -2754,9 +2801,13 @@ func _assert_class_skill_trees() -> void:
 	add_child(jugg)
 	jugg.apply_class("juggernaut")
 	jugg.apply_element_upgrade(load("res://resources/upgrades/class_juggernaut_t1.tres"))
-	jugg.apply_element_upgrade(load("res://resources/upgrades/class_juggernaut_t2.tres"))
-	jugg.apply_element_upgrade(load("res://resources/upgrades/class_juggernaut_t3.tres"))
-	_expect(jugg._current_class_skill.id == "class_second_wind")
+	# (2026-07-24) Shockwave is the Juggernaut's single skill now. Second Wind's
+	# heal_on_cast was folded into it deliberately -- collapsing to tier 1 would
+	# otherwise have deleted the class's signature sustain outright, which is a
+	# feature loss rather than a simplification.
+	_expect(jugg._current_class_skill.id == "class_shockwave")
+	_expect(jugg._current_class_skill.heal_on_cast > 0.0,
+		"the Juggernaut's surviving skill must keep the heal that defines the class")
 
 	var slime: EnemyData = load("res://resources/enemies/slime_scout.tres")
 	var enemy: EnemyBase = slime.scene.instantiate()
