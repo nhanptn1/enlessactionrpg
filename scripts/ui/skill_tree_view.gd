@@ -36,6 +36,8 @@ const COLOR_LOCKED := Color(0.3, 0.3, 0.32, 1.0)
 # (2026-07-16) No longer a fixed tier number -- Physical grew to 6 tiers while
 # Fire/Frost/Lightning stayed at 4, so "capstone" is now whichever tier is
 # highest for that specific column (see show_all()), not a shared constant.
+const FUSION_BAND_TOP_GAP := 18.0  # breathing room between the last tier row and the fusion band
+const FUSION_LABEL_HEIGHT := 40.0  # two lines of wrapped name under each fusion node
 const CAPSTONE_NODE_SIZE := 74.0
 const CAPSTONE_CONTRAST_LIFT := 0.22  # lerp the node's state color toward white by this much
 
@@ -108,8 +110,86 @@ func show_all() -> void:
 			prev_center = center
 			has_prev = true
 
-	custom_minimum_size.y = TOP_PADDING + HEADER_HEIGHT + max_row_count * ROW_HEIGHT
+	var columns_bottom: float = TOP_PADDING + HEADER_HEIGHT + max_row_count * ROW_HEIGHT
+	custom_minimum_size.y = columns_bottom + _build_fusion_band(columns_bottom)
 	queue_redraw()
+
+
+# (2026-07-24) Fusions had no representation here at all. The Skills panel
+# always opens on this tree (see PauseMenu.open_skills_panel), the tree drew
+# only Physical/Fire/Frost/Lightning/class, and the fusion rows built in entry
+# 87 live on the OTHER tab -- which is hidden by default. So a player who
+# opened the panel saw no fusions anywhere and reasonably concluded the game
+# wasn't showing them ("the skill panel still not display the fusion skill").
+# The rows were never broken, just unreachable without knowing to tap a tab.
+#
+# Drawn as a horizontal BAND rather than a 6th column because a fusion has no
+# tiers to stack -- it is unlocked or not, then equipped or not, so a
+# column-of-nodes shape would misrepresent it as a progression.
+func _build_fusion_band(top_y: float) -> float:
+	var ids: Array = ElementFusions.FUSIONS.keys()
+	if ids.is_empty():
+		return 0.0
+	var header := Label.new()
+	header.text = "Elemental Fusions"
+	header.add_theme_font_size_override("font_size", 22)
+	header.add_theme_color_override("font_color", ElementFusions.FUSION_COLOR)
+	header.position = Vector2(0.0, top_y + FUSION_BAND_TOP_GAP)
+	header.size = Vector2(AREA_WIDTH, HEADER_HEIGHT)
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	add_child(header)
+
+	var slot_width: float = AREA_WIDTH / ids.size()
+	var node_y: float = top_y + FUSION_BAND_TOP_GAP + HEADER_HEIGHT + NODE_SIZE / 2.0
+	for i in ids.size():
+		var pid: String = ids[i]
+		var unlocked: bool = pid in _player.active_fusions
+		var active: bool = _player.active_fusion_id == pid
+		var center := Vector2(i * slot_width + slot_width / 2.0, node_y)
+		_build_fusion_node(pid, center, unlocked, active)
+	return FUSION_BAND_TOP_GAP + HEADER_HEIGHT + NODE_SIZE + FUSION_LABEL_HEIGHT
+
+
+func _build_fusion_node(pair_id: String, center: Vector2, unlocked: bool, active: bool) -> void:
+	var node := Panel.new()
+	var style := StyleBoxFlat.new()
+	# Same three-state language the tier nodes use: green = yours, gold =
+	# available/equipped, grey = locked.
+	style.bg_color = (COLOR_AVAILABLE if active else COLOR_PICKED) if unlocked else COLOR_LOCKED
+	style.corner_radius_top_left = int(NODE_SIZE / 2.0)
+	style.corner_radius_top_right = int(NODE_SIZE / 2.0)
+	style.corner_radius_bottom_left = int(NODE_SIZE / 2.0)
+	style.corner_radius_bottom_right = int(NODE_SIZE / 2.0)
+	node.add_theme_stylebox_override("panel", style)
+	node.size = Vector2(NODE_SIZE, NODE_SIZE)
+	node.position = center - Vector2(NODE_SIZE, NODE_SIZE) / 2.0
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(node)
+
+	var icon := TextureRect.new()
+	icon.texture = load(ElementFusions.icon_path(pair_id))
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.size = Vector2(NODE_SIZE, NODE_SIZE) * 0.78
+	icon.position = center - icon.size / 2.0
+	# Locked fusions show their art dimmed, so the player can see what they are
+	# working toward rather than a blank slot -- same treatment the stats tab uses.
+	icon.modulate = Color(1, 1, 1, 1) if unlocked else Color(1, 1, 1, 0.35)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(icon)
+
+	var label := Label.new()
+	label.text = ElementFusions.display_name(pair_id)
+	if active:
+		label.text += " (Active)"
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color", ElementFusions.FUSION_COLOR if unlocked else COLOR_LOCKED)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	label.size = Vector2(AREA_WIDTH / float(ElementFusions.FUSIONS.size()), FUSION_LABEL_HEIGHT)
+	label.position = Vector2(center.x - label.size.x / 2.0, center.y + NODE_SIZE / 2.0 + 4.0)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(label)
 
 
 func _tier_sorted_upgrades(element: int) -> Array[UpgradeResource]:

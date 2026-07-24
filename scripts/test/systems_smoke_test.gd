@@ -1208,6 +1208,25 @@ func _assert_skill_panel_shows_live_stats() -> void:
 	_expect(pause_menu.tree_view.visible and not pause_menu.skill_rows_container.visible, "switching back should restore the tree")
 	_expect(pause_menu.tree_tab.button_pressed and not pause_menu.stats_tab.button_pressed, "the tree tab should read as selected again")
 
+	# (2026-07-24) Fusions must be visible on the TREE tab, not only on the stats
+	# tab. User: "the skill panel still not display the fusion skill" -- the rows
+	# were building correctly all along, but only on the tab the panel does NOT
+	# open on, so a player never saw them. Asserting against the tree
+	# specifically is the whole point; checking "somewhere in the panel" would
+	# have passed throughout the entire time the bug existed.
+	var tree_labels := _all_label_text(pause_menu.tree_view)
+	_expect("Elemental Fusions" in tree_labels, "the skill tree must show a fusion section, got: %s" % tree_labels)
+	for pid in ElementFusions.FUSIONS:
+		_expect(ElementFusions.display_name(pid) in tree_labels,
+			"the skill tree should list the %s fusion" % ElementFusions.display_name(pid))
+	# An equipped fusion has to be distinguishable from a merely unlocked one.
+	player.active_fusions = ["fire_frost"]
+	player.active_fusion_id = "fire_frost"
+	pause_menu.open_skills_panel()
+	await get_tree().process_frame
+	_expect("(Active)" in _all_label_text(pause_menu.tree_view),
+		"an equipped fusion should be marked Active in the tree")
+
 	main.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -2763,3 +2782,21 @@ func _assert_class_skill_trees() -> void:
 	jugg.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+
+func _all_label_text(root: Node) -> String:
+	# Flattens every non-empty Label under a control into one string, so a test
+	# can assert what a built UI actually SAYS rather than poking at node paths
+	# that shift whenever the layout is rearranged.
+	var out: Array[String] = []
+	for n in _walk_controls(root):
+		if n is Label and n.text != "":
+			out.append(n.text)
+	return ", ".join(out)
+
+
+func _walk_controls(root: Node) -> Array:
+	var out: Array = [root]
+	for c in root.get_children():
+		out.append_array(_walk_controls(c))
+	return out
