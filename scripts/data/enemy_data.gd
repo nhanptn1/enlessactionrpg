@@ -24,3 +24,11 @@ class_name EnemyData
 # matters for entries in WaveManager.procedural_enemy_pool; irrelevant for
 # hand-authored waves, bosses, or minions.
 @export var role: String = "basic"
+# (2026-07-24) Whether this species flies. `role` couldn't express it -- the four
+# fliers are spread across three different roles (bat_swarm "swarm", stinger_wasp
+# "fast", armored_gargoyle "tank", cursed_wraith "basic") -- and the Skyfall wave
+# modifier needs to select exactly them. A flag on the data means a new flying
+# species opts in by setting one field, rather than by being remembered in a
+# hardcoded id list somewhere else. Defaults false, so every existing .tres that
+# doesn't mention it stays grounded.
+@export var flies: bool = false

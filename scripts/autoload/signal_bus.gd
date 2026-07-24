@@ -34,6 +34,11 @@ signal boss_mutation_announced(mutation_name: String)
 # either way (same contract as boss_mutation_announced above). HUD uses it to
 # show/hide the element-counter cycle reference. See boss_base.gd::AFFINITIES.
 signal boss_affinity_announced(affinity_id: String)
+# (2026-07-24) "" = a plain wave -- emitted once per wave either way, same
+# contract as boss_mutation_announced above, so the HUD can CLEAR a previous
+# wave's banner rather than letting it linger onto the next one. See
+# WaveModifiers and WaveManager._roll_wave_modifier().
+signal wave_modifier_announced(modifier_id: String)
 # (2026-07-22) Emitted once when a late-game elemental fusion unlocks (two
 # element lines both hit max tier) -- HUD shows a toast. See ElementFusions
 # and Player._maybe_unlock_fusions().

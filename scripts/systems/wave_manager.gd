@@ -121,6 +121,25 @@ const ELITE_CHANCE_GROWTH_PER_WAVE := 0.015
 # curve rather than adding to it.
 const ELITE_CHANCE_CEILING := 0.35
 
+# (2026-07-24) Per-wave modifiers (see wave_modifiers.gd). Start at 20 because
+# that's where the wave's *structure* finishes scaling -- count, concurrency and
+# spawn interval are all pegged from there, so it's exactly the point where
+# waves stop being able to distinguish themselves on their own.
+const WAVE_MODIFIER_START_WAVE := 20
+const WAVE_MODIFIER_CHANCE := 0.45  # not every wave -- a modifier that always fires is just the new baseline
+# Elite Guard doubles the wave's elite rate, which at the 35% ceiling would be
+# 70%. Clamped: even on an elite-themed wave, elites have to stay a thing you
+# can point at rather than simply what monsters look like now.
+const ELITE_CHANCE_WAVE_CEILING := 0.6
+# Blitz is allowed past SPEED_MULT_CEILING (that's its whole point) but not
+# arbitrarily far past it -- at 2.0 base x 1.45 this is what it reaches.
+const BLITZ_SPEED_CEILING := 2.9
+# Swarm pushes past both structural caps on purpose; these bound how far. The
+# spawn-interval floor exists so spawning can't outrun the frame; letting a
+# modifier halve it once is fine, letting it approach zero is not.
+const MIN_SPAWN_INTERVAL_FRACTION := 0.5
+const MAX_ACTIVE_MODIFIER_HEADROOM := 6
+
 signal wave_started(wave_number: int)
 signal wave_cleared(wave_number: int)
 
@@ -139,6 +158,7 @@ var _current_damage_mult := 1.0
 var _current_xp_override := -1
 var _current_visual_scale := 1.0
 var _current_elite_chance := ELITE_CHANCE
+var _current_wave_modifier_id := ""
 var _is_boss_wave := false
 var _alive_count := 0
 # Subset of _alive_count that's actually been spawned and is still alive on
@@ -185,6 +205,9 @@ func _start_next_wave() -> void:
 	# Resolved once per wave (like every other _current_* multiplier) rather than
 	# recomputed per spawn, so every monster in a wave rolls against the same odds.
 	_current_elite_chance = elite_chance_for_wave(wave_number)
+	# Rolled BEFORE _generate_wave() below, because a species-restricting
+	# modifier has to be known while the wave's enemy pool is being picked.
+	_current_wave_modifier_id = _roll_wave_modifier(wave_number)
 
 	if current_wave_index < waves.size():
 		_current_wave = waves[current_wave_index]
@@ -197,8 +220,12 @@ func _start_next_wave() -> void:
 	# touches generated waves since hand-authored spawn_counts are a fixed
 	# array baked into each wave's .tres, not worth mutating at runtime.
 	_current_hp_mult *= _get_modifier_mult("enemy_hp_mult")
+	_apply_wave_modifier_scaling()
 
 	wave_started.emit(wave_number)
+	# Emitted every wave, including with "" -- the HUD has to be able to CLEAR a
+	# previous wave's banner, exactly like boss_mutation_announced does.
+	SignalBus.wave_modifier_announced.emit(_current_wave_modifier_id)
 	SignalBus.wave_started.emit(wave_number, _is_boss_wave)
 	GameManager.set_play_state(_is_boss_wave)
 	_spawn_queue.clear()
@@ -266,8 +293,20 @@ const TANK_COUNT_SHARE := 0.12  # that species' population share of the wave, wh
 func _generate_wave(wave_number: int) -> WaveData:
 	var wave := WaveData.new()
 	wave.wave_number = wave_number
+	var species_filter: String = WaveModifiers.species_filter(_current_wave_modifier_id)
 	var type_count: int = mini(PROCEDURAL_TYPES_PER_WAVE, procedural_enemy_pool.size())
-	wave.enemy_pool = _pick_procedural_species(type_count)
+	if species_filter == "":
+		wave.enemy_pool = _pick_procedural_species(type_count)
+	else:
+		# Bypasses _pick_procedural_species()'s at-most-one-tank rule on purpose.
+		# That rule exists to stop a wave ACCIDENTALLY rolling several high-HP
+		# species at once (the "wave 6+ is all tanks, can't clear it" report);
+		# Vanguard is that same shape chosen deliberately, announced to the
+		# player, and paid for with a 0.55x count. Routing it through the guard
+		# would have produced a single tank species plus nothing else.
+		var filtered: Array[EnemyData] = _species_matching(species_filter)
+		filtered.shuffle()
+		wave.enemy_pool = filtered.slice(0, mini(type_count, filtered.size()))
 
 	var extra_waves := wave_number - waves.size()
 	var count: int = mini(_last_authored_count() + COUNT_SCALING_PER_WAVE * extra_waves, MAX_WAVE_MONSTER_COUNT)
@@ -275,12 +314,35 @@ func _generate_wave(wave_number: int) -> WaveData:
 	# (wave 6+); the boss-wave clamp just below re-clamps regardless, so this
 	# naturally doesn't inflate a boss wave's support-monster count.
 	count = mini(roundi(count * _get_modifier_mult("enemy_count_mult")), MAX_WAVE_MONSTER_COUNT)
+	count = maxi(roundi(count * WaveModifiers.get_value(_current_wave_modifier_id, "count_mult")), 1)
 	wave.is_boss_wave = wave_number % BOSS_WAVE_INTERVAL == 0
 	if wave.is_boss_wave:
 		count = clampi(roundi(count * BOSS_WAVE_MONSTER_MULT), BOSS_WAVE_MONSTER_MIN, BOSS_WAVE_MONSTER_MAX)
-	wave.spawn_counts = _split_count_favoring_non_tanks(count, wave.enemy_pool)
-	wave.spawn_interval = maxf(SPAWN_INTERVAL_FLOOR, _last_authored_interval() - SPAWN_INTERVAL_DECAY * extra_waves)
-	wave.max_active = mini(MAX_ACTIVE_CEILING, MAX_ACTIVE_BASE + extra_waves)
+	if species_filter == "":
+		wave.spawn_counts = _split_count_favoring_non_tanks(count, wave.enemy_pool)
+	else:
+		# Same reasoning as the pool pick above: the non-tank bias caps a tank
+		# species at TANK_COUNT_SHARE of the wave, which on a tanks-only wave
+		# would leave almost nothing to fight.
+		wave.spawn_counts = _split_count(count, wave.enemy_pool.size())
+	# (2026-07-24) The wave's OWN floor/ceiling are applied first, and the
+	# modifier then works from the already-clamped value with its own wider
+	# bound. Applying the relaxed bounds to every wave instead (the first cut of
+	# this, caught by _assert_wave_modifier_shapes_the_wave) was wrong twice
+	# over: by wave 23 the plain formulas are already past both caps, so Swarm
+	# changed nothing at exactly the waves it exists for -- and every ordinary
+	# wave silently gained faster spawns and a higher concurrent cap, moving
+	# baseline difficulty everywhere.
+	var base_interval: float = maxf(SPAWN_INTERVAL_FLOOR, _last_authored_interval() - SPAWN_INTERVAL_DECAY * extra_waves)
+	wave.spawn_interval = maxf(
+		SPAWN_INTERVAL_FLOOR * MIN_SPAWN_INTERVAL_FRACTION,
+		base_interval * WaveModifiers.get_value(_current_wave_modifier_id, "spawn_interval_mult"),
+	)
+	var base_active: int = mini(MAX_ACTIVE_CEILING, MAX_ACTIVE_BASE + extra_waves)
+	wave.max_active = mini(
+		MAX_ACTIVE_CEILING + MAX_ACTIVE_MODIFIER_HEADROOM,
+		base_active + int(WaveModifiers.get_value(_current_wave_modifier_id, "max_active_add", 0.0)),
+	)
 
 	# (2026-07-16) Scaled off extra_waves (wave 6 = extra_waves 1), not
 	# wave_number directly -- wave 6 used to jump straight from waves 1-5's
@@ -441,6 +503,61 @@ func _on_spawn_tick() -> void:
 		var cluster_center_x := randf_range(-spawner.spawn_width / 2.0, spawner.spawn_width / 2.0) + spawner.center_x
 		for _n in cluster_size:
 			_spawn_one(enemy_data, cluster_center_x + randf_range(-30.0, 30.0))
+
+
+func current_wave_modifier_id() -> String:
+	return _current_wave_modifier_id
+
+
+func _roll_wave_modifier(wave_number: int) -> String:
+	# Boss waves are excluded outright: the boss IS that wave's event, and
+	# stacking (say) Elite Guard on top of a boss plus its own mutation and
+	# affinity is three simultaneous surprises, which reads as noise rather than
+	# variety. Hand-authored waves 1-5 are excluded for the same reason waves
+	# 1-10 keep the base elite rate -- they're tuned, and they're where a new
+	# player is still learning the basics.
+	if wave_number < WAVE_MODIFIER_START_WAVE:
+		return ""
+	if wave_number % BOSS_WAVE_INTERVAL == 0:
+		return ""
+	if randf() >= WAVE_MODIFIER_CHANCE:
+		return ""
+	var candidates: Array = WaveModifiers.ids()
+	var picked: String = candidates[randi() % candidates.size()]
+	# A species-restricting modifier is only meaningful if the procedural pool
+	# actually contains those species -- otherwise the wave would come out empty.
+	# Falling back to no modifier keeps a pool change from silently producing a
+	# monsterless wave.
+	if WaveModifiers.species_filter(picked) != "" and _species_matching(WaveModifiers.species_filter(picked)).is_empty():
+		return ""
+	return picked
+
+
+func _species_matching(filter: String) -> Array[EnemyData]:
+	var out: Array[EnemyData] = []
+	for e in procedural_enemy_pool:
+		if filter == "flying" and e.flies:
+			out.append(e)
+		elif filter == "tank" and e.role == "tank":
+			out.append(e)
+	return out
+
+
+func _apply_wave_modifier_scaling() -> void:
+	# Applied AFTER the wave's own scaling and after the run modifier, so a wave
+	# modifier reads as "this wave, on top of everything else" rather than
+	# replacing the curve.
+	if _current_wave_modifier_id == "":
+		return
+	_current_hp_mult *= WaveModifiers.get_value(_current_wave_modifier_id, "hp_mult")
+	var speed_mult: float = WaveModifiers.get_value(_current_wave_modifier_id, "speed_mult")
+	if speed_mult != 1.0:
+		# Deliberately clamped to BLITZ_SPEED_CEILING rather than to
+		# SPEED_MULT_CEILING -- exceeding the latter for one wave is the point.
+		_current_speed_mult = minf(_current_speed_mult * speed_mult, BLITZ_SPEED_CEILING)
+	var elite_mult: float = WaveModifiers.get_value(_current_wave_modifier_id, "elite_chance_mult")
+	if elite_mult != 1.0:
+		_current_elite_chance = minf(_current_elite_chance * elite_mult, ELITE_CHANCE_WAVE_CEILING)
 
 
 func elite_chance_for_wave(wave_number: int) -> float:

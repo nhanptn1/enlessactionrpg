@@ -172,6 +172,8 @@ func _assert_save_roundtrip() -> void:
 	await _assert_lose_line()
 	_assert_elite_density_scales()
 	await _assert_elite_damage_mult_is_inert_on_the_player()
+	_assert_wave_modifiers()
+	_assert_wave_modifier_shapes_the_wave()
 	_assert_tutorial_hints()
 
 
@@ -1660,6 +1662,145 @@ func _assert_tutorial_hints() -> void:
 
 	SaveManager.seen_hints = saved
 	SaveManager.save_to_disk()
+
+
+func _assert_wave_modifiers() -> void:
+	# (2026-07-24) Per-wave composition events, the completion of entry 94's
+	# finding: every scaling lever caps by wave 49, so without these, wave 80 is
+	# wave 50 exactly. Each check below is a way this can silently stop working
+	# while still "running".
+	for id in WaveModifiers.ids():
+		_expect(WaveModifiers.display_name(id) != "", "%s needs a display name for the HUD banner" % id)
+		_expect(WaveModifiers.description(id) != "", "%s needs a description for its toast" % id)
+	_expect(WaveModifiers.ids().size() == 5, "expected the 5 designed modifiers, got %d" % WaveModifiers.ids().size())
+
+	# The two species-restricting modifiers must actually match species, or they
+	# would roll and then produce an empty wave.
+	var wm := WaveManager.new()
+	wm.procedural_enemy_pool = []
+	for id in ["slime_scout", "goblin_runner", "bat_swarm", "stinger_wasp",
+			"armored_gargoyle", "cursed_wraith", "stone_golem", "armored_brute",
+			"shield_skeleton", "skeleton_soldier", "wolf_beast"]:
+		wm.procedural_enemy_pool.append(load("res://resources/enemies/%s.tres" % id))
+	var fliers: Array = wm._species_matching("flying")
+	var tanks: Array = wm._species_matching("tank")
+	_expect(fliers.size() >= 3, "Skyfall needs real flying species to pick from, found %d" % fliers.size())
+	_expect(tanks.size() >= 3, "Vanguard needs real tank species to pick from, found %d" % tanks.size())
+	for f in fliers:
+		_expect(f.flies, "%s matched the flying filter without the flies flag" % f.resource_path)
+	# The flag has to be data, not a coincidence of role -- the four fliers span
+	# three different roles, which is exactly why `role` couldn't express this.
+	var flier_roles: Dictionary = {}
+	for f in fliers:
+		flier_roles[f.role] = true
+	_expect(flier_roles.size() >= 2, "the flying flag should cut across roles, not duplicate one")
+
+	# Boss waves and the early game must never roll one.
+	for w in [1, 5, 11, 19]:
+		_expect(wm._roll_wave_modifier(w) == "", "wave %d must not roll a modifier (before the start wave)" % w)
+	for w in [20, 30, 40, 50, 100]:
+		if w % WaveManager.BOSS_WAVE_INTERVAL == 0:
+			_expect(wm._roll_wave_modifier(w) == "", "boss wave %d must never roll a modifier" % w)
+
+	# Over many rolls past the start wave, modifiers appear at roughly the
+	# declared rate and every one of the five is reachable.
+	seed(9876)
+	var seen: Dictionary = {}
+	var rolled := 0
+	var attempts := 3000
+	for i in attempts:
+		var got: String = wm._roll_wave_modifier(23)  # 23: past the start, not a boss wave
+		if got != "":
+			rolled += 1
+			seen[got] = true
+	var rate: float = float(rolled) / float(attempts)
+	_expect(absf(rate - WaveManager.WAVE_MODIFIER_CHANCE) < 0.05,
+		"modifiers should fire near %s of eligible waves, observed %s" % [WaveManager.WAVE_MODIFIER_CHANCE, rate])
+	_expect(seen.size() == 5, "all 5 modifiers must be reachable, only saw %d: %s" % [seen.size(), seen.keys()])
+
+	# Blitz is the one thing allowed past the permanent speed ceiling -- and it
+	# must still be bounded, or it reintroduces the wave-30 shock bug (entry 80)
+	# with no upper limit at all.
+	wm._current_speed_mult = WaveManager.SPEED_MULT_CEILING
+	wm._current_hp_mult = 1.0
+	wm._current_elite_chance = WaveManager.ELITE_CHANCE_CEILING
+	wm._current_wave_modifier_id = "blitz"
+	wm._apply_wave_modifier_scaling()
+	_expect(wm._current_speed_mult > WaveManager.SPEED_MULT_CEILING,
+		"Blitz is supposed to exceed the permanent speed ceiling for its one wave")
+	_expect(wm._current_speed_mult <= WaveManager.BLITZ_SPEED_CEILING + 0.0001,
+		"Blitz must stay under BLITZ_SPEED_CEILING, got %s" % wm._current_speed_mult)
+
+	# Elite Guard doubles elites but must not turn the whole wave gold.
+	wm._current_speed_mult = 1.0
+	wm._current_elite_chance = WaveManager.ELITE_CHANCE_CEILING
+	wm._current_wave_modifier_id = "elite_guard"
+	wm._apply_wave_modifier_scaling()
+	_expect(wm._current_elite_chance > WaveManager.ELITE_CHANCE_CEILING, "Elite Guard should raise the elite rate")
+	_expect(wm._current_elite_chance <= WaveManager.ELITE_CHANCE_WAVE_CEILING + 0.0001,
+		"Elite Guard must stay under the per-wave elite ceiling, got %s" % wm._current_elite_chance)
+
+	# A plain wave must be left completely alone -- the modifier system has to be
+	# invisible when it doesn't fire.
+	wm._current_hp_mult = 3.0
+	wm._current_speed_mult = 1.5
+	wm._current_elite_chance = 0.2
+	wm._current_wave_modifier_id = ""
+	wm._apply_wave_modifier_scaling()
+	_expect(is_equal_approx(wm._current_hp_mult, 3.0) and is_equal_approx(wm._current_speed_mult, 1.5)
+		and is_equal_approx(wm._current_elite_chance, 0.2), "a wave with no modifier must be untouched")
+
+	wm.free()
+
+
+func _assert_wave_modifier_shapes_the_wave() -> void:
+	# The definitions being right doesn't mean _generate_wave() honours them.
+	# Drives real wave generation per modifier and checks the wave that comes out.
+	var wm := WaveManager.new()
+	wm.procedural_enemy_pool = []
+	for id in ["slime_scout", "goblin_runner", "bat_swarm", "stinger_wasp",
+			"armored_gargoyle", "cursed_wraith", "stone_golem", "armored_brute",
+			"shield_skeleton", "skeleton_soldier", "wolf_beast"]:
+		wm.procedural_enemy_pool.append(load("res://resources/enemies/%s.tres" % id))
+	wm.waves = [load("res://resources/waves/wave_05.tres")]
+
+	wm._current_wave_modifier_id = ""
+	var plain: WaveData = wm._generate_wave(23)
+	var plain_count: int = _wave_total(plain)
+
+	wm._current_wave_modifier_id = "skyfall"
+	var sky: WaveData = wm._generate_wave(23)
+	_expect(not sky.enemy_pool.is_empty(), "Skyfall must still produce a populated wave")
+	for e in sky.enemy_pool:
+		_expect(e.flies, "Skyfall put a non-flying species (%s) in the wave" % e.resource_path)
+
+	wm._current_wave_modifier_id = "vanguard"
+	var van: WaveData = wm._generate_wave(23)
+	_expect(not van.enemy_pool.is_empty(), "Vanguard must still produce a populated wave")
+	for e in van.enemy_pool:
+		_expect(e.role == "tank", "Vanguard put a non-tank species (%s) in the wave" % e.resource_path)
+	# Fewer bodies than a plain wave -- and crucially NOT gutted by the non-tank
+	# population bias, which caps a tank species at TANK_COUNT_SHARE and would
+	# leave a tanks-only wave nearly empty if it were still applied.
+	var van_count: int = _wave_total(van)
+	_expect(van_count < plain_count, "Vanguard should field fewer monsters than a plain wave (%d vs %d)" % [van_count, plain_count])
+	_expect(van_count > plain_count / 4, "Vanguard's count should be reduced, not gutted (%d vs %d)" % [van_count, plain_count])
+
+	wm._current_wave_modifier_id = "swarm"
+	var swarm: WaveData = wm._generate_wave(23)
+	_expect(_wave_total(swarm) > plain_count, "Swarm should field more monsters than a plain wave")
+	_expect(swarm.max_active > plain.max_active, "Swarm should raise the concurrent cap")
+	_expect(swarm.spawn_interval < plain.spawn_interval, "Swarm should shorten the spawn interval")
+	_expect(swarm.spawn_interval > 0.0, "spawn interval must stay positive")
+
+	wm.free()
+
+
+func _wave_total(wave: WaveData) -> int:
+	var total := 0
+	for c in wave.spawn_counts:
+		total += c
+	return total
 
 
 func _assert_elite_density_scales() -> void:

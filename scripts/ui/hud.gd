@@ -51,6 +51,9 @@ var _fusion_rows: Dictionary = {}
 var _fusion_rows_box: VBoxContainer = null
 # One-time onboarding hints, shown once ever (persisted via SaveManager).
 # Queued as they trigger and shown one at a time; see _queue_hint().
+# Kept so the wave-modifier handler can rewrite the label without re-deriving
+# the number -- it fires just after wave_started, which is what supplies it.
+var _current_wave_number := 0
 var _hint_queue: Array[String] = []
 var _hint_showing := false
 var _hint_token := 0  # bumped on every show/dismiss so a stale auto-dismiss timer no-ops
@@ -105,6 +108,7 @@ func _ready() -> void:
 	SignalBus.boss_hp_changed.connect(_on_boss_hp_changed)
 	SignalBus.boss_mutation_announced.connect(_on_boss_mutation_announced)
 	SignalBus.boss_affinity_announced.connect(_on_boss_affinity_announced)
+	SignalBus.wave_modifier_announced.connect(_on_wave_modifier_announced)
 	SignalBus.fusion_unlocked.connect(_on_fusion_unlocked)
 	SignalBus.boss_entrance.connect(_on_boss_entrance)
 	# Touch/mobile-friendly entry point for pausing -- the "pause" input
@@ -349,7 +353,45 @@ func _on_class_skill_changed(skill: SkillData) -> void:
 
 
 func _on_wave_started(wave_number: int) -> void:
+	_current_wave_number = wave_number
 	wave_label.text = "Wave %d" % wave_number
+
+
+func _on_wave_modifier_announced(modifier_id: String) -> void:
+	# (2026-07-24) Two surfaces, deliberately. The wave LABEL keeps the name up
+	# for the whole wave, so a player who looks away can still find out why
+	# everything is flying; the toast makes sure they notice it starting. Fires
+	# with "" on a plain wave too, which is what resets the label -- otherwise a
+	# modifier name would linger onto the following wave (the exact bug the boss
+	# label comment below already documents for mutations).
+	if modifier_id == "":
+		wave_label.text = "Wave %d" % _current_wave_number
+		return
+	var name: String = WaveModifiers.display_name(modifier_id)
+	wave_label.text = "Wave %d — %s" % [_current_wave_number, name.to_upper()]
+
+	var toast := Label.new()
+	toast.text = "%s\n%s" % [name.to_upper(), WaveModifiers.description(modifier_id)]
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	toast.autowrap_mode = TextServer.AUTOWRAP_WORD
+	toast.add_theme_font_size_override("font_size", 30)
+	toast.add_theme_color_override("font_color", Color(0.72, 0.88, 1.0))
+	toast.add_theme_color_override("font_outline_color", Color(0.04, 0.08, 0.16))
+	toast.add_theme_constant_override("outline_size", 8)
+	toast.anchor_left = 0.5
+	toast.anchor_right = 0.5
+	toast.anchor_top = 0.28
+	toast.anchor_bottom = 0.28
+	toast.offset_left = -220.0
+	toast.offset_right = 220.0
+	toast.offset_top = -60.0
+	toast.offset_bottom = 60.0
+	add_child(toast)
+	var tween := create_tween()
+	tween.tween_interval(1.9)
+	tween.tween_property(toast, "modulate:a", 0.0, 0.7)
+	tween.tween_callback(toast.queue_free)
 
 
 func _on_signal_bus_wave_started(_wave_number: int, is_boss: bool) -> void:

@@ -19,3 +19,4 @@ movement_behavior = ExtResource("3")
 attack_behavior = ExtResource("4")
 drop_chance = 0.2
 role = "tank"
+flies = true
