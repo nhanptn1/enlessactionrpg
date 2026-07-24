@@ -9,7 +9,13 @@ const BOSS_WAVE_INTERVAL := 10
 # from multiple simultaneous sources (basic line upgrades, crit, up to 3
 # independently-firing elemental skills) while this was the only thing
 # scaling enemies back up.
-const HP_SCALING_PER_WAVE := 0.25
+# (2026-07-24) 0.25 -> 0.30, and now applied from wave 1 rather than only to
+# generated waves 6+. User playtested waves 1-13 and reported them "very easy",
+# and waves 1-5 were running at a FLAT 1.0x -- no HP scaling whatsoever across
+# most of what they played. A single formula from wave 1 also removes the
+# wave-5-to-6 discontinuity that the old special case created; ramping the
+# authored waves separately would have made wave 6 a step DOWN.
+const HP_SCALING_PER_WAVE := 0.30
 const HP_MULT_CEILING := 12.0
 const SPEED_SCALING_PER_WAVE := 0.03
 # (2026-07-22) Speed used to climb forever while HP was capped at
@@ -27,8 +33,8 @@ const SPEED_MULT_CEILING := 2.0
 # 40 (wave 5's new total) + 10*extra_waves hits the plan's wave 6-9 targets
 # (50/60/70/80) exactly, then the ceiling below caps further growth at the
 # plan's stated "late game: 100 monsters maximum."
-const COUNT_SCALING_PER_WAVE := 10
-const MAX_WAVE_MONSTER_COUNT := 100
+const COUNT_SCALING_PER_WAVE := 14  # (2026-07-24) 10 -> 14, per playtest: waves 1-13 were "very easy"
+const MAX_WAVE_MONSTER_COUNT := 160  # (2026-07-24) 100 -> 160 alongside the steeper per-wave growth
 const SPAWN_INTERVAL_DECAY := 0.03
 const SPAWN_INTERVAL_FLOOR := 0.35
 # (2026-07-17) Active-on-screen cap for generated waves -- plan's own table
@@ -36,8 +42,8 @@ const SPAWN_INTERVAL_FLOOR := 0.35
 # indefinitely. 8+extra_waves clamped to 15 tracks that closely without
 # needing a literal per-wave lookup (hand-authored waves 1-5 set their own
 # max_active directly in their .tres, matching the plan's 5/6/6/7/8 table).
-const MAX_ACTIVE_CEILING := 15
-const MAX_ACTIVE_BASE := 8
+const MAX_ACTIVE_CEILING := 24  # (2026-07-24) 15 -> 24: more on screen at once. Measured safe -- 150 concurrent enemies held 60fps with no frame drift
+const MAX_ACTIVE_BASE := 10  # (2026-07-24) 8 -> 10
 # (2026-07-17) 0.5->0.2 (regular-monster share) plus a direct clamp -- the
 # plan's own target is "boss + 10 to 25 support monsters" regardless of how
 # late the boss cycle is, but the generated count formula above keeps growing
@@ -54,7 +60,7 @@ const BOSS_WAVE_MONSTER_MAX := 25
 # lines, fusions, capstones, ultimate), so the boss health pool had fallen
 # behind -- the per-cycle growth is raised too so later bosses keep pace rather
 # than only the first one feeling right.
-const BOSS_HP_MULT_BASE := 140.0
+const BOSS_HP_MULT_BASE := 700.0  # (2026-07-24) 140 -> 700, a straight x5 per user: bosses were dying too fast
 const BOSS_HP_MULT_GROWTH_PER_CYCLE := 0.35
 const BOSS_DAMAGE_MULT := 2.0
 const BOSS_XP_REWARD := 100  # (2026-07-16) 200->100, halved alongside every regular enemy's xp_reward
@@ -193,12 +199,14 @@ func _start_next_wave() -> void:
 	var wave_number := current_wave_index + 1
 	_is_boss_wave = wave_number % BOSS_WAVE_INTERVAL == 0
 
-	# (2026-07-16, revised) Hand-authored waves 1-5 are back to a flat 1.0x --
-	# an earlier fix here applied the wave-number scaling formula from wave 1
-	# onward to smooth out the wave-6 cliff, but that also pulled waves 2-5's
-	# HP up to as much as 2.0x, which is what actually made "wave 1-5 too hard
-	# with melee swarms" worse. Waves 1-5 were already hand-tuned assuming a
-	# flat 1.0x, so leave them alone; the cliff is fixed differently below.
+	# (2026-07-24) Hand-authored waves 1-5 used to run at a FLAT 1.0x HP while
+	# only generated waves 6+ scaled. That was a deliberate 2026-07-16 decision
+	# ("waves 1-5 were hand-tuned assuming 1.0x") made back when the early game
+	# read as too hard -- but the player has since gained a great deal (the
+	# damage fixes, the reworked physical line, Lightning's repaired DOT), and a
+	# real playtest of waves 1-13 came back "very easy". Scaling now runs from
+	# wave 1 on one formula, which also removes the wave-5-to-6 discontinuity
+	# the special case created rather than papering over it.
 	_current_damage_mult = 1.0
 	_current_xp_override = -1
 	_current_visual_scale = 1.0
@@ -211,8 +219,10 @@ func _start_next_wave() -> void:
 
 	if current_wave_index < waves.size():
 		_current_wave = waves[current_wave_index]
-		_current_hp_mult = 1.0
-		_current_speed_mult = 1.0
+		# Same curve the generated waves use (see _generate_wave), just applied
+		# to the authored ones too so wave 5 -> 6 is continuous.
+		_current_hp_mult = hp_mult_for_wave(wave_number)
+		_current_speed_mult = speed_mult_for_wave(wave_number)
 	else:
 		_current_wave = _generate_wave(wave_number)
 	# (2026-07-17) Bounty Hunter run modifier -- applies to every wave
@@ -344,14 +354,25 @@ func _generate_wave(wave_number: int) -> WaveData:
 		base_active + int(WaveModifiers.get_value(_current_wave_modifier_id, "max_active_add", 0.0)),
 	)
 
-	# (2026-07-16) Scaled off extra_waves (wave 6 = extra_waves 1), not
-	# wave_number directly -- wave 6 used to jump straight from waves 1-5's
-	# flat 1.0x to 1.0 + HP_SCALING_PER_WAVE*(6-1) = 2.25x in a single step,
-	# a hard difficulty wall. Starting the ramp fresh at wave 6 (1.25x) and
-	# climbing from there removes the cliff without touching waves 1-5.
-	_current_hp_mult = minf(1.0 + HP_SCALING_PER_WAVE * extra_waves, HP_MULT_CEILING)
-	_current_speed_mult = minf(1.0 + SPEED_SCALING_PER_WAVE * extra_waves, SPEED_MULT_CEILING)
+	# (2026-07-24) Was scaled off extra_waves (wave 6 = 1) specifically so it
+	# restarted the ramp after waves 1-5's flat 1.0x, avoiding a cliff at wave 6.
+	# Now that the authored waves scale on the same curve there is no cliff to
+	# avoid, so both use wave_number directly and the two paths agree by
+	# construction rather than by two formulas kept in step by hand.
+	_current_hp_mult = hp_mult_for_wave(wave_number)
+	_current_speed_mult = speed_mult_for_wave(wave_number)
 	return wave
+
+
+# Public so the difficulty curve can be checked directly in tests rather than
+# inferred from spawned enemies, and so the authored and generated wave paths
+# cannot drift apart.
+func hp_mult_for_wave(wave_number: int) -> float:
+	return minf(1.0 + HP_SCALING_PER_WAVE * float(wave_number - 1), HP_MULT_CEILING)
+
+
+func speed_mult_for_wave(wave_number: int) -> float:
+	return minf(1.0 + SPEED_SCALING_PER_WAVE * float(wave_number - 1), SPEED_MULT_CEILING)
 
 
 func _split_count(total: int, bucket_count: int) -> Array[int]:

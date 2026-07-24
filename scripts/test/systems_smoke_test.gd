@@ -247,7 +247,18 @@ func _assert_wave_scale() -> void:
 	var wave6_total := 0
 	for c in wave6.spawn_counts:
 		wave6_total += c
-	_expect(wave6_total == 50, "wave 6 should total 50 monsters per the plan's ramp, got %d" % wave6_total)
+	# (2026-07-24) Was a hardcoded 50 from the original plan's ramp. After the
+	# difficulty buff (playtest: waves 1-13 "very easy") the ramp is steeper and
+	# starts from a bigger wave 5, so pin the RELATIONSHIP rather than a literal:
+	# wave 6 continues from the last authored wave's own total.
+	var authored_total := 0
+	for c in wm.waves[wm.waves.size() - 1].spawn_counts:
+		authored_total += c
+	_expect(wave6_total == authored_total + WaveManager.COUNT_SCALING_PER_WAVE,
+		"wave 6 should continue from wave 5's total (%d) by one step (%d), got %d" % [
+			authored_total, WaveManager.COUNT_SCALING_PER_WAVE, wave6_total,
+		])
+	_expect(wave6_total > 50, "the buffed ramp should put wave 6 above its old 50, got %d" % wave6_total)
 
 	var boss_wave: WaveData = wm._generate_wave(10)
 	var boss_total := 0
@@ -1949,8 +1960,21 @@ func _assert_trapper_class() -> void:
 	# The class's declared cooldown tradeoff has to actually reach the player --
 	# apply_class() previously read no cooldown_mult key at all, so a class
 	# declaring one would have been silently inert.
-	_expect(player.cooldown_mult > 1.0,
-		"Trapper's slower-attacks tradeoff should raise cooldown_mult, got %s" % player.cooldown_mult)
+	#
+	# (2026-07-24) Checked as a RELATIVE change on a standalone player, not as
+	# `cooldown_mult > 1.0` on the live one: the quickdraw meta bonus and a
+	# cooldown run modifier both push the value below 1.0 before the class
+	# multiplies it, so the absolute form failed for reasons that had nothing to
+	# do with the class working. Caught by the difficulty-buff run.
+	var cd_probe: Player = load("res://scenes/player/Player.tscn").instantiate()
+	add_child(cd_probe)
+	cd_probe.active_run_modifier_id = ""
+	var cd_before: float = cd_probe.cooldown_mult
+	cd_probe.apply_class("trapper")
+	_expect(cd_probe.cooldown_mult > cd_before,
+		"Trapper's slower-attacks tradeoff should raise cooldown_mult (%s -> %s)" % [cd_before, cd_probe.cooldown_mult])
+	cd_probe.queue_free()
+	await get_tree().process_frame
 
 	# Only Trapper's own cards are ever offered to a Trapper.
 	for tier in [1, 2, 3]:
