@@ -65,6 +65,73 @@ const SUPERCONDUCTOR_ARC_SPEED := 15.0
 # the extra frame is the payoff. Drawn unrotated -- the frames build
 # left-to-right but the final blast (which is what actually reads at speed) is
 # symmetric, so a rotation would only fight the explosion's own shape.
+# (2026-07-24) Per-class impact art, from the user-supplied class-skill sheets.
+# Before this every class shared one procedural coloured flash, so a Sniper's
+# heavy single shot and a Ranger's volley landed identically apart from hue.
+# Each class now resolves to its own burst; a class with no sheet yet falls back
+# to the flash rather than erroring, so Juggernaut and Trapper keep working
+# until their art arrives.
+const CLASS_BURST_FRAME_PATHS := {
+	"ranger": ["res://art/vfx/class_ranger_01.png", "res://art/vfx/class_ranger_05.png"],
+	"sniper": ["res://art/vfx/class_sniper_04.png"],
+	"elementalist": ["res://art/vfx/class_elementalist_04.png"],
+}
+const CLASS_BURST_SPEED := 14.0
+static var _class_burst_frames: Dictionary = {}
+
+
+# (2026-07-24) Real arc art for a chain jump, where chain_bolt() draws a
+# procedural jagged line. Only the Elementalist has arc art so far; anything
+# else keeps the procedural bolt, which is why this is a lookup rather than a
+# replacement of chain_bolt().
+const CLASS_CHAIN_ARC := {
+	"elementalist": "res://art/vfx/class_elementalist_02.png",
+}
+const CHAIN_ARC_FADE := 0.22
+static var _class_chain_arc_tex: Dictionary = {}
+
+
+static func has_class_chain_arc(class_id: String) -> bool:
+	return CLASS_CHAIN_ARC.has(class_id)
+
+
+static func class_chain_arc(class_id: String, from_pos: Vector2, to_pos: Vector2, host: Node) -> void:
+	if not CLASS_CHAIN_ARC.has(class_id) or not is_instance_valid(host):
+		return
+	if not _class_chain_arc_tex.has(class_id):
+		_class_chain_arc_tex[class_id] = load(CLASS_CHAIN_ARC[class_id])
+	var tex: Texture2D = _class_chain_arc_tex[class_id]
+	var sprite := Sprite2D.new()
+	sprite.texture = tex
+	sprite.centered = true
+	sprite.global_position = (from_pos + to_pos) / 2.0
+	sprite.rotation = (to_pos - from_pos).angle()
+	# Stretched along the jump so the arc actually spans the two enemies rather
+	# than sitting at a fixed size between them; height is scaled by the same
+	# factor, capped so a long jump doesn't produce an absurdly fat bolt.
+	var span: float = maxf(from_pos.distance_to(to_pos), 1.0)
+	var sx: float = span / float(tex.get_width())
+	sprite.scale = Vector2(sx, minf(sx, 1.0))
+	host.get_tree().current_scene.add_child(sprite)
+	var tween := sprite.create_tween()
+	tween.tween_property(sprite, "modulate:a", 0.0, CHAIN_ARC_FADE)
+	tween.tween_callback(sprite.queue_free)
+
+
+static func has_class_burst(class_id: String) -> bool:
+	return CLASS_BURST_FRAME_PATHS.has(class_id)
+
+
+static func class_burst(class_id: String, pos: Vector2, radius: float, host: Node) -> void:
+	if not CLASS_BURST_FRAME_PATHS.has(class_id):
+		return
+	if not _class_burst_frames.has(class_id):
+		_class_burst_frames[class_id] = _build_burst_frames(
+			CLASS_BURST_FRAME_PATHS[class_id], CLASS_BURST_SPEED
+		)
+	_play_burst_animation(_class_burst_frames[class_id], pos, radius, host)
+
+
 const OVERLOAD_BURST_FRAME_PATHS := [
 	"res://art/vfx/overload_burst_01.png",
 	"res://art/vfx/overload_burst_02.png",

@@ -22,6 +22,10 @@ var burst_vfx_id: String = ""  # "" = element-default burst look (see SkillData.
 var homing_target: Node2D = null
 var impact_flash_color: Color = Color(0, 0, 0, 0)  # a==0 = off; a bright visual-only flash per hit (class-skill highlight), no splash damage
 var impact_flash_radius: float = 0.0
+# (2026-07-24) Which class fired this, so the hit can resolve to that class's
+# own impact art instead of the shared procedural flash. "" = not a class shot,
+# or a class whose art hasn't arrived yet -- both fall back to the flash.
+var impact_class_id: String = ""
 # (2026-07-24) true only for boss-fired shots at the player. Player damage is a
 # flat 1 HP per hit except from a boss, and a boss's arrows have to count as
 # boss damage just like its melee does -- see player.gd::take_boss_damage().
@@ -43,7 +47,7 @@ func _ready() -> void:
 		_base_visual_scale = get_node("Visual").scale
 
 
-func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE, p_status_rolls: Array[Dictionary] = [], p_burst_radius: float = 0.0, p_chain_count: int = 0, p_visual_scale: float = 1.0, p_burst_vfx_id: String = "", p_homing_target: Node2D = null, p_impact_flash_color: Color = Color(0, 0, 0, 0), p_impact_flash_radius: float = 0.0, p_weighted: bool = false) -> void:
+func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE, p_status_rolls: Array[Dictionary] = [], p_burst_radius: float = 0.0, p_chain_count: int = 0, p_visual_scale: float = 1.0, p_burst_vfx_id: String = "", p_homing_target: Node2D = null, p_impact_flash_color: Color = Color(0, 0, 0, 0), p_impact_flash_radius: float = 0.0, p_weighted: bool = false, p_impact_class_id: String = "") -> void:
 	direction = p_direction
 	speed = p_speed
 	damage = p_damage
@@ -62,6 +66,7 @@ func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position:
 	# keeps the previous life's class glow.
 	impact_flash_color = p_impact_flash_color
 	impact_flash_radius = p_impact_flash_radius
+	impact_class_id = p_impact_class_id  # pooled reuse -- must reset every activation
 	weighted = p_weighted
 	global_position = p_position
 	rotation = direction.angle()
@@ -120,7 +125,11 @@ func _on_body_entered(body: Node) -> void:
 		for roll in status_rolls:
 			if randf() < roll["chance"]:
 				body.apply_status(roll["element"], roll["duration"])
-	if impact_flash_color.a > 0.0:
+	if ImpactVFX.has_class_burst(impact_class_id):
+		# Real per-class impact art beats the generic tinted flash -- see
+		# ImpactVFX.CLASS_BURST_FRAME_PATHS.
+		ImpactVFX.class_burst(impact_class_id, body.global_position, maxf(impact_flash_radius, 40.0), self)
+	elif impact_flash_color.a > 0.0:
 		# Visual-only pop on each enemy hit (every pierce), no damage of its own.
 		ImpactVFX.flash_burst(body.global_position, impact_flash_radius, impact_flash_color, self)
 	if burst_radius > 0.0:
@@ -173,7 +182,10 @@ func _apply_chain(from_body: Node) -> void:
 			return
 		_already_hit.append(next)
 		var col := _chain_color()
-		ImpactVFX.chain_bolt(last.global_position, next.global_position, col, self)
+		if ImpactVFX.has_class_chain_arc(impact_class_id):
+			ImpactVFX.class_chain_arc(impact_class_id, last.global_position, next.global_position, self)
+		else:
+			ImpactVFX.chain_bolt(last.global_position, next.global_position, col, self)
 		ImpactVFX.spark_burst(next.global_position, ImpactVFX.CHAIN_SPARK_BURST_RADIUS, self, col)
 		next.take_damage(damage, _shot_element())
 		if next.has_method("apply_status"):
@@ -195,6 +207,11 @@ const CHAIN_COLOR_LIGHTNING := Color(0.75, 0.4, 1.0, 0.9)  # unchanged from the 
 
 
 func _chain_color() -> Color:
+	# (2026-07-24) A class shot carries no element, so it would otherwise fall to
+	# the physical silver -- wrong for the Elementalist, whose whole identity
+	# (and supplied art) is a violet chaining bolt. Class colour wins when set.
+	if impact_class_id != "":
+		return CharacterClasses.get_vfx_color(impact_class_id)
 	match _shot_element():
 		StatusEffects.LIGHTNING:
 			return CHAIN_COLOR_LIGHTNING

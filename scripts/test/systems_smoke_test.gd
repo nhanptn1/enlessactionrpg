@@ -181,6 +181,7 @@ func _assert_save_roundtrip() -> void:
 	_assert_wave_modifier_shapes_the_wave()
 	await _assert_upgrade_card_integrity()
 	await _assert_physical_path_shape()
+	await _assert_class_vfx_wiring()
 	_assert_class_skill_progression()
 	await _assert_trapper_class()
 	_assert_tutorial_hints()
@@ -1981,6 +1982,67 @@ func _assert_physical_path_shape() -> void:
 		_expect(not ("chain" in lvl_popup._eligible_upgrade_ids()),
 			"+1 Chain must stop being offered once the chain count is capped")
 
+	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_class_vfx_wiring() -> void:
+	# (2026-07-24) Per-class impact art from the supplied class-skill sheets.
+	# Before this every class shared one procedural tinted flash, so a Sniper's
+	# heavy single shot and a Ranger's volley landed identically apart from hue.
+	# Guards the two ways this silently reverts: a frame path going stale (the
+	# burst quietly falls back to the flash), and the class id not reaching the
+	# projectile (every class falls back at once).
+	for class_id in ImpactVFX.CLASS_BURST_FRAME_PATHS:
+		_expect(CharacterClasses.CLASSES.has(class_id), "'%s' has burst art but is not a real class" % class_id)
+		for path in ImpactVFX.CLASS_BURST_FRAME_PATHS[class_id]:
+			_expect(ResourceLoader.exists(path), "%s's burst frame is missing: %s" % [class_id, path])
+	for class_id in ImpactVFX.CLASS_CHAIN_ARC:
+		_expect(ResourceLoader.exists(ImpactVFX.CLASS_CHAIN_ARC[class_id]),
+			"%s's chain arc art is missing: %s" % [class_id, ImpactVFX.CLASS_CHAIN_ARC[class_id]])
+	# Classes still awaiting art must keep working, not error.
+	_expect(not ImpactVFX.has_class_burst("juggernaut"), "juggernaut has no sheet yet -- it should fall back to the flash")
+	_expect(not ImpactVFX.has_class_burst(""), "an empty class id must never resolve to burst art")
+
+	# The id has to actually reach the projectile, or every class silently falls
+	# back at once. Fired through the real class path on a live player.
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var cs = main.get_node_or_null("ClassSelectPopup")
+	if cs != null:
+		cs.select_class("elementalist")
+	await get_tree().physics_frame
+	var player: Player = get_tree().get_first_node_in_group("player")
+	player.apply_element_upgrade(load("res://resources/upgrades/class_elementalist_t1.tres"))
+	var dummy: EnemyBase = load("res://resources/enemies/slime_scout.tres").scene.instantiate()
+	dummy.setup(load("res://resources/enemies/slime_scout.tres"), 300.0, 0.01, 1.0, -1)
+	add_child(dummy)
+	dummy.global_position = player.global_position + Vector2(0, -260)
+	dummy.activate()
+	dummy.velocity = Vector2.ZERO
+	dummy._base_velocity = Vector2.ZERO
+	await get_tree().physics_frame
+	var ppool: Node = get_tree().get_first_node_in_group("projectile_pool")
+	player._fire_class_skill(player._current_class_skill)
+	await get_tree().physics_frame
+	var tagged := false
+	for c in ppool.get_children():
+		if c is Projectile and c._active and c.impact_class_id == "elementalist":
+			tagged = true
+	_expect(tagged, "a class shot must carry its class id so the impact can resolve that class's art")
+
+	# The Elementalist's art is a CHAINING bolt, so its skill has to chain --
+	# the chaining variant was deleted when the line collapsed to one skill, and
+	# without this the supplied art would depict something the skill never does.
+	var bolt: SkillData = load("res://resources/skills/class_arcane_bolt.tres")
+	_expect(bolt.chain_count >= 1, "the Elementalist's bolt should chain, matching its art")
+
+	dummy._is_dying = true
+	dummy._deactivate()
+	dummy.queue_free()
 	main.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame

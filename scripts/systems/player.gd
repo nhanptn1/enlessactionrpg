@@ -1131,7 +1131,7 @@ func _fire_class_projectile(skill: SkillData) -> bool:
 		var dmg := skill.base_damage * damage_mult * class_skill_dmg_mult * (2.0 if randf() < crit_chance else 1.0)
 		var proj: Projectile = pool.acquire(skill.projectile_scene)
 		var homing_target: Node2D = targets[0] if i == 0 else null
-		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, no_status, skill.burst_radius, effective_chain_count(skill), vis_scale, skill.burst_vfx_id, homing_target, flash_col, flash_radius)
+		proj.activate(dir, proj_speed, dmg, attack_origin.global_position, skill.pierce_count, "enemy", PLAYER_SHOT_MAX_RANGE, no_status, skill.burst_radius, effective_chain_count(skill), vis_scale, skill.burst_vfx_id, homing_target, flash_col, flash_radius, false, active_class_id)
 	return true
 
 
