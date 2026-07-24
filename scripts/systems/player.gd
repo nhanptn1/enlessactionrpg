@@ -122,7 +122,23 @@ const CRIT_CHANCE_MAX := 1.0
 @export var frost_skills: Array[SkillData] = []
 @export var lightning_skills: Array[SkillData] = []
 
-var max_hp := 10.0  # was a const; now mutable since HP upgrades increase it. (2026-07-16) 100.0->10.0, see the "hp" upgrade case below and item/enemy-damage rescaling for the rest of this change.
+# was a const; now mutable since HP upgrades increase it. (2026-07-16)
+# 100.0->10.0, see the "hp" upgrade case below and item/enemy-damage rescaling
+# for the rest of this change.
+#
+# (2026-07-24) Always rounded to a whole number. User: the HP readout showed
+# values like "10.9", which reads as broken now that every hit costs exactly
+# HIT_COST (1.0) -- a player counting hits should see whole numbers. The
+# fractions never came from damage: every additive source is already whole
+# (vitality +2/rank, potions +2, the max_hp upgrade +2, heal_on_cast 1.0), but
+# the MULTIPLIERS are not -- a Juggernaut's x1.4 or Iron Skin's x0.85 turn 12
+# into 16.8 or 14.28, and every later whole-number change preserves that
+# fraction forever. Rounding in the setter rather than at the three current
+# multiply sites means a future class or run modifier can't reintroduce it.
+# Floored at 1 so no combination of penalties can produce a 0-HP run.
+var max_hp: float = 10.0:
+	set(v):
+		max_hp = maxf(roundf(v), 1.0)
 var current_hp := max_hp
 
 var level := 1

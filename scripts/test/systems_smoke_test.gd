@@ -1524,7 +1524,9 @@ func _assert_run_modifiers() -> void:
 	var player: Player = player_scene.instantiate()
 	add_child(player)
 	_expect(RunModifiers.MODIFIERS.has(player.active_run_modifier_id), "rolled id '%s' should be a real key" % player.active_run_modifier_id)
-	var expected_max_hp: float = 10.0 * RunModifiers.get_mult(player.active_run_modifier_id, "player_max_hp_mult")
+	# (2026-07-24) Rounded: max_hp is always a whole number now, so a x0.85
+	# modifier lands on 9 rather than 8.5 -- see Player.max_hp's setter.
+	var expected_max_hp: float = roundf(10.0 * RunModifiers.get_mult(player.active_run_modifier_id, "player_max_hp_mult"))
 	_expect(is_equal_approx(player.max_hp, expected_max_hp), "max_hp should reflect the rolled modifier's mult")
 	_expect(player.current_hp == player.max_hp, "current_hp should be topped to the modifier-adjusted max_hp")
 
@@ -1720,7 +1722,8 @@ func _assert_character_classes() -> void:
 	sniper.apply_class("sniper")
 	_expect(sniper.active_class_id == "sniper")
 	_expect(is_equal_approx(sniper.crit_chance, crit_before + 0.15), "sniper should add crit chance")
-	_expect(is_equal_approx(sniper.max_hp, hp_before * 0.85), "sniper should trade max HP away")
+	_expect(is_equal_approx(sniper.max_hp, roundf(hp_before * 0.85)), "sniper should trade max HP away")
+	_expect(is_equal_approx(sniper.max_hp, roundf(sniper.max_hp)), "max_hp must stay a whole number -- the HP readout shows it directly")
 	_expect(is_equal_approx(sniper.projectile_speed_mult, proj_before * 1.15), "sniper should speed up projectiles")
 	sniper.queue_free()
 
@@ -1758,7 +1761,7 @@ func _assert_character_classes() -> void:
 	popup.select_class("juggernaut")
 	_expect(not get_tree().paused, "picking a class should unpause the run")
 	_expect(not popup.panel.visible, "picker should hide after the pick")
-	_expect(is_equal_approx(live_player.max_hp, live_hp * 1.4), "juggernaut pick should apply through the real popup path")
+	_expect(is_equal_approx(live_player.max_hp, roundf(live_hp * 1.4)), "juggernaut pick should apply through the real popup path")
 	main.queue_free()
 
 	SaveManager.meta_upgrades = saved_ranks
@@ -2052,6 +2055,17 @@ func _assert_upgrade_card_integrity() -> void:
 		_expect(u.title.strip_edges() != "", "%s has no title -- the card would render blank" % f)
 		_expect(u.description.strip_edges() != "", "%s has no description -- the card would render blank" % f)
 		_expect(u.icon != null, "%s has no icon" % f)
+		# (2026-07-24) An icon existing isn't enough -- it has to belong to this
+		# line. Chain Shot shipped wearing icon_chain_spark.png, which is
+		# LIGHTNING's tier-2 art (violet bolt, purple ring), so the physical card
+		# showed the wrong element's colour AND was identical to a lightning card
+		# in the same picker. Elemental icons are named after their element, so a
+		# cheap name check catches the whole class of mistake.
+		if u.icon != null and u.element == UpgradeResource.ElementType.PHYSICAL:
+			var icon_name: String = u.icon.resource_path.get_file()
+			for foreign in ["_fire", "_frost", "_ice", "_lightning", "_volt", "_spark", "_thunder"]:
+				_expect(not (foreign in icon_name),
+					"physical card %s uses an elemental icon (%s) -- it should carry the physical palette" % [f, icon_name])
 		# A repeatable with no cap means its line can never finish, which is what
 		# entry 75 fixed -- a fully-maxed path would keep being offered forever.
 		if u.tier == 0:

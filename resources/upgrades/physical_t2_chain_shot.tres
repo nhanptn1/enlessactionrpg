@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="UpgradeResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/upgrade_resource.gd" id="1"]
-[ext_resource type="Texture2D" path="res://art/ui/icons/icon_chain_spark.png" id="2"]
+[ext_resource type="Texture2D" path="res://art/ui/icons/icon_chain_arrow.png" id="2"]
 
 [resource]
 script = ExtResource("1")
