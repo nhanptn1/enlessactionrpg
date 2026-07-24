@@ -1329,12 +1329,23 @@ func _on_animation_finished() -> void:
 		_start_idle_bob()
 
 
-func take_damage(amount: float) -> void:
+# (2026-07-24) Every hit costs exactly HIT_COST, whatever hit you and whatever
+# wave it is -- per user: "A hit need to reduce character 1 hp, no reduct
+# function needed". Enforced here rather than at each damage site because every
+# source (contact, enemy arrows, boss patterns, an enemy leaking off the bottom)
+# already funnels through this one method, so no future attack can reintroduce
+# its own scale. Incoming `amount` is therefore deliberately ignored; it stays
+# in the signature because ~15 call sites pass one and the HUD/damage-flash
+# plumbing is shared with them.
+const HIT_COST := 1.0
+
+
+func take_damage(_amount: float) -> void:
 	if _is_invulnerable or _revive_invuln:
 		return
-	current_hp = maxf(current_hp - amount, 0.0)
+	current_hp = maxf(current_hp - HIT_COST, 0.0)
 	hp_changed.emit(current_hp, max_hp)
-	SignalBus.player_damaged.emit(amount)
+	SignalBus.player_damaged.emit(HIT_COST)
 	var cam := get_viewport().get_camera_2d()
 	if is_instance_valid(cam) and cam.has_method("shake"):
 		cam.shake(6.0, 0.18)

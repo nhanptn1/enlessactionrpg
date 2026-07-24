@@ -177,8 +177,22 @@ func _play_attack_lunge() -> void:
 
 
 func _on_hurtbox_body_entered(body: Node) -> void:
+	# (2026-07-24) Touching the player hurts, for EVERY species -- this used to
+	# be delegated entirely to the attack behavior, so it only happened for
+	# ContactAttack. RangedAttack inherits AttackBehavior's do-nothing
+	# on_contact(), which meant the Cursed Wraith (the game's only ranged
+	# monster, and a flying one) could fly straight through the player dealing
+	# literally zero damage -- the "hit by a flying monster and HP doesn't move"
+	# report. Living here rather than in a behavior also means a future behavior
+	# can't silently opt out of it by forgetting to implement on_contact().
+	if not (body.is_in_group("player") and body.has_method("take_damage")):
+		return
+	_player_in_contact = body
+	body.take_damage(contact_damage())
+	contact_timer.start()
+	_play_attack_lunge()
 	if data.attack_behavior:
-		data.attack_behavior.on_contact(self, body)
+		data.attack_behavior.on_contact(self, body)  # behavior-specific extras only
 
 
 func _on_hurtbox_body_exited(body: Node) -> void:
@@ -188,8 +202,15 @@ func _on_hurtbox_body_exited(body: Node) -> void:
 
 
 func _on_contact_timer_timeout() -> void:
+	if is_instance_valid(_player_in_contact):
+		_player_in_contact.take_damage(contact_damage())
+		_play_attack_lunge()
 	if data.attack_behavior:
 		data.attack_behavior.on_contact_tick(self)
+
+
+func contact_damage() -> float:
+	return data.base_damage * _damage_mult
 
 
 func _on_attack_timer_timeout() -> void:

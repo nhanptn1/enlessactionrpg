@@ -1,16 +1,10 @@
 extends AttackBehavior
 class_name ContactAttack
 
-
-func on_contact(enemy: EnemyBase, body: Node) -> void:
-	if body.is_in_group("player") and body.has_method("take_damage"):
-		enemy._player_in_contact = body
-		body.take_damage(enemy.data.base_damage * enemy._damage_mult)
-		enemy.contact_timer.start()
-		enemy._play_attack_lunge()
-
-
-func on_contact_tick(enemy: EnemyBase) -> void:
-	if is_instance_valid(enemy._player_in_contact):
-		enemy._player_in_contact.take_damage(enemy.data.base_damage * enemy._damage_mult)
-		enemy._play_attack_lunge()
+# (2026-07-24) The actual "touching the player deals damage" logic moved to
+# EnemyBase._on_hurtbox_body_entered()/_on_contact_timer_timeout(), because it
+# has to apply to every species, not just the ones wired to this behavior --
+# see the comment there. This stays as the explicit "melee only, no ranged
+# attack" marker every melee enemy's .tres points at, so the data still says
+# out loud how each species fights and there's a place for melee-only extras
+# to live if any are ever added.

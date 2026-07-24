@@ -168,6 +168,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_character_classes()
 	await _assert_class_skill_trees()
 	await _assert_continue_revive()
+	await _assert_every_monster_hurts_on_contact()
 	_assert_tutorial_hints()
 
 
@@ -417,7 +418,7 @@ func _assert_dash_dodge() -> void:
 	_expect(dist > 100.0 and dist < 200.0, "dash should cover roughly DASH_SPEED*DASH_DURATION, got %s" % dist)
 
 	player.take_damage(3.0)
-	_expect(player.current_hp == hp_before - 3.0, "damage should apply normally again once the dash ends")
+	_expect(player.current_hp == hp_before - Player.HIT_COST, "damage should apply normally again once the dash ends")
 
 	_expect(player._dash_cooldown_remaining > 0.0, "cooldown should still be active immediately after a dash, blocking spam")
 	_expect(not player.try_dash(), "try_dash() must refuse while the cooldown is running -- shared gate for Space and the HUD button")
@@ -1641,6 +1642,87 @@ func _assert_tutorial_hints() -> void:
 	SaveManager.save_to_disk()
 
 
+const CONTACT_DAMAGE_SPECIES := [
+	"armored_brute", "armored_gargoyle", "bat_swarm", "cursed_wraith",
+	"goblin_runner", "sapling", "shield_skeleton", "skeleton_soldier",
+	"slime_scout", "stinger_wasp", "stone_golem", "wolf_beast",
+]
+
+
+func _assert_every_monster_hurts_on_contact() -> void:
+	# (2026-07-24) User report: "sometimes character hp not reduce when hit by
+	# flying monster". A probe run of all 12 species head-on into a real player
+	# found exactly one that dealt nothing: the Cursed Wraith -- the only
+	# RangedAttack species (and a flier), which inherited AttackBehavior's
+	# do-nothing on_contact() and so flew straight through the player for free.
+	# Contact damage now lives in EnemyBase itself; this walks every species into
+	# the player to keep it that way, and pins the flat one-HP-per-hit rule.
+	var player: Player = load("res://scenes/player/Player.tscn").instantiate()
+	add_child(player)
+	player.global_position = Vector2(360.0, 1150.0)
+	# No Main.tscn here means no projectile pool, and the player's auto-fire
+	# would spam "acquire on a null instance" through the whole run -- it has
+	# nothing to do with contact damage, so just don't let it shoot.
+	player.get_node("BasicShotTimer").stop()
+	await get_tree().physics_frame
+
+	for id in CONTACT_DAMAGE_SPECIES:
+		var data: EnemyData = load("res://resources/enemies/%s.tres" % id)
+		var enemy: EnemyBase = data.scene.instantiate()
+		enemy.setup(data, 1.0, 1.0, 1.0, -1)
+		add_child(enemy)
+		# Just outside the hurtbox's reach, straight overhead, then (re)arm the
+		# movement behavior from HERE so dive species actually aim at the player.
+		enemy.global_position = player.global_position + Vector2(0, -90)
+		enemy.activate()
+		# VisibleOnScreenNotifier2D misreports under the headless dummy renderer,
+		# so its LEAK_DAMAGE path would otherwise forge a "hit" this test never
+		# made -- the exact contamination that would hide a real regression here.
+		if enemy.screen_check.screen_exited.is_connected(enemy._on_screen_exited):
+			enemy.screen_check.screen_exited.disconnect(enemy._on_screen_exited)
+		if data.movement_behavior:
+			data.movement_behavior.on_ready(enemy)
+		enemy._base_velocity = enemy.velocity
+
+		player.current_hp = player.max_hp
+		var hp_before: float = player.current_hp
+		var frames := 0
+		while frames < 200 and is_instance_valid(enemy) and player.current_hp == hp_before:
+			await get_tree().physics_frame
+			frames += 1
+		var dealt: float = hp_before - player.current_hp
+		_expect(dealt > 0.0, "%s must damage the player on contact (dealt nothing in %d frames)" % [id, frames])
+		_expect(is_equal_approx(dealt, Player.HIT_COST),
+			"%s should cost exactly %s HP per hit regardless of its base_damage (%s), got %s" % [
+				id, Player.HIT_COST, data.base_damage, dealt,
+			])
+		enemy._deactivate()
+		enemy.queue_free()
+		await get_tree().physics_frame
+
+	# The flat cost is deliberately source-blind: an elite's damage multiplier
+	# and a boss's heaviest slam are worth the same single HP as a nibble.
+	player.current_hp = player.max_hp
+	player.take_damage(999.0)
+	_expect(is_equal_approx(player.current_hp, player.max_hp - Player.HIT_COST),
+		"a huge incoming amount must still cost exactly one HP")
+
+	player.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+# (2026-07-24) Player damage is a flat Player.HIT_COST per hit now, so a single
+# take_damage(99999.0) no longer kills -- these tests care about the death/revive
+# path, not about how many hits it took to get there.
+func _drain_hp(player: Player) -> void:
+	var guard := 0
+	while player.current_hp > 0.0 and guard < 1000:
+		player.take_damage(1.0)
+		guard += 1
+	_expect(guard < 1000, "_drain_hp should reach 0 HP well inside its guard")
+
+
 func _assert_continue_revive() -> void:
 	# (2026-07-21) Continue system: 2 revives per run (1 free + 1 paid), then
 	# the real game over. Drives the Player's own death/revive path directly and
@@ -1658,7 +1740,7 @@ func _assert_continue_revive() -> void:
 	_expect(player.continues_used == 0, "a fresh run starts with 0 continues used")
 
 	# 1st death -> offers the free continue, no final death yet.
-	player.take_damage(99999.0)
+	_drain_hp(player)
 	_expect(downed_events.size() == 1 and downed_events[0] == 0, "1st death should offer the free (index 0) continue")
 	_expect(final_deaths.is_empty(), "no game over while a continue is still available")
 	_expect(player.is_dead, "player is down until revived")
@@ -1669,7 +1751,7 @@ func _assert_continue_revive() -> void:
 	player._revive_invuln = false  # skip the i-frame window so the next hit lands
 
 	# 2nd death -> offers the paid continue.
-	player.take_damage(99999.0)
+	_drain_hp(player)
 	_expect(downed_events.size() == 2 and downed_events[1] == 1, "2nd death should offer the paid (index 1) continue")
 	_expect(final_deaths.is_empty(), "still no game over on the 2nd down")
 	player.revive()
@@ -1677,7 +1759,7 @@ func _assert_continue_revive() -> void:
 	player._revive_invuln = false
 
 	# 3rd death -> the real game over (no more continue offers).
-	player.take_damage(99999.0)
+	_drain_hp(player)
 	_expect(downed_events.size() == 2, "no 3rd continue offer past the max")
 	_expect(final_deaths.size() == 1, "the 3rd death is the real game over (player_died fires)")
 
