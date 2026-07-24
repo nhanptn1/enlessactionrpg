@@ -1072,6 +1072,24 @@ func _assert_bosses_have_own_art() -> void:
 	guardian.free()
 	await get_tree().process_frame
 
+	# (2026-07-23) Death animations: every boss must have one, and it must be
+	# NON-LOOPING -- a looping death would never reach the tween that frees the
+	# boss, leaving a corpse animating forever.
+	for boss_name in boss_scenes:
+		var inst2 := (load(boss_scenes[boss_name]) as PackedScene).instantiate()
+		var frames: SpriteFrames = inst2.get_node("Sprite").sprite_frames
+		_expect(frames.has_animation(&"death"), "%s needs a death animation" % boss_name)
+		if frames.has_animation(&"death"):
+			_expect(not frames.get_animation_loop(&"death"), "%s's death animation must not loop, or it would never free" % boss_name)
+			_expect(frames.get_frame_count(&"death") >= 4, "%s's death should be a real sequence" % boss_name)
+		# Attack is optional (the Guardian's row is unusable), but where present
+		# it must also not loop -- it plays across a fixed telegraph window.
+		if frames.has_animation(&"attack"):
+			_expect(not frames.get_animation_loop(&"attack"), "%s's attack animation must not loop" % boss_name)
+		# `move` is the resting state and MUST loop.
+		_expect(frames.get_animation_loop(&"move"), "%s's move animation must loop" % boss_name)
+		inst2.free()
+
 
 func _assert_boss_presence() -> void:
 	# (2026-07-23) Boss presence pass. Every boss reuses a REGULAR enemy's

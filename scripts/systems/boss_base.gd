@@ -591,13 +591,28 @@ func _play_attack_lunge(target_pos: Vector2, duration: float) -> void:
 # telegraph+strike window (walking and winding up to strike at the same time
 # would look wrong), freezing on a standing frame -- _play_attack_lunge()
 # then takes over the sprite's position/scale for that same window.
+func _has_anim(anim: StringName) -> bool:
+	# (2026-07-23) Every boss animation is optional. Bosses got real art one at
+	# a time, and not every sheet yields every row (the Forest Guardian's attack
+	# row, for instance, has frames whose VFX touch). Guarding here means a
+	# missing animation silently falls back to the previous behaviour instead of
+	# erroring at runtime.
+	return sprite.sprite_frames != null and sprite.sprite_frames.has_animation(anim)
+
+
 func _pause_walk_for_attack() -> void:
 	_walk_paused = true
 	velocity = Vector2.ZERO
 	if _idle_tween:
 		_idle_tween.kill()
-	sprite.stop()
-	sprite.frame = 0
+	# The attack animation plays across the telegraph window, so the wind-up the
+	# player is meant to read is the boss actually winding up -- previously the
+	# sprite just froze on frame 0 for the whole telegraph.
+	if _has_anim(&"attack"):
+		sprite.play(&"attack")
+	else:
+		sprite.stop()
+		sprite.frame = 0
 
 
 # Called right after an attack's damage resolves -- an advancing boss resumes
@@ -610,8 +625,15 @@ func _resume_walk_for_cooldown() -> void:
 	if not is_instance_valid(self) or _is_dying:
 		return
 	if advances_to_lose_line:
-		sprite.play("move")
+		sprite.play(&"move")
 	else:
+		# A non-advancing boss stands still, but if it just played an attack
+		# animation it must be returned to a resting frame -- otherwise it holds
+		# the last attack pose (mid-swing) for the whole cooldown.
+		if _has_anim(&"attack"):
+			sprite.play(&"move")
+			sprite.stop()
+			sprite.frame = 0
 		_start_idle_bob()
 
 
@@ -640,11 +662,49 @@ func _die() -> void:
 	if _lunge_tween:
 		_lunge_tween.kill()
 	sprite.position = _sprite_base_position
+	# (2026-07-23) With real art, a boss now plays its own death animation
+	# instead of just shrinking away -- the Fallen Knight's sheet in particular
+	# has a full collapse-and-disintegrate sequence. The shrink/fade is kept but
+	# DEFERRED until the animation has played, so it reads as the last beat of
+	# the death rather than cutting it off. Bosses with no death animation are
+	# unaffected: they take the immediate-fade path exactly as before.
+	if _has_anim(&"death"):
+		_aura_fade_out()
+		sprite.play(&"death")
+		var hold: float = _anim_duration(&"death")
+		var death_tween := create_tween()
+		death_tween.tween_interval(hold)
+		death_tween.tween_property(sprite, "modulate:a", 0.0, DEATH_FADE_DURATION)
+		death_tween.tween_callback(queue_free)
+		return
 	var death_tween := create_tween()
 	death_tween.set_parallel(true)
 	death_tween.tween_property(sprite, "scale", Vector2.ZERO, DEATH_FADE_DURATION).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	death_tween.tween_property(sprite, "modulate:a", 0.0, DEATH_FADE_DURATION)
 	death_tween.chain().tween_callback(queue_free)
+
+
+func _anim_duration(anim: StringName) -> float:
+	# Real playback length: frame count / speed, honouring per-frame duration
+	# multipliers. Needed so the death fade waits for the animation to finish
+	# rather than a guessed constant that would clip a long sequence.
+	if not _has_anim(anim):
+		return 0.0
+	var frames := sprite.sprite_frames
+	var speed: float = maxf(frames.get_animation_speed(anim), 0.001)
+	var total := 0.0
+	for i in frames.get_frame_count(anim):
+		total += frames.get_frame_duration(anim, i) / speed
+	return total
+
+
+func _aura_fade_out() -> void:
+	# The aura would otherwise keep pulsing at full strength over a corpse for
+	# the whole death animation.
+	if not is_instance_valid(_aura):
+		return
+	var t := create_tween()
+	t.tween_property(_aura, "modulate:a", 0.0, DEATH_FADE_DURATION)
 
 
 # "Volatile" -- telegraphed damage zones around the death position, resolving

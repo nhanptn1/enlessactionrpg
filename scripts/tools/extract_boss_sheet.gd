@@ -30,26 +30,27 @@ const OUT_DIR := "res://art/bosses/"
 const SHEETS := [
 	{
 		"src": "D:/WORK/PROJECT/GODOT/image/Fallen Knight.png",
-		"skip": true,  # already extracted and committed; re-running costs a minute of per-pixel work
 		"mode": "grid",
-		"rows": {0: "fallen_knight_idle", 1: "fallen_knight_walk"},
+		"cols": 8,  # attack/death rows have wide slash + disintegration VFX that touch
+		"rows": {3: "fallen_knight_attack", 4: "fallen_knight_death"},
 	},
 	{
 		"src": "D:/WORK/PROJECT/GODOT/image/Dark Ranger Commander.png",
 		"mode": "plain",
+		"rows": {3: "dark_ranger_death"},
 		"skip": true,
-		"rows": {0: "dark_ranger_idle", 1: "dark_ranger_walk", 2: "dark_ranger_attack"},
 	},
 	{
 		"src": "D:/WORK/PROJECT/GODOT/image/Corrupted Forest Guardian.png",
 		"mode": "plain",
+		"rows": {3: "forest_guardian_death"},
 		"skip": true,
-		"rows": {0: "forest_guardian_idle", 1: "forest_guardian_walk", 2: "forest_guardian_attack"},
 	},
 	{
 		"src": "D:/WORK/PROJECT/GODOT/image/Demon Beast.png",
 		"mode": "plain",
-		"rows": {0: "demon_beast_idle", 1: "demon_beast_walk", 2: "demon_beast_attack"},
+		"rows": {3: "demon_beast_death"},
+		"skip": true,
 		"cols": 4,  # frames touch (tail left, horns right) -- gap detection cannot split them
 	},
 ]
@@ -103,7 +104,7 @@ func _init() -> void:
 		if cfg["mode"] == "plain":
 			_extract_plain(img, cfg["rows"], int(cfg.get("cols", 0)))
 		else:
-			_extract_grid(img, cfg["rows"])
+			_extract_grid(img, cfg["rows"], int(cfg.get("cols", 0)))
 
 
 func _extract_plain(img: Image, rows_map: Dictionary, cols: int = 0) -> void:
@@ -213,7 +214,7 @@ func _spans(used: Array, min_gap: int, min_len: int) -> Array:
 	return out
 
 
-func _extract_grid(img: Image, rows_map: Dictionary) -> void:
+func _extract_grid(img: Image, rows_map: Dictionary, cols: int = 0) -> void:
 	var w := img.get_width()
 	var h := img.get_height()
 
@@ -257,10 +258,10 @@ func _extract_grid(img: Image, rows_map: Dictionary) -> void:
 			continue
 		var band: Vector2i = kept[i]
 		var out_name: String = rows_map[i]
-		_extract_row(img, band, out_name)
+		_extract_row(img, band, out_name, cols)
 
 
-func _extract_row(sheet: Image, band: Vector2i, out_name: String) -> void:
+func _extract_row(sheet: Image, band: Vector2i, out_name: String, cols: int = 0) -> void:
 	var w := sheet.get_width()
 	# Grid x-extent: outside it is black background, which must be cropped
 	# rather than keyed (the armour is nearly black itself).
@@ -287,7 +288,53 @@ func _extract_row(sheet: Image, band: Vector2i, out_name: String) -> void:
 			if not _is_sprite(row.get_pixel(x, y)):
 				row.set_pixel(x, y, Color(0, 0, 0, 0))
 
-	# Split into frames on empty columns.
+	# (2026-07-23) The grid's cell BORDER lines are near-black, so the is-sprite
+	# key keeps them and they survive into the cut as a thin dark line down a
+	# frame's edge. Gap-splitting used to discard them via MIN_FRAME_WIDTH, but
+	# the column split below has no such filter, so strip them here: a border
+	# runs the FULL height of the row and is only a few px wide, which nothing
+	# on the character does.
+	var col_opaque: Array = []
+	col_opaque.resize(rw)
+	for x in rw:
+		var n := 0
+		for y in rh:
+			if row.get_pixel(x, y).a > 0.15:
+				n += 1
+		col_opaque[x] = n
+	var run_start := -1
+	for x in rw + 1:
+		var full: bool = x < rw and int(col_opaque[x]) >= int(rh * 0.95)
+		if full and run_start < 0:
+			run_start = x
+		elif not full and run_start >= 0:
+			if x - run_start <= 4:
+				for bx in range(run_start, x):
+					for y in rh:
+						row.set_pixel(bx, y, Color(0, 0, 0, 0))
+			run_start = -1
+
+	# (2026-07-23) Declared column count wins, same as the plain path: the
+	# knight's ATTACK and DEATH rows have wide sword-trail and disintegration
+	# VFX that touch, so gap detection merged 8 frames into 4 and 2.
+	var spans: Array = []
+	if cols > 0:
+		var fw: int = rw / cols
+		for ci in cols:
+			var sx := ci * fw
+			var lo := sx + fw
+			var hi := sx
+			for x in range(sx, mini(sx + fw, rw)):
+				for y in rh:
+					if row.get_pixel(x, y).a > 0.15:
+						lo = mini(lo, x)
+						hi = maxi(hi, x)
+						break
+			if hi >= lo:
+				spans.append(Vector2i(lo, hi))
+		_emit_frames(row, spans, rh, out_name)
+		return
+	# Otherwise split on empty columns.
 	var used: Array = []
 	used.resize(rw)
 	for x in rw:
@@ -298,7 +345,7 @@ func _extract_row(sheet: Image, band: Vector2i, out_name: String) -> void:
 			if row.get_pixel(x, y).a > 0.15:
 				hits += 1
 		used[x] = hits >= MIN_COL_PIXELS
-	var spans: Array = []
+	spans = []
 	var s := -1
 	var gap := 0
 	for x in rw:
@@ -351,4 +398,33 @@ func _extract_row(sheet: Image, band: Vector2i, out_name: String) -> void:
 		var err := out.save_png(ProjectSettings.globalize_path(path))
 		if err != OK:
 			print("  FAILED %s" % path)
+	print("  %s: %d frames, %dx%d each" % [out_name, spans.size(), cw, ch])
+
+
+func _emit_frames(row: Image, spans: Array, rh: int, out_name: String) -> void:
+	# Shared tail for the grid path's column-split branch: one common frame size,
+	# each cut centred on its own content so poses of different widths don't make
+	# the animation jitter.
+	if spans.is_empty():
+		print("  %s: no frames" % out_name)
+		return
+	var y0 := rh
+	var y1 := 0
+	for y in rh:
+		for x in row.get_width():
+			if row.get_pixel(x, y).a > 0.15:
+				y0 = mini(y0, y)
+				y1 = maxi(y1, y)
+				break
+	var cw := 0
+	for sp in spans:
+		cw = maxi(cw, sp.y - sp.x + 1)
+	cw += PAD * 2
+	var ch: int = (y1 - y0 + 1) + PAD * 2
+	for i in spans.size():
+		var sp: Vector2i = spans[i]
+		var centre: int = (sp.x + sp.y) / 2
+		var out := Image.create(cw, ch, false, Image.FORMAT_RGBA8)
+		out.blit_rect(row, Rect2i(centre - cw / 2, y0 - PAD, cw, ch), Vector2i.ZERO)
+		out.save_png(ProjectSettings.globalize_path("%s%s_%02d.png" % [OUT_DIR, out_name, i + 1]))
 	print("  %s: %d frames, %dx%d each" % [out_name, spans.size(), cw, ch])
