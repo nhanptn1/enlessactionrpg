@@ -157,6 +157,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_maxed_element_still_offers_repeatable_cards()
 	await _assert_arrow_cap_stops_plus_one_arrow()
 	await _assert_element_fusion()
+	await _assert_area_strikes_lead_moving_targets()
 	await _assert_status_control_effects()
 	await _assert_skill_panel_shows_live_stats()
 	_assert_card_frames_are_per_element()
@@ -944,6 +945,73 @@ func _assert_element_fusion() -> void:
 	player.queue_free()
 	spawner.queue_free()
 	enemy_pool.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _assert_area_strikes_lead_moving_targets() -> void:
+	# (2026-07-24) User: "Thunder Storm casts so slow, can it miss in the late
+	# game?" It could, badly. An ARROW_RAIN zone waits telegraph_time before
+	# dealing damage, and enemy speed scales to SPEED_MULT_CEILING -- measured on
+	# real casts, Thunder Storm's hit rate fell from 92% at wave 1 to 50% from
+	# wave 30 on, because a slime covers ~108px during a 0.6s telegraph against a
+	# 70px zone. Every ARROW_RAIN skill was affected, Fire's and Lightning's top
+	# two tiers included. Zones now lead the target the way projectiles already
+	# did via _predict_intercept().
+	#
+	# Asserted as geometry rather than by firing casts: a hit-rate sample is
+	# random and would need dozens of casts to be stable, whereas the invariant
+	# is exact -- a zone must cover where the enemy ENDS UP.
+	var main = load(MAIN_SCENE).instantiate()
+	add_child(main)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_dismiss_class_select(main)
+	var player: Player = get_tree().get_first_node_in_group("player")
+
+	for path in ["thunder_storm", "storm_overload", "burning_rain", "wildfire_storm"]:
+		var skill: SkillData = load("res://resources/skills/%s.tres" % path)
+		_expect(skill != null and skill.fire_mode == SkillData.FireMode.ARROW_RAIN, "%s should be an ARROW_RAIN skill" % path)
+		if skill == null:
+			continue
+		# The worst realistic case: the fastest species at the speed ceiling.
+		var top_speed: float = 130.0 * WaveManager.SPEED_MULT_CEILING  # wolf_beast is the quickest at 130
+		var travel: float = top_speed * skill.telegraph_time
+		# Without leading, this is how far outside its own zone the enemy ends up.
+		_expect(travel > skill.trap_radius,
+			"%s's telegraph is short enough that leading wouldn't matter (%.0fpx travel vs %.0fpx zone) -- if this ever fails the fix below is no longer load-bearing" % [path, travel, skill.trap_radius])
+
+	# The lead itself: a zone anchored on a falling enemy must land on where it
+	# will be, within the zone radius.
+	var e: EnemyBase = load("res://resources/enemies/slime_scout.tres").scene.instantiate()
+	e.setup(load("res://resources/enemies/slime_scout.tres"), 1.0, WaveManager.SPEED_MULT_CEILING, 1.0, -1)
+	add_child(e)
+	e.global_position = Vector2(360.0, 500.0)
+	e.activate()
+	await get_tree().physics_frame
+	var storm: SkillData = load("res://resources/skills/thunder_storm.tres")
+	var start: Vector2 = e.global_position
+	# Asks the PLAYER where it would put the zone, rather than recomputing the
+	# lead here. An earlier version of this test did recompute it and so passed
+	# even with the lead stripped out of _fire_area_strike() -- caught by
+	# canarying, which is the only reason it isn't still a no-op test.
+	var predicted: Vector2 = player.area_strike_anchor(e, storm.telegraph_time)
+	_expect(predicted != start, "the zone anchor must lead a moving target, not sit on its current position")
+	var frames: int = int(storm.telegraph_time * 60.0)
+	for i in frames:
+		await get_tree().physics_frame
+	var actual: Vector2 = e.global_position
+	_expect(actual.distance_to(predicted) < storm.trap_radius,
+		"the lead should land within the zone: predicted %s, actual %s (%.0fpx off, zone %.0f)" % [
+			predicted, actual, actual.distance_to(predicted), storm.trap_radius,
+		])
+	_expect(actual.distance_to(start) > storm.trap_radius,
+		"this test is only meaningful if the enemy actually outruns its own zone; it moved %.0fpx" % actual.distance_to(start))
+
+	e._is_dying = true
+	e._deactivate()
+	e.queue_free()
+	main.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
 

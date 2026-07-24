@@ -1245,6 +1245,19 @@ func _fire_arrow_rain(skill: SkillData) -> void:
 	_fire_area_strike(skill, damage_mult, [], AREA_STRIKE_COLOR_BASIC, bonus_projectile_count)
 
 
+# Where an ARROW_RAIN zone should be centred for a given target: not where it
+# stands now, but where it will be when the strike actually lands. Extracted as
+# its own public function specifically so a test can assert the real placement
+# -- an earlier version of that test recomputed the lead itself and therefore
+# passed even with the lead stripped out of the caller, which is no test at all.
+func area_strike_anchor(target: Node2D, telegraph_time: float) -> Vector2:
+	var vel: Vector2 = target.velocity if "velocity" in target else Vector2.ZERO
+	return target.global_position + Vector2(
+		vel.x * minf(telegraph_time, MAX_X_LEAD_TIME),
+		vel.y * telegraph_time,
+	)
+
+
 func _fire_area_strike(skill: SkillData, dmg_mult: float, status_rolls: Array[Dictionary], telegraph_color: Color, bonus_zones: int = 0) -> void:
 	# Scatters impact zones around real enemies, shows a warning circle on
 	# each, then guarantee-hits everything caught inside once the telegraph
@@ -1268,7 +1281,21 @@ func _fire_area_strike(skill: SkillData, dmg_mult: float, status_rolls: Array[Di
 	var is_lightning = not status_rolls.is_empty() and status_rolls[0]["element"] == StatusEffects.LIGHTNING
 	var points: Array[Vector2] = []
 	for _i in zone_count:
-		var anchor: Vector2 = targets[randi() % targets.size()].global_position
+		# (2026-07-24) Zones are LED to where the target will be when the strike
+		# lands, not pinned to where it stood when the cast began. User asked
+		# whether Thunder Storm's slow cast makes it miss in the late game -- it
+		# did, badly. Measured on real casts: hit rate fell 92% at wave 1 to 67%
+		# at wave 20 and 50% from wave 30 on, because a zone waits
+		# telegraph_time (0.6s) before dealing damage while enemy speed scales to
+		# 2.0x -- a slime covers 108px in that window against a 70px zone radius,
+		# so it is simply gone. Every ARROW_RAIN skill was affected, including
+		# Fire's and Lightning's top two tiers. Projectiles already solved this
+		# with _predict_intercept(); this is the same idea, and the x-lead cap is
+		# borrowed from there for the same reason -- zigzag movement OSCILLATES
+		# horizontally, so a full-length x lead would confidently aim at where a
+		# weaving enemy is about to turn away from.
+		var target: Node2D = targets[randi() % targets.size()]
+		var anchor := area_strike_anchor(target, skill.telegraph_time)
 		points.append(anchor + Vector2(randf_range(-scatter, scatter) / 2.0, randf_range(-scatter, scatter) / 2.0))
 	for p in points:
 		Telegraph.show_circle(p, radius, telegraph_color, skill.telegraph_time, self)
