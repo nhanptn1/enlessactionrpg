@@ -1329,23 +1329,42 @@ func _on_animation_finished() -> void:
 		_start_idle_bob()
 
 
-# (2026-07-24) Every hit costs exactly HIT_COST, whatever hit you and whatever
-# wave it is -- per user: "A hit need to reduce character 1 hp, no reduct
-# function needed". Enforced here rather than at each damage site because every
-# source (contact, enemy arrows, boss patterns, an enemy leaking off the bottom)
+# (2026-07-24) Every ordinary hit costs exactly HIT_COST, whatever hit you and
+# whatever wave it is -- per user: "A hit need to reduce character 1 hp, no
+# reduct function needed". Enforced here rather than at each damage site because
+# every regular source (contact, enemy arrows, an enemy leaking off the bottom)
 # already funnels through this one method, so no future attack can reintroduce
-# its own scale. Incoming `amount` is therefore deliberately ignored; it stays
-# in the signature because ~15 call sites pass one and the HUD/damage-flash
-# plumbing is shared with them.
+# its own scale. Incoming `amount` is therefore deliberately ignored.
+#
+# `_element` is accepted-but-ignored purely for signature compatibility:
+# Projectile calls `take_damage(damage, element)` on whatever it hits, without
+# knowing whether that's an enemy or the player. Before this parameter existed
+# the player's 1-arg method could NOT satisfy that 2-arg call, so every enemy
+# and boss arrow that reached the player failed at runtime and dealt nothing --
+# a second, independent cause of the "HP doesn't go down when I'm hit" report,
+# on top of the Cursed Wraith's missing contact damage.
 const HIT_COST := 1.0
 
 
-func take_damage(_amount: float) -> void:
+func take_damage(_amount: float, _element: String = "") -> void:
+	_receive_damage(HIT_COST)
+
+
+# (2026-07-24) Bosses are the deliberate exception to the flat rule, per user:
+# "keep boss damage weighted, exempt bosses from flat 1 hp". A Leap Smash is
+# supposed to hurt more than a bat nibble, and every boss attack already carries
+# its own tuned number x _damage_mult. Named distinctly rather than adding a
+# bool flag so a call site cannot pass the wrong one by accident.
+func take_boss_damage(amount: float) -> void:
+	_receive_damage(amount)
+
+
+func _receive_damage(amount: float) -> void:
 	if _is_invulnerable or _revive_invuln:
 		return
-	current_hp = maxf(current_hp - HIT_COST, 0.0)
+	current_hp = maxf(current_hp - amount, 0.0)
 	hp_changed.emit(current_hp, max_hp)
-	SignalBus.player_damaged.emit(HIT_COST)
+	SignalBus.player_damaged.emit(amount)
 	var cam := get_viewport().get_camera_2d()
 	if is_instance_valid(cam) and cam.has_method("shake"):
 		cam.shake(6.0, 0.18)

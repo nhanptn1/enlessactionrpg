@@ -1700,16 +1700,51 @@ func _assert_every_monster_hurts_on_contact() -> void:
 		enemy.queue_free()
 		await get_tree().physics_frame
 
-	# The flat cost is deliberately source-blind: an elite's damage multiplier
-	# and a boss's heaviest slam are worth the same single HP as a nibble.
+	# The flat cost covers every ordinary source regardless of its own number:
+	# a wave-scaled elite hit is worth the same single HP as a nibble.
 	player.current_hp = player.max_hp
 	player.take_damage(999.0)
 	_expect(is_equal_approx(player.current_hp, player.max_hp - Player.HIT_COST),
 		"a huge incoming amount must still cost exactly one HP")
 
+	# Bosses are the deliberate exception -- their attacks stay weighted, so a
+	# Leap Smash is worth more than a bat nibble (user decision, 2026-07-24).
+	player.current_hp = player.max_hp
+	player.take_boss_damage(3.0)
+	_expect(is_equal_approx(player.current_hp, player.max_hp - 3.0),
+		"boss damage must keep its own weight, not collapse to HIT_COST")
+
+	# Enemy/boss ARROWS reach the player through Projectile, not through a
+	# direct call -- a separate path that has to work on its own.
+	player.current_hp = player.max_hp
+	await _fire_bolt_at(player, 4.0, false)
+	_expect(is_equal_approx(player.current_hp, player.max_hp - Player.HIT_COST),
+		"an enemy arrow must cost exactly one HP (it landed for %s)" % (player.max_hp - player.current_hp))
+
+	player.current_hp = player.max_hp
+	await _fire_bolt_at(player, 4.0, true)
+	_expect(is_equal_approx(player.current_hp, player.max_hp - 4.0),
+		"a boss arrow must keep its weight (it landed for %s)" % (player.max_hp - player.current_hp))
+
 	player.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+
+func _fire_bolt_at(player: Player, dmg: float, weighted: bool) -> void:
+	# Drops a live bolt just above the player aimed straight down, exactly as
+	# RangedAttack / BossBase._rapid_volley() do, and lets it fly into them.
+	var bolt: Projectile = load("res://scenes/effects/CursedBolt.tscn").instantiate()
+	add_child(bolt)
+	bolt.activate(Vector2.DOWN, 400.0, dmg, player.global_position + Vector2(0, -70), 0, "player",
+		600.0, [], 0.0, 0, 1.0, "", null, Color(0, 0, 0, 0), 0.0, weighted)
+	var frames := 0
+	while frames < 60 and is_instance_valid(bolt) and bolt._active:
+		await get_tree().physics_frame
+		frames += 1
+	if is_instance_valid(bolt):
+		bolt.queue_free()
+	await get_tree().physics_frame
 
 
 # (2026-07-24) Player damage is a flat Player.HIT_COST per hit now, so a single

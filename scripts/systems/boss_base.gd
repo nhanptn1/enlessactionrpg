@@ -736,8 +736,8 @@ func _spawn_volatile_death_zones() -> void:
 		var player := host.get_tree().get_first_node_in_group("player")
 		for p in points:
 			ImpactVFX.flash_burst(p, zone_radius, Color(color.r, color.g, color.b, 1.0), host)
-			if is_instance_valid(player) and player.has_method("take_damage") and player.global_position.distance_to(p) <= zone_radius:
-				player.take_damage(damage * dmg_mult)
+			if is_instance_valid(player) and player.has_method("take_boss_damage") and player.global_position.distance_to(p) <= zone_radius:
+				player.take_boss_damage(damage * dmg_mult)
 	)
 
 
@@ -804,7 +804,7 @@ func _execute_attack(attack_id: String) -> void:
 
 func _apply_attack_damage(attack_id: String, info: Dictionary, target_pos: Vector2) -> void:
 	var player := get_tree().get_first_node_in_group("player")
-	if not is_instance_valid(player) or not player.has_method("take_damage"):
+	if not is_instance_valid(player) or not player.has_method("take_boss_damage"):
 		return
 
 	var hit := false
@@ -854,7 +854,7 @@ func _apply_attack_damage(attack_id: String, info: Dictionary, target_pos: Vecto
 		_:
 			ImpactVFX.flash_burst(flash_pos, flash_radius, Color(flash_color.r, flash_color.g, flash_color.b, 1.0), self)
 	if hit:
-		player.take_damage(info["damage"] * _damage_mult)
+		player.take_boss_damage(info["damage"] * _damage_mult)
 
 
 func _show_telegraph(info: Dictionary, target_pos: Vector2) -> void:
@@ -920,8 +920,8 @@ func _throw_rock() -> void:
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
 	player = get_tree().get_first_node_in_group("player")
-	if is_instance_valid(player) and player.has_method("take_damage") and player.global_position.distance_to(target_pos) <= THROW_ROCK_IMPACT_RADIUS:
-		player.take_damage(THROW_ROCK_DAMAGE * _damage_mult)
+	if is_instance_valid(player) and player.has_method("take_boss_damage") and player.global_position.distance_to(target_pos) <= THROW_ROCK_IMPACT_RADIUS:
+		player.take_boss_damage(THROW_ROCK_DAMAGE * _damage_mult)
 	ImpactVFX.flash_burst(target_pos, THROW_ROCK_IMPACT_RADIUS, Color(THROW_ROCK_COLOR.r, THROW_ROCK_COLOR.g, THROW_ROCK_COLOR.b, 1.0), self)
 	_resume_walk_for_cooldown()
 	await get_tree().create_timer(THROW_ROCK_COOLDOWN * _cooldown_mult, false).timeout
@@ -978,7 +978,10 @@ func _rapid_volley() -> void:
 			var angle_offset := deg_to_rad(RAPID_VOLLEY_SPREAD_DEG * (i - float(RAPID_VOLLEY_SHOT_COUNT - 1) / 2.0))
 			var dir := base_dir.rotated(angle_offset)
 			var proj = pool.acquire(RAPID_VOLLEY_PROJECTILE)
-			proj.activate(dir, RAPID_VOLLEY_SPEED, RAPID_VOLLEY_DAMAGE * _damage_mult, global_position, 0, "player", RAPID_VOLLEY_MAX_RANGE)
+			# p_weighted = true (last arg): a boss's arrows are boss damage just
+			# like its melee is, so they keep their own tuned number instead of
+			# collapsing to the flat 1 HP every regular enemy hit costs.
+			proj.activate(dir, RAPID_VOLLEY_SPEED, RAPID_VOLLEY_DAMAGE * _damage_mult, global_position, 0, "player", RAPID_VOLLEY_MAX_RANGE, [], 0.0, 0, 1.0, "", null, Color(0, 0, 0, 0), 0.0, true)
 	_resume_walk_for_cooldown()
 	await get_tree().create_timer(RAPID_VOLLEY_COOLDOWN * _cooldown_mult, false).timeout
 
@@ -1011,7 +1014,7 @@ func _scattered_zone_attack(zone_count: int, zone_radius: float, telegraph_time:
 	if is_instance_valid(player):
 		for p in points:
 			if player.global_position.distance_to(p) <= zone_radius:
-				player.take_damage(damage * _damage_mult)
+				player.take_boss_damage(damage * _damage_mult)
 	_resume_walk_for_cooldown()
 	await get_tree().create_timer(cooldown * _cooldown_mult, false).timeout
 
@@ -1089,8 +1092,8 @@ func _charge() -> void:
 	# telegraphed corridor near charge_end still take a hidden hit, while a
 	# player standing inside the telegraphed corridor's middle took none.
 	var charge_poly := _rect_polygon(charge_origin, charge_end, CHARGE_HIT_WIDTH)
-	if is_instance_valid(player) and player.has_method("take_damage") and Geometry2D.is_point_in_polygon(player.global_position, charge_poly):
-		player.take_damage(CHARGE_DAMAGE * _damage_mult)
+	if is_instance_valid(player) and player.has_method("take_boss_damage") and Geometry2D.is_point_in_polygon(player.global_position, charge_poly):
+		player.take_boss_damage(CHARGE_DAMAGE * _damage_mult)
 	ImpactVFX.sword_slash(global_position, Vector2(dir_x, 0.0), self)
 	_resume_walk_for_cooldown()
 	await get_tree().create_timer(CHARGE_COOLDOWN * _cooldown_mult, false).timeout
@@ -1119,8 +1122,8 @@ func _leap_smash() -> void:
 	if not is_instance_valid(self) or not _attack_loop_running:
 		return
 	var player := get_tree().get_first_node_in_group("player")
-	if is_instance_valid(player) and player.has_method("take_damage") and player.global_position.distance_to(global_position) <= LEAP_SMASH_RADIUS:
-		player.take_damage(LEAP_SMASH_DAMAGE * _damage_mult)
+	if is_instance_valid(player) and player.has_method("take_boss_damage") and player.global_position.distance_to(global_position) <= LEAP_SMASH_RADIUS:
+		player.take_boss_damage(LEAP_SMASH_DAMAGE * _damage_mult)
 	ImpactVFX.ground_shockwave(global_position, LEAP_SMASH_RADIUS, self)
 	_resume_walk_for_cooldown()
 	await get_tree().create_timer(LEAP_SMASH_COOLDOWN * _cooldown_mult, false).timeout

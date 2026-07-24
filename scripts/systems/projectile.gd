@@ -22,6 +22,11 @@ var burst_vfx_id: String = ""  # "" = element-default burst look (see SkillData.
 var homing_target: Node2D = null
 var impact_flash_color: Color = Color(0, 0, 0, 0)  # a==0 = off; a bright visual-only flash per hit (class-skill highlight), no splash damage
 var impact_flash_radius: float = 0.0
+# (2026-07-24) true only for boss-fired shots at the player. Player damage is a
+# flat 1 HP per hit except from a boss, and a boss's arrows have to count as
+# boss damage just like its melee does -- see player.gd::take_boss_damage().
+# Must reset every activation or a pooled bolt keeps the previous life's flag.
+var weighted := false
 var _hits_remaining: int
 var _already_hit: Array[Node] = []
 var _spawn_position: Vector2
@@ -38,7 +43,7 @@ func _ready() -> void:
 		_base_visual_scale = get_node("Visual").scale
 
 
-func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE, p_status_rolls: Array[Dictionary] = [], p_burst_radius: float = 0.0, p_chain_count: int = 0, p_visual_scale: float = 1.0, p_burst_vfx_id: String = "", p_homing_target: Node2D = null, p_impact_flash_color: Color = Color(0, 0, 0, 0), p_impact_flash_radius: float = 0.0) -> void:
+func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position: Vector2, p_pierce_count: int, p_target_group: String, p_max_range: float = DEFAULT_MAX_RANGE, p_status_rolls: Array[Dictionary] = [], p_burst_radius: float = 0.0, p_chain_count: int = 0, p_visual_scale: float = 1.0, p_burst_vfx_id: String = "", p_homing_target: Node2D = null, p_impact_flash_color: Color = Color(0, 0, 0, 0), p_impact_flash_radius: float = 0.0, p_weighted: bool = false) -> void:
 	direction = p_direction
 	speed = p_speed
 	damage = p_damage
@@ -57,6 +62,7 @@ func activate(p_direction: Vector2, p_speed: float, p_damage: float, p_position:
 	# keeps the previous life's class glow.
 	impact_flash_color = p_impact_flash_color
 	impact_flash_radius = p_impact_flash_radius
+	weighted = p_weighted
 	global_position = p_position
 	rotation = direction.angle()
 	_spawn_position = p_position
@@ -106,7 +112,10 @@ func _on_body_entered(body: Node) -> void:
 	if body in _already_hit:
 		return
 	_already_hit.append(body)
-	body.take_damage(damage, _shot_element())
+	if weighted and body.has_method("take_boss_damage"):
+		body.take_boss_damage(damage)
+	else:
+		body.take_damage(damage, _shot_element())
 	if body.has_method("apply_status"):
 		for roll in status_rolls:
 			if randf() < roll["chance"]:
