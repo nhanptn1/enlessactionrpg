@@ -683,6 +683,22 @@ func _assert_maxed_element_still_offers_repeatable_cards() -> void:
 	await get_tree().process_frame
 
 
+func _count_shot_projectiles(player: Player, ppool: Node, bonus: int) -> int:
+	# Fires one real shot and counts how many pooled projectiles went live.
+	player.bonus_projectile_count = bonus
+	var before := 0
+	for c in ppool.get_children():
+		if c is Projectile and c._active:
+			before += 1
+	player._auto_fire(player._current_skill)
+	await get_tree().physics_frame
+	var after := 0
+	for c in ppool.get_children():
+		if c is Projectile and c._active:
+			after += 1
+	return after - before
+
+
 func _assert_arrow_cap_stops_plus_one_arrow() -> void:
 	# (2026-07-22) The "+1 Arrow" level-up card must stop being offered once the
 	# active cone skill is already firing MAX_SHOT_COUNT arrows (base + bonus) --
@@ -704,6 +720,33 @@ func _assert_arrow_cap_stops_plus_one_arrow() -> void:
 	# Below the cap -> +1 Arrow is offered.
 	player.bonus_projectile_count = 0
 	_expect("projectile_count" in popup._eligible_upgrade_ids(), "+1 Arrow should be offered while below the arrow cap")
+
+	# (2026-07-24) ...and it must actually put more ARROWS in the air, not just
+	# move a counter. Asked directly after Multishot was removed from the
+	# physical line (entry 100): with that tier gone, "+1 Arrow" is the only
+	# thing that widens a shot into a fan, so if it silently stopped working
+	# nothing else would cover for it. Counts real pooled projectiles.
+	var ppool: Node = get_tree().get_first_node_in_group("projectile_pool")
+	if ppool != null:
+		var dummy: EnemyBase = load("res://resources/enemies/slime_scout.tres").scene.instantiate()
+		dummy.setup(load("res://resources/enemies/slime_scout.tres"), 50.0, 0.01, 1.0, -1)
+		add_child(dummy)
+		dummy.global_position = player.global_position + Vector2(0, -300)
+		dummy.activate()
+		dummy.velocity = Vector2.ZERO
+		dummy._base_velocity = Vector2.ZERO
+		await get_tree().physics_frame
+
+		var one := await _count_shot_projectiles(player, ppool, 0)
+		var three := await _count_shot_projectiles(player, ppool, 2)
+		_expect(one == 1, "a shot with no bonus arrows should fire exactly 1, got %d" % one)
+		_expect(three == one + 2, "+2 bonus arrows should fire 2 more than baseline, got %d vs %d" % [three, one])
+
+		dummy._is_dying = true
+		dummy._deactivate()
+		dummy.queue_free()
+		await get_tree().physics_frame
+	player.bonus_projectile_count = 0
 
 	# Exactly at the cap -> +1 Arrow is dropped.
 	player.bonus_projectile_count = player.MAX_SHOT_COUNT - skill.projectile_count
