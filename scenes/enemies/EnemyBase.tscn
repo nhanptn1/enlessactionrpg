@@ -39,5 +39,3 @@ shape = SubResource("CircleShape2")
 wait_time = 0.6
 
 [node name="AttackTimer" type="Timer" parent="."]
-
-[node name="ScreenCheck" type="VisibleOnScreenNotifier2D" parent="."]

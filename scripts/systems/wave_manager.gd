@@ -457,8 +457,8 @@ func _on_enemy_died(xp_reward: int, drop_chance: float, death_position: Vector2,
 
 
 func notify_enemy_left_screen() -> void:
-	# A regular enemy that leaked off the bottom without dying (enemy_base.gd's
-	# _on_screen_exited()) still frees up its active-on-screen slot, same as
+	# A regular enemy that crossed the lose line without dying (enemy_base.gd's
+	# _cross_lose_line()) still frees up its active-on-screen slot, same as
 	# an actual kill -- only ever called for _is_wave_tracked regular
 	# enemies, so this can never apply to a boss (which has no leak mechanic
 	# at all) or a boss-summoned minion (never wave-tracked).

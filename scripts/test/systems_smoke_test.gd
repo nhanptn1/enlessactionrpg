@@ -169,6 +169,7 @@ func _assert_save_roundtrip() -> void:
 	await _assert_class_skill_trees()
 	await _assert_continue_revive()
 	await _assert_every_monster_hurts_on_contact()
+	await _assert_lose_line()
 	_assert_tutorial_hints()
 
 
@@ -292,7 +293,19 @@ func _assert_leaked_enemy_deactivates() -> void:
 
 	var cursed_wraith = load("res://resources/enemies/cursed_wraith.tres")
 	var enemy: EnemyBase = spawner.spawn(cursed_wraith, 1.0, 1.0, 1.0, -1, 1.0, 100.0, false)
-	enemy._on_screen_exited()
+	# (2026-07-24) Driven by actually WALKING the enemy across the lose line on
+	# real physics frames, rather than calling the leak handler directly as this
+	# test used to. That is the entire point of replacing
+	# VisibleOnScreenNotifier2D (which never fires headlessly) with a position
+	# check -- the trigger itself is now covered, not just its consequences.
+	enemy.global_position.y = LoseLine.Y - 6.0
+	var crossed := false
+	for i in 60:
+		await get_tree().physics_frame
+		if enemy._is_dying:
+			crossed = true
+			break
+	_expect(crossed, "an enemy walking past the lose line must trigger the leak on its own")
 	await get_tree().process_frame
 
 	_expect(not enemy.is_physics_processing(), "a leaked enemy must stop physics_process")
@@ -1647,6 +1660,79 @@ func _assert_tutorial_hints() -> void:
 	SaveManager.save_to_disk()
 
 
+func _assert_lose_line() -> void:
+	# (2026-07-24) User: "when enemy run over character line, reduce character hp
+	# (can create a line of death zone for player to know it). And when enemy run
+	# pass this line, remove this enemy too." Replaces the old
+	# VisibleOnScreenNotifier2D trigger, which could not be tested at all under
+	# the headless dummy renderer -- so this whole mechanic previously shipped
+	# with zero coverage despite costing the player HP.
+	_expect(LoseLine.Y > 1150.0, "the lose line must sit BELOW the player, or crossing it wouldn't mean getting past them")
+	_expect(LoseLine.Y < 1280.0, "the lose line must sit above the screen edge, or the player could never see it")
+
+	# The rule working is not the same as the player being able to SEE it, and a
+	# silently-missing visual is exactly the half that headless cannot notice.
+	# instantiate() alone doesn't run _ready(), so this stays cheap.
+	var main_inst := (load(MAIN_SCENE) as PackedScene).instantiate()
+	var line_node := main_inst.get_node_or_null("LoseLine")
+	_expect(line_node != null, "Main.tscn must contain the LoseLine node, or the death zone is invisible")
+	_expect(line_node == null or line_node is LoseLine, "Main.tscn's LoseLine node must carry the LoseLine script")
+	main_inst.free()
+
+	var spawner := EnemySpawner.new()
+	spawner.name = "EnemySpawner"
+	add_child(spawner)
+	var pool := EnemyPool.new()
+	add_child(pool)
+	var player: Player = load("res://scenes/player/Player.tscn").instantiate()
+	add_child(player)
+	player.global_position = Vector2(360.0, 1150.0)
+	player.get_node("BasicShotTimer").stop()  # no projectile pool here; see the contact test
+	await get_tree().physics_frame
+
+	var data: EnemyData = load("res://resources/enemies/slime_scout.tres")
+
+	# An enemy that has NOT reached the line is untouched and costs nothing.
+	var safe: EnemyBase = spawner.spawn(data, 1.0, 1.0, 1.0, -1, 1.0, 100.0, false)
+	safe.global_position = Vector2(100.0, LoseLine.Y - 240.0)
+	player.current_hp = player.max_hp
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_expect(not safe._is_dying, "an enemy above the line must not leak")
+	_expect(is_equal_approx(player.current_hp, player.max_hp), "an enemy above the line must not cost HP")
+	safe._deactivate()
+	safe.queue_free()
+	await get_tree().physics_frame
+
+	# One that walks across it costs exactly 1 HP and is removed from the run.
+	var leaker: EnemyBase = spawner.spawn(data, 1.0, 1.0, 1.0, -1, 1.0, 100.0, false)
+	leaker.global_position = Vector2(100.0, LoseLine.Y - 6.0)
+	player.current_hp = player.max_hp
+	var hp_before: float = player.current_hp
+	var frames := 0
+	while frames < 90 and not leaker._is_dying:
+		await get_tree().physics_frame
+		frames += 1
+	_expect(leaker._is_dying, "an enemy crossing the lose line must be taken out of the run")
+	_expect(is_equal_approx(hp_before - player.current_hp, Player.HIT_COST),
+		"crossing the lose line must cost exactly %s HP, got %s" % [Player.HIT_COST, hp_before - player.current_hp])
+	_expect(not leaker.is_in_group("enemy"), "a leaked enemy must leave the 'enemy' group")
+
+	# The check runs every physics frame, so an enemy sitting past the line must
+	# not keep billing the player -- the single most likely way this regresses.
+	var hp_after_leak: float = player.current_hp
+	for i in 20:
+		await get_tree().physics_frame
+	_expect(is_equal_approx(player.current_hp, hp_after_leak),
+		"crossing the line must cost HP once, not once per frame (lost %s more)" % (hp_after_leak - player.current_hp))
+
+	player.queue_free()
+	spawner.queue_free()
+	pool.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
 const CONTACT_DAMAGE_SPECIES := [
 	"armored_brute", "armored_gargoyle", "bat_swarm", "cursed_wraith",
 	"goblin_runner", "sapling", "shield_skeleton", "skeleton_soldier",
@@ -1680,11 +1766,6 @@ func _assert_every_monster_hurts_on_contact() -> void:
 		# movement behavior from HERE so dive species actually aim at the player.
 		enemy.global_position = player.global_position + Vector2(0, -90)
 		enemy.activate()
-		# VisibleOnScreenNotifier2D misreports under the headless dummy renderer,
-		# so its LEAK_DAMAGE path would otherwise forge a "hit" this test never
-		# made -- the exact contamination that would hide a real regression here.
-		if enemy.screen_check.screen_exited.is_connected(enemy._on_screen_exited):
-			enemy.screen_check.screen_exited.disconnect(enemy._on_screen_exited)
 		if data.movement_behavior:
 			data.movement_behavior.on_ready(enemy)
 		enemy._base_velocity = enemy.velocity
@@ -1692,11 +1773,20 @@ func _assert_every_monster_hurts_on_contact() -> void:
 		player.current_hp = player.max_hp
 		var hp_before: float = player.current_hp
 		var frames := 0
+		var by_contact := false
 		while frames < 200 and is_instance_valid(enemy) and player.current_hp == hp_before:
 			await get_tree().physics_frame
 			frames += 1
+			if enemy._player_in_contact != null:
+				by_contact = true
 		var dealt: float = hp_before - player.current_hp
 		_expect(dealt > 0.0, "%s must damage the player on contact (dealt nothing in %d frames)" % [id, frames])
+		# (2026-07-24) Crossing the lose line also costs exactly one HP, so a
+		# species that slipped PAST the player without touching them would satisfy
+		# the checks above while proving nothing about contact. Requiring the
+		# hurtbox to have actually latched keeps the two paths distinguishable --
+		# the reason the old test had to disable the leak trigger outright.
+		_expect(by_contact, "%s's damage must come from contact, not from crossing the lose line" % id)
 		_expect(is_equal_approx(dealt, Player.HIT_COST),
 			"%s should cost exactly %s HP per hit regardless of its base_damage (%s), got %s" % [
 				id, Player.HIT_COST, data.base_damage, dealt,

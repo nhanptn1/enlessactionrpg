@@ -1,4 +1,4 @@
-[gd_scene load_steps=89 format=3]
+[gd_scene load_steps=90 format=3]
 
 [ext_resource type="Resource" path="res://resources/upgrades/fusion_damage_boost.tres" id="126"]
 [ext_resource type="Resource" path="res://resources/upgrades/fusion_speed_boost.tres" id="127"]
@@ -59,6 +59,7 @@
 [ext_resource type="Resource" path="res://resources/enemies/stone_golem.tres" id="106"]
 [ext_resource type="Script" path="res://scripts/systems/enemy_pool.gd" id="107"]
 [ext_resource type="Script" path="res://scripts/systems/danger_indicator.gd" id="50"]
+[ext_resource type="Script" path="res://scripts/systems/lose_line.gd" id="129"]
 [ext_resource type="PackedScene" path="res://scenes/ui/WaveUpgradePopup.tscn" id="51"]
 [ext_resource type="Resource" path="res://resources/upgrades/fire_t1_searing_shot.tres" id="55"]
 [ext_resource type="Resource" path="res://resources/upgrades/frost_t1_glacial_spike.tres" id="60"]
@@ -139,6 +140,9 @@ script = ExtResource("2")
 spawn_width = 600.0
 spawn_y = -40.0
 center_x = 360.0
+
+[node name="LoseLine" type="Node2D" parent="."]
+script = ExtResource("129")
 
 [node name="DangerIndicator" type="Node2D" parent="."]
 script = ExtResource("50")

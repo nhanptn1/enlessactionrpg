@@ -12,7 +12,6 @@ const LEAK_DAMAGE := 1.0  # HP cost when an enemy reaches the bottom of the scre
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var hurtbox: Area2D = $Hurtbox
 @onready var contact_timer: Timer = $ContactDamageTimer
-@onready var screen_check: VisibleOnScreenNotifier2D = $ScreenCheck
 @onready var attack_timer: Timer = $AttackTimer
 @onready var collision: CollisionShape2D = $Collision
 
@@ -67,7 +66,6 @@ func _ready() -> void:
 	hurtbox.body_exited.connect(_on_hurtbox_body_exited)
 	contact_timer.wait_time = CONTACT_DAMAGE_INTERVAL
 	contact_timer.timeout.connect(_on_contact_timer_timeout)
-	screen_check.screen_exited.connect(_on_screen_exited)
 	_base_modulate = sprite.modulate
 	_base_root_modulate = modulate
 	_base_scale = sprite.scale
@@ -130,6 +128,11 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity *= StatusEffects.speed_multiplier(self)
 	move_and_slide()
+	# (2026-07-24) Checked here, right after the move that could have carried it
+	# across, rather than via VisibleOnScreenNotifier2D -- see lose_line.gd for
+	# why that notifier was the wrong trigger for a rule that costs the player HP.
+	if global_position.y >= LoseLine.Y:
+		_cross_lose_line()
 
 
 func apply_status(element: String, duration: float) -> void:
@@ -218,13 +221,16 @@ func _on_attack_timer_timeout() -> void:
 		data.attack_behavior.on_attack_timer_timeout(self)
 
 
-func _on_screen_exited() -> void:
-	# _is_dying doubles as a general "this life is already over" guard here --
-	# a pooled instance gets hidden (visible = false) when it returns to the
-	# pool, and VisibleOnScreenNotifier2D can fire screen_exited again purely
-	# from that visibility change, not just from actually falling off-screen.
-	# Without this guard a just-died enemy could double-report to WaveManager
-	# and double-hit the player for leak damage on its own death.
+func _cross_lose_line() -> void:
+	# The enemy got past the player. Costs 1 HP and ends this life -- per user:
+	# "when enemy run over character line, reduce character hp ... and when enemy
+	# run pass this line, remove this enemy too".
+	#
+	# _is_dying doubles as a general "this life is already over" guard: the check
+	# that calls this runs every physics frame, so without it a single enemy
+	# sitting past the line would bill the player once per frame instead of once,
+	# and would double-report to WaveManager. (It also covers the case this guard
+	# was originally written for -- an enemy dying on the same frame it crosses.)
 	if _is_dying:
 		return
 	_is_dying = true
@@ -275,7 +281,7 @@ func _die() -> void:
 
 
 func _deactivate() -> void:
-	# Shared by _die() and _on_screen_exited() -- whatever ends this life, it
+	# Shared by _die() and _cross_lose_line() -- whatever ends this life, it
 	# must stop acting immediately: no more contact damage, ranged attacks,
 	# or movement, whether it's about to fade out or sit invisible in the
 	# pool for an unknown stretch of time before its next life. Leaving the
