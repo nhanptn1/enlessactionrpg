@@ -708,6 +708,45 @@ func _assert_arrow_cap_stops_plus_one_arrow() -> void:
 	_expect(skill.projectile_count + player.bonus_projectile_count == player.MAX_SHOT_COUNT, "test should drive the shot count to exactly the cap")
 	_expect(not ("projectile_count" in popup._eligible_upgrade_ids()), "+1 Arrow must not be offered once arrows are capped at MAX_SHOT_COUNT")
 
+	# (2026-07-24) Three more dead picks, same class, found by measuring kill
+	# throughput: banked stat picks are what decide whether a late run survives,
+	# so a pick that does nothing is a real loss of a choice.
+
+	# Reduce Cooldown: dead once cooldown_mult sits on its floor.
+	player.cooldown_mult = player.COOLDOWN_MULT_FLOOR + 0.05
+	_expect("cooldown" in popup._eligible_upgrade_ids(), "Reduce Cooldown should be offered while above the floor")
+	player.cooldown_mult = player.COOLDOWN_MULT_FLOOR
+	_expect(not ("cooldown" in popup._eligible_upgrade_ids()), "Reduce Cooldown must not be offered once cooldown_mult is floored")
+	# ...and the floor really is reachable by taking the pick, not just by
+	# assignment -- otherwise this filter could guard a state the game never hits.
+	player.cooldown_mult = 1.0
+	for i in 60:
+		player.apply_upgrade("cooldown")
+	_expect(player.cooldown_mult <= player.COOLDOWN_MULT_FLOOR, "repeated Reduce Cooldown picks must actually reach the floor")
+	_expect(not ("cooldown" in popup._eligible_upgrade_ids()), "a player who ground to the cooldown floor must stop being offered it")
+
+	# Increase Crit Chance: dead once clamped at CRIT_CHANCE_MAX.
+	player.crit_chance = 0.5
+	_expect("crit_chance" in popup._eligible_upgrade_ids(), "Crit Chance should be offered below the cap")
+	player.crit_chance = player.CRIT_CHANCE_MAX
+	_expect(not ("crit_chance" in popup._eligible_upgrade_ids()), "Crit Chance must not be offered at 100%")
+
+	# Restore HP: dead at full health -- the case a player meets most often,
+	# since levelling up undamaged is the normal path.
+	player.crit_chance = 0.0
+	player.current_hp = player.max_hp
+	_expect(not ("hp" in popup._eligible_upgrade_ids()), "Restore HP must not be offered at full health")
+	player.current_hp = player.max_hp - 1.0
+	_expect("hp" in popup._eligible_upgrade_ids(), "Restore HP should be offered when actually damaged")
+
+	# Whatever is filtered, the popup always has three buttons to fill.
+	player.cooldown_mult = player.COOLDOWN_MULT_FLOOR
+	player.crit_chance = player.CRIT_CHANCE_MAX
+	player.current_hp = player.max_hp
+	player.bonus_projectile_count = player.MAX_SHOT_COUNT
+	_expect(popup._eligible_upgrade_ids().size() >= 3,
+		"the eligible pool must never drop below the 3 buttons the popup fills, got %d" % popup._eligible_upgrade_ids().size())
+
 	main.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame

@@ -86,6 +86,13 @@ const UPGRADE_POOL: Array[String] = [
 	"crit_chance", "hp", "xp_gain",
 ]
 
+# (2026-07-24) Named because the level-up popup has to consult them to know when
+# a pick would do nothing (see LevelUpPopup._eligible_upgrade_ids()). They were
+# a bare 0.3 / 1.0 repeated across five call sites; re-typing either number into
+# a UI file is exactly how a cap and the filter that depends on it drift apart.
+const COOLDOWN_MULT_FLOOR := 0.3
+const CRIT_CHANCE_MAX := 1.0
+
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var attack_origin: Marker2D = $AttackOrigin
 @onready var attack_timer: Timer = $BasicShotTimer  # the one and only attack loop; see _current_skill
@@ -309,7 +316,7 @@ func _apply_meta_upgrades() -> void:
 	max_hp += SaveManager.get_meta_bonus("vitality")
 	current_hp = max_hp
 	damage_mult += SaveManager.get_meta_bonus("power")
-	cooldown_mult = maxf(cooldown_mult - SaveManager.get_meta_bonus("quickdraw"), 0.3)
+	cooldown_mult = maxf(cooldown_mult - SaveManager.get_meta_bonus("quickdraw"), COOLDOWN_MULT_FLOOR)
 	xp_gain_mult += SaveManager.get_meta_bonus("insight")
 
 
@@ -323,7 +330,7 @@ func _apply_meta_upgrades() -> void:
 func _apply_run_modifier() -> void:
 	active_run_modifier_id = RunModifiers.roll_random_id()
 	damage_mult *= RunModifiers.get_mult(active_run_modifier_id, "player_damage_mult")
-	cooldown_mult = maxf(cooldown_mult * RunModifiers.get_mult(active_run_modifier_id, "player_cooldown_mult"), 0.3)
+	cooldown_mult = maxf(cooldown_mult * RunModifiers.get_mult(active_run_modifier_id, "player_cooldown_mult"), COOLDOWN_MULT_FLOOR)
 	max_hp *= RunModifiers.get_mult(active_run_modifier_id, "player_max_hp_mult")
 	current_hp = max_hp
 	xp_gain_mult *= RunModifiers.get_mult(active_run_modifier_id, "player_xp_gain_mult")
@@ -558,13 +565,13 @@ func apply_upgrade(upgrade_id: String) -> void:
 		"damage":
 			damage_mult += 0.02
 		"cooldown":
-			cooldown_mult = maxf(cooldown_mult - 0.03, 0.3)
+			cooldown_mult = maxf(cooldown_mult - 0.03, COOLDOWN_MULT_FLOOR)
 		"projectile_count":
 			bonus_projectile_count += 1
 		"projectile_speed":
 			projectile_speed_mult += 0.05
 		"crit_chance":
-			crit_chance = minf(crit_chance + 0.02, 1.0)
+			crit_chance = minf(crit_chance + 0.02, CRIT_CHANCE_MAX)
 		"hp":
 			# (2026-07-16) Restores HP instead of raising max_hp -- per user
 			# request, a straight heal reads better than a permanent capacity
