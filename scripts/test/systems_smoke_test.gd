@@ -70,9 +70,13 @@ func _assert_autoloads() -> void:
 
 
 func _assert_skill_resources() -> void:
-	var trap_shot = load("res://resources/skills/trap_shot.tres")
-	_expect(trap_shot != null, "trap_shot.tres failed to load")
-	_expect(trap_shot.fire_mode == SkillData.FireMode.TRAP_SHOT)
+	# (2026-07-24) Was trap_shot.tres, deleted as a duplicate: it was
+	# byte-identical to class_snare_trap.tres apart from id/display_name, and its
+	# Player export went dead when traps moved off the physical line into the
+	# Trapper class. This points at the trap skill that is actually live.
+	var snare_trap = load("res://resources/skills/class_snare_trap.tres")
+	_expect(snare_trap != null, "class_snare_trap.tres failed to load")
+	_expect(snare_trap.fire_mode == SkillData.FireMode.TRAP_SHOT)
 	_expect(load(MAIN_SCENE) != null, "Main.tscn failed to load")
 
 

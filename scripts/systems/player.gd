@@ -71,8 +71,8 @@ const ULTIMATE_SHAKE_DURATION := 0.35
 const SPREAD_STEP_DEGREES := 8.0
 # (2026-07-16) bonus_projectile_count ("+1 Arrow") stacks with no limit of
 # its own onto whichever basic-line skill is active -- without a ceiling,
-# enough picks could make Multishot or Piercing Arrow fire an absurd number
-# of arrows in one volley. User asked for a hard cap of 6 total arrows.
+# enough picks could make the active skill fire an absurd number of arrows in
+# one volley. User asked for a hard cap of 6 total arrows.
 const MAX_SHOT_COUNT := 6
 # (2026-07-24) "+1 Chain" cap, per user: "max 4 enemy". Read as 4 nearby
 # enemies receiving the chained damage, i.e. it reaches at most 4 beyond the one
@@ -112,15 +112,10 @@ const CRIT_CHANCE_MAX := 1.0
 @export var basic_shot: SkillData
 @export var piercing_arrow: SkillData
 @export var chain_arrow: SkillData
-# (2026-07-24) Still exported although the physical line no longer uses it --
-# Trap Shot moved to the Trapper class, whose skills load lazily from
-# CharacterClasses.CLASSES by path. Kept as the scene-wired reference so the
-# resource has an owner in the editor rather than existing only as a string.
-@export var trap_shot: SkillData
 # Index 0/1/2/3 = tier 1/2/3/4 -- e.g. fire_skills = [Fire Arrow, Explosive
 # Volley, Burning Rain, Wildfire Storm]. fire_level (1-4) indexes straight
 # into this array; each tier pick wholesale-swaps the active attack,
-# mirroring the basic line's own Basic Shot -> Multishot -> ... progression,
+# mirroring the basic line's own Basic Shot -> Piercing Arrow -> Chain Arrow
 # just scoped per element. (2026-07-16) grew from 3 to 4 tiers -- see
 # apply_element_upgrade() and wave_upgrade_popup.gd's _max_tier_for().
 @export var fire_skills: Array[SkillData] = []
@@ -1321,9 +1316,9 @@ func _spread_offset(i: int, shot_count: int) -> float:
 	# approach) has no exact center shot whenever shot_count is even -- e.g.
 	# 4 shots would land at +/-7.5/+/-22.5 degrees (back when the step was
 	# 15), so every single arrow misses a stationary target dead ahead.
-	# Since bonus_projectile_count ("+1 Arrow") can turn Multishot's odd base
-	# count into an even one, this isn't an edge case; it needs to hold for
-	# every shot_count.
+	# Since bonus_projectile_count ("+1 Arrow") drives the count up from a base
+	# of 1, both odd and even totals occur; this isn't an edge case, it needs to
+	# hold for every shot_count.
 	if i == 0:
 		return 0.0
 	var step := (i + 1) / 2

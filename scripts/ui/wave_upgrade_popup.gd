@@ -70,10 +70,10 @@ func _on_wave_cleared(_wave_number: int, _was_boss: bool) -> void:
 	# processed in random order and an element's node(s) are only added if
 	# they entirely fit in the remaining slots, so a fork (2 slots) never gets
 	# split across waves -- at most one fork can appear alongside one other
-	# element's single node in the 3 available slots. PHYSICAL (Multishot ->
-	# Piercing Arrow -> Trap Shot -> Rigged Trap -> Volatile Trap -> Trap
-	# Mastery, 6 tiers) competes for the same 3 slots as the elements -- it's
-	# a linear chain with no forks, so its "unit" is always exactly 1 card.
+	# element's single node in the 3 available slots. PHYSICAL (Piercing Arrow
+	# -> Chain Arrow, 2 tiers as of 2026-07-24 -- Multishot removed and the trap
+	# tiers moved to the Trapper class) competes for the same 3 slots as the
+	# elements -- a linear chain with no forks, so its "unit" is always 1 card.
 	# It still has no per-skill icon art, so its cards fall back to SkillIcon's
 	# procedural glyph (see skill_icon.gd).
 	var element_order: Array = [UpgradeResource.ElementType.FIRE, UpgradeResource.ElementType.FROST, UpgradeResource.ElementType.LIGHTNING, UpgradeResource.ElementType.PHYSICAL, UpgradeResource.ElementType.CLASS, UpgradeResource.ElementType.FUSION]
@@ -202,10 +202,10 @@ func _current_level_for(element: UpgradeResource.ElementType) -> int:
 
 
 func _max_tier_for(element: UpgradeResource.ElementType) -> int:
-	# (2026-07-16) All 4 lines are a direct linear chain -- Physical was always
-	# this shape (Multishot/Piercing Arrow/Arrow Rain/Trap Shot); Fire/Frost/
-	# Lightning's former 2-option forks at tier 2/3/4 were merged into single
-	# direct upgrades (see player.gd's apply_element_upgrade()). (2026-07-16)
+	# (2026-07-16) All 4 lines are a direct linear chain -- Physical has always
+	# been this shape; Fire/Frost/Lightning's former 2-option forks at tier
+	# 2/3/4 were merged into single direct upgrades (see player.gd's
+	# apply_element_upgrade()). (2026-07-16)
 	# Physical grew from 4 to 6 -- Trap Shot's former single-card "Trap Mastery"
 	# capstone split into 3 progressive tiers (bare trap -> low explosion ->
 	# bigger explosion -> max explosion) instead of one lump stat jump.
