@@ -985,13 +985,48 @@ func _assert_status_control_effects() -> void:
 	# 4. Burn scales with the enemy's own wave HP multiplier, so a tankier
 	#    late-wave enemy burns proportionally as fast as a wave-1 one.
 	var tanky: EnemyBase = spawner.spawn(goblin, 8.0, 1.0, 1.0, -1, 1.0, 600.0, false)
-	_expect(is_equal_approx(StatusEffects._burn_scale(tanky), 8.0), "burn should scale by the enemy's hp_mult")
+	_expect(is_equal_approx(StatusEffects._wave_hp_scale(tanky), 8.0), "burn should scale by the enemy's hp_mult")
 	var plain: EnemyBase = spawner.spawn(goblin, 1.0, 1.0, 1.0, -1, 1.0, 700.0, false)
-	_expect(is_equal_approx(StatusEffects._burn_scale(plain), 1.0), "an unscaled enemy burns at the base rate")
+	_expect(is_equal_approx(StatusEffects._wave_hp_scale(plain), 1.0), "an unscaled enemy burns at the base rate")
 	tanky.queue_free()
 	plain.queue_free()
 
-	# 3. Bosses: slowed while chilled/shocked, but never fully stopped.
+	# (2026-07-24) Shock must damage from tier 1 and scale with the wave, exactly
+	# like burn. User report: "the lightning skill path seem slower and worse to
+	# play". Two asymmetries caused it: the shock tick was gated on the tier-4
+	# `lightning_dps` stat so Lightning had NO damage-over-time for three tiers,
+	# and even then it was flat while burn was multiplied by the enemy's own wave
+	# HP scaling -- roughly a 100x gap at wave 50 on the same axis.
+	_expect(StatusEffects.LIGHTNING_DPS > 0.0,
+		"shock needs a baseline DPS or Lightning has no damage-over-time before tier 4")
+	_expect(StatusEffects.LIGHTNING_DPS < StatusEffects.FIRE_DPS,
+		"shock should stay under burn -- Fire is the pure-damage element, Lightning also stuns/slows/chains")
+	# Driven through real ticks on a real enemy, with a wave multiplier, so this
+	# fails if the tick ever stops scaling or goes back behind a stat gate.
+	var wave_shocked: EnemyBase = spawner.spawn(goblin, 400.0, 0.01, 1.0, -1, 1.0, 500.0, false)
+	wave_shocked._hp_mult = 10.0
+	wave_shocked.velocity = Vector2.ZERO
+	wave_shocked._base_velocity = Vector2.ZERO
+	await get_tree().physics_frame
+	var shock_before: float = wave_shocked.current_hp
+	StatusEffects.apply(wave_shocked, StatusEffects.LIGHTNING, StatusEffects.LIGHTNING_DURATION, false)
+	for i in 130:
+		await get_tree().physics_frame
+		if not is_instance_valid(wave_shocked):
+			break
+	var shock_dealt: float = shock_before - wave_shocked.current_hp if is_instance_valid(wave_shocked) else 999.0
+	# One tick alone at the baseline would be LIGHTNING_DPS * interval * 10; a
+	# floor well above the unscaled figure proves both the gate and the scaling.
+	var unscaled_tick: float = StatusEffects.LIGHTNING_DPS * StatusEffects.LIGHTNING_TICK_INTERVAL
+	_expect(shock_dealt > unscaled_tick * 2.0,
+		"a shock on a 10x-HP enemy should deal wave-scaled damage, got %s (unscaled single tick is %s)" % [shock_dealt, unscaled_tick])
+	if is_instance_valid(wave_shocked):
+		wave_shocked._is_dying = true
+		wave_shocked._deactivate()
+		wave_shocked.queue_free()
+	await get_tree().physics_frame
+
+	# 3. Bosses: slowed while chilled/wave_shocked, but never fully stopped.
 	var boss_data = load("res://resources/enemies/fallen_knight.tres")
 	var boss: BossBase = boss_data.scene.instantiate()
 	boss.setup(boss_data, 1.0, 1.0, 1.0)

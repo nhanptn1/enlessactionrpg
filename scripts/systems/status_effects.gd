@@ -26,7 +26,22 @@ const FIRE_COLOR := Color(1.6, 0.55, 0.4, 1.0)
 
 const LIGHTNING_SLOW_MULT := 0.45
 const LIGHTNING_DURATION := 1.8
-const LIGHTNING_TICK_INTERVAL := 0.5  # only ticks damage if the player has lightning_dps > 0 (Static Charge)
+const LIGHTNING_TICK_INTERVAL := 0.5
+# (2026-07-24) Shock now does baseline damage from tier 1, like burn does.
+# User report: "the lightning skill path seem slower and worse to play than
+# another skill path". Two measured asymmetries caused it, both here:
+#   1. Shock's damage tick was gated on `player.lightning_dps > 0`, and the ONLY
+#      thing granting that stat is the tier-4 card -- so Lightning had literally
+#      no damage-over-time for its first three tiers, while Fire burns from
+#      tier 1 and Frost freezes from tier 1.
+#   2. Even after tier 4 the tick was FLAT, while burn is multiplied by the
+#      enemy's own wave HP scaling (entry 80's fix, applied to Fire and never
+#      to Lightning). At wave 50 that left burn at ~54 per tick against shock's
+#      0.5 -- a ~100x gap on the same axis.
+# Set below Fire's 6.0 on purpose: Fire is the pure-damage element, while
+# Lightning also stuns, slows and chains. Tier 4's `lightning_dps` still stacks
+# on top of this as a flat bonus.
+const LIGHTNING_DPS := 5.0
 const LIGHTNING_COLOR := Color(1.6, 1.6, 0.45, 1.0)
 # (2026-07-22) Shock now opens with a brief hard stun before settling into the
 # slow above -- user report: at wave 30+ shocked enemies "don't stop". The slow
@@ -136,13 +151,18 @@ static func tick(target: Node, delta: float) -> void:
 			var dps_mult: float = player.fire_dps_mult if is_instance_valid(player) else 1.0
 			if is_instance_valid(player) and player.fire_level >= CAPSTONE_TIER:
 				dps_mult *= FIRE_CAPSTONE_DPS_MULT
-			target.take_damage(FIRE_DPS * dps_mult * FIRE_TICK_INTERVAL * _burn_scale(target), FIRE)
+			target.take_damage(FIRE_DPS * dps_mult * FIRE_TICK_INTERVAL * _wave_hp_scale(target), FIRE)
 			if not is_instance_valid(target):
 				return  # the burn tick itself killed it
-	if lightning_old_remaining >= 0.0 and is_instance_valid(player) and player.lightning_dps > 0.0:
+	if lightning_old_remaining >= 0.0:
 		var lightning_new_remaining: float = maxf(target.status.get(LIGHTNING, 0.0), 0.0)
 		if int(lightning_old_remaining / LIGHTNING_TICK_INTERVAL) != int(lightning_new_remaining / LIGHTNING_TICK_INTERVAL):
-			target.take_damage(player.lightning_dps * LIGHTNING_TICK_INTERVAL, LIGHTNING)
+			# No longer gated on the tier-4 stat -- LIGHTNING_DPS is the baseline
+			# and `lightning_dps` stacks on top, mirroring how FIRE_DPS and
+			# fire_dps_mult relate. Scaled by the same wave multiplier burn uses,
+			# so a shock stays as relevant at wave 60 as at wave 1.
+			var bonus_dps: float = player.lightning_dps if is_instance_valid(player) else 0.0
+			target.take_damage((LIGHTNING_DPS + bonus_dps) * LIGHTNING_TICK_INTERVAL * _wave_hp_scale(target), LIGHTNING)
 			if not is_instance_valid(target):
 				return  # the shock tick itself killed it
 	for element in expired:
@@ -169,7 +189,7 @@ static func boss_speed_multiplier(target: Node) -> float:
 	return 1.0
 
 
-static func _burn_scale(target: Node) -> float:
+static func _wave_hp_scale(target: Node) -> float:
 	# (2026-07-22) Burn was a flat FIRE_DPS while enemy HP scales up to
 	# WaveManager.HP_MULT_CEILING (12x), so a late-wave burn was proportionally
 	# negligible. Scaling the tick by the same multiplier the wave applied to
