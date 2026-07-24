@@ -6,10 +6,15 @@ extends SceneTree
 ## (2026-07-23) Written as a tool rather than hand-editing four scenes: each
 ## boss has a different frame count per animation (the Fallen Knight's sheet
 ## yields 8, the others 4), plus the Forest Guardian keeps a `sapling_data`
-## export and has NO usable attack row -- its burst VFX are wide enough that
-## adjacent frames merge. Generating from one spec keeps all four consistent
-## and makes the guardian's missing-attack case explicit instead of a silent
-## hand-editing slip.
+## export. Generating from one spec keeps all four consistent instead of
+## risking a silent hand-editing slip.
+##
+## (2026-07-24) The Guardian's attack row is no longer a special case: its
+## burst VFX spray wide enough that gap detection merged two poses into one
+## cut (3 frames from a 4-frame row, with slivers of neighbours attached), so
+## extract_boss_sheet.gd now re-cuts that row with a declared column count --
+## the same fix the Knight's slash trail and the Demon Beast's tail needed.
+## All four bosses now have all three animations.
 
 const BOSSES := [
 	{
@@ -40,7 +45,7 @@ const BOSSES := [
 		"scene": "res://scenes/enemies/CorruptedForestGuardian.tscn",
 		"node": "CorruptedForestGuardian",
 		"prefix": "forest_guardian",
-		"walk": 4, "attack": 0, "death": 4,  # attack row unusable, see header
+		"walk": 4, "attack": 4, "death": 4,  # (2026-07-24) attack row recovered, see header
 		"scale": "0.72", "walk_speed": "5.0",
 		"extra_ext": ['[ext_resource type="Resource" path="res://resources/enemies/sapling.tres" id="3"]'],
 		"props": ['sapling_data = ExtResource("3")', "advances_to_lose_line = true"],

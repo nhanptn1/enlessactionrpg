@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bn7rigjkebvf4"
-path="res://.godot/imported/forest_guardian_attack_03.png-20f34b95d0ba400bfa1eeeae79ed92e6.ctex"
+uid="uid://5oxpe6hq38ai"
+path="res://.godot/imported/forest_guardian_attack_04.png-10df42748ddc96888a12fea7a63575e2.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/bosses/forest_guardian_attack_03.png"
-dest_files=["res://.godot/imported/forest_guardian_attack_03.png-20f34b95d0ba400bfa1eeeae79ed92e6.ctex"]
+source_file="res://art/bosses/forest_guardian_attack_04.png"
+dest_files=["res://.godot/imported/forest_guardian_attack_04.png-10df42748ddc96888a12fea7a63575e2.ctex"]
 
 [params]
 

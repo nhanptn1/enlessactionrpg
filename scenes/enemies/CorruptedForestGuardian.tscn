@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/boss_base.gd" id="1"]
 [ext_resource type="Resource" path="res://resources/enemies/sapling.tres" id="3"]
@@ -6,6 +6,10 @@
 [ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_walk_02.png" id="w2"]
 [ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_walk_03.png" id="w3"]
 [ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_walk_04.png" id="w4"]
+[ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_attack_01.png" id="a1"]
+[ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_attack_02.png" id="a2"]
+[ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_attack_03.png" id="a3"]
+[ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_attack_04.png" id="a4"]
 [ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_death_01.png" id="d1"]
 [ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_death_02.png" id="d2"]
 [ext_resource type="Texture2D" path="res://art/bosses/forest_guardian_death_03.png" id="d3"]
@@ -16,6 +20,23 @@ radius = 16.0
 
 [sub_resource type="SpriteFrames" id="SpriteFrames1"]
 animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("a1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("a2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("a3")
+}, {
+"duration": 1.0,
+"texture": ExtResource("a4")
+}],
+"loop": false,
+"name": &"attack",
+"speed": 10.0
+}, {
 "frames": [{
 "duration": 1.0,
 "texture": ExtResource("d1")

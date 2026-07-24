@@ -33,6 +33,7 @@ const SHEETS := [
 		"mode": "grid",
 		"cols": 8,  # attack/death rows have wide slash + disintegration VFX that touch
 		"rows": {3: "fallen_knight_attack", 4: "fallen_knight_death"},
+		"skip": true,
 	},
 	{
 		"src": "D:/WORK/PROJECT/GODOT/image/Dark Ranger Commander.png",
@@ -41,10 +42,19 @@ const SHEETS := [
 		"skip": true,
 	},
 	{
+		# (2026-07-24) Re-run for the ATTACK row only. Gap detection produced 3
+		# frames from a 4-frame row: this boss's attack is a ground burst whose
+		# purple/green shards spray wide enough to touch the neighbouring frame,
+		# so two poses merged into one cut and the survivors carried slivers of
+		# their neighbours. Same failure the Knight's slash trail and the Demon
+		# Beast's tail/horns caused, and the same fix -- declare the columns.
+		# Death/idle/walk were extracted fine by gap detection and are left as
+		# they are; re-cutting them with cols would change frames that already
+		# ship correctly.
 		"src": "D:/WORK/PROJECT/GODOT/image/Corrupted Forest Guardian.png",
 		"mode": "plain",
-		"rows": {3: "forest_guardian_death"},
-		"skip": true,
+		"rows": {2: "forest_guardian_attack"},
+		"cols": 4,
 	},
 	{
 		"src": "D:/WORK/PROJECT/GODOT/image/Demon Beast.png",

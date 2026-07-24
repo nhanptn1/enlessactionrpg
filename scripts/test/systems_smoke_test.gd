@@ -1083,10 +1083,15 @@ func _assert_bosses_have_own_art() -> void:
 		if frames.has_animation(&"death"):
 			_expect(not frames.get_animation_loop(&"death"), "%s's death animation must not loop, or it would never free" % boss_name)
 			_expect(frames.get_frame_count(&"death") >= 4, "%s's death should be a real sequence" % boss_name)
-		# Attack is optional (the Guardian's row is unusable), but where present
-		# it must also not loop -- it plays across a fixed telegraph window.
+		# (2026-07-24) Attack used to be optional here, because the Guardian's row
+		# merged two poses into one cut and it shipped without one. That row has
+		# since been re-extracted with a declared column count, so all four bosses
+		# have a real attack and this is now required -- a boss silently falling
+		# back to the frozen-frame telegraph is the regression worth catching.
+		_expect(frames.has_animation(&"attack"), "%s needs an attack animation" % boss_name)
 		if frames.has_animation(&"attack"):
 			_expect(not frames.get_animation_loop(&"attack"), "%s's attack animation must not loop" % boss_name)
+			_expect(frames.get_frame_count(&"attack") >= 4, "%s's attack should be a real sequence" % boss_name)
 		# `move` is the resting state and MUST loop.
 		_expect(frames.get_animation_loop(&"move"), "%s's move animation must loop" % boss_name)
 		inst2.free()
